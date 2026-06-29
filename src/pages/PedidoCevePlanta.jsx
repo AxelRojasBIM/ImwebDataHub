@@ -100,30 +100,37 @@ export default function PedidoCevePlanta() {
     if (!rows.length) return
     setSaving(true)
     setSaveResult(null)
+
+    const batchId = crypto.randomUUID()
+    const mapped = rows.map(r => ({
+      cod_ceve:    r.Cod_ceve,
+      item:        r.Item,
+      cantidad:    parseFloat(r.Cantidad) || 0,
+      fecha_orden: r.Fecha_Orden,
+      fecha_venta: r.Fecha_Venta,
+    }))
+
+    const CHUNK = 10_000
+    let saved = 0
     try {
-      const payload = {
-        batchId: crypto.randomUUID(),
-        rows: rows.map(r => ({
-          cod_ceve:    r.Cod_ceve,
-          item:        r.Item,
-          cantidad:    parseFloat(r.Cantidad) || 0,
-          fecha_orden: r.Fecha_Orden,
-          fecha_venta: r.Fecha_Venta,
-        }))
+      for (let i = 0; i < mapped.length; i += CHUNK) {
+        const chunk = mapped.slice(i, i + CHUNK)
+        const res = await fetch(`${API}/api/pedidos/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batchId, rows: chunk }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.detail || data.error || data.title || `HTTP ${res.status}`)
+        }
+        const data = await res.json()
+        saved += data.saved ?? chunk.length
+        setSaveResult({ ok: true, msg: `Guardando... ${saved.toLocaleString()} / ${rows.length.toLocaleString()} filas` })
       }
-      const res = await fetch(`${API}/api/pedidos/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setSaveResult({ ok: true, msg: data.message })
-        setFile(null); setRows([])
-        await loadBatches()
-      } else {
-        setSaveResult({ ok: false, msg: data.error || 'Error al guardar.' })
-      }
+      setSaveResult({ ok: true, msg: `✓ ${saved.toLocaleString()} filas guardadas correctamente.` })
+      setFile(null); setRows([])
+      await loadBatches()
     } catch (e) {
       setSaveResult({ ok: false, msg: e.message })
     } finally {
