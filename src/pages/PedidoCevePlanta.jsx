@@ -4,6 +4,18 @@ const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.n
 const COLS = ['Cod_ceve', 'Item', 'Cantidad', 'Fecha_Orden', 'Fecha_Venta']
 const TEMPLATE = 'Cod_ceve,Item,Cantidad,Fecha_Orden,Fecha_Venta\n1001,ABC123,50,2026-06-29,2026-06-30\n'
 
+function toISODate(val) {
+  if (!val) return ''
+  val = val.trim()
+  // DD/MM/YYYY → YYYY-MM-DD
+  const ddmm = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (ddmm) return `${ddmm[3]}-${ddmm[2].padStart(2,'0')}-${ddmm[1].padStart(2,'0')}`
+  // DD-MM-YYYY → YYYY-MM-DD
+  const ddmmDash = val.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/)
+  if (ddmmDash) return `${ddmmDash[3]}-${ddmmDash[2].padStart(2,'0')}-${ddmmDash[1].padStart(2,'0')}`
+  return val // ya viene en YYYY-MM-DD u otro formato
+}
+
 function parseCSV(text) {
   const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim())
   if (lines.length < 2) return { rows: [], error: 'El archivo está vacío.' }
@@ -12,7 +24,10 @@ function parseCSV(text) {
   if (missing.length) return { rows: [], error: `Columnas faltantes: ${missing.join(', ')}` }
   const rows = lines.slice(1).map(line => {
     const vals = line.split(',')
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i]?.trim() ?? '']))
+    const obj = Object.fromEntries(headers.map((h, i) => [h, vals[i]?.trim() ?? '']))
+    obj.Fecha_Orden = toISODate(obj.Fecha_Orden)
+    obj.Fecha_Venta = toISODate(obj.Fecha_Venta)
+    return obj
   })
   return { rows, error: null }
 }
