@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
 const COLS = ['Cod_ceve', 'Item', 'Cantidad', 'Fecha_Orden', 'Fecha_Venta']
+const COL_ALIASES = { 'Cliente': 'Cod_ceve' }
 const TEMPLATE = 'Cod_ceve,Item,Cantidad,Fecha_Orden,Fecha_Venta\n1001,ABC123,50,2026-06-29,2026-06-30\n'
 
 function toISODate(val) {
@@ -19,7 +20,8 @@ function toISODate(val) {
 function parseCSV(text) {
   const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim())
   if (lines.length < 2) return { rows: [], error: 'El archivo está vacío.' }
-  const headers = lines[0].split(',').map(h => h.trim())
+  const rawHeaders = lines[0].split(',').map(h => h.trim())
+  const headers = rawHeaders.map(h => COL_ALIASES[h] ?? h)
   const missing = COLS.filter(c => !headers.includes(c))
   if (missing.length) return { rows: [], error: `Columnas faltantes: ${missing.join(', ')}` }
   const rows = lines.slice(1).map(line => {
