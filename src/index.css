@@ -1,20 +1,21 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #f5f5f4;
-  --surface: #ffffff;
-  --surface-2: #f9f9f8;
-  --border: #e5e5e3;
-  --border-strong: #d4d4d2;
-  --text: #1c1c1a;
-  --text-2: #6b6b68;
-  --text-3: #9b9b97;
-  --accent: #185FA5;
-  --accent-bg: #E6F1FB;
-  --accent-text: #0c447c;
-  --success-bg: #EAF3DE;
-  --success-text: #3B6D11;
-  --radius: 8px;
+  --bg:           #f0f2f5;
+  --surface:      #ffffff;
+  --surface-2:    #f7f8fa;
+  --border:       #e2e5ea;
+  --border-strong:#c8cdd6;
+  --text:         #111827;
+  --text-2:       #4b5563;
+  --text-3:       #9ca3af;
+  --accent:       #1a56db;
+  --accent-dark:  #1344b0;
+  --accent-bg:    #eff4ff;
+  --accent-text:  #1e40af;
+  --success-bg:   #ecfdf5;
+  --success-text: #065f46;
+  --radius:       8px;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   color: var(--text);
@@ -30,10 +31,11 @@ button { font-family: inherit; cursor: pointer; }
 input, select { font-family: inherit; }
 
 table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; padding: 8px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
-th { font-weight: 500; color: var(--text-2); background: var(--surface-2); position: sticky; top: 0; z-index: 1; }
-tr:hover td { background: #fafaf9; }
+th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; color: var(--text-3); background: var(--surface-2); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
+td { text-align: left; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: #f8f9ff; color: var(--text); }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
