@@ -216,19 +216,19 @@ export default function PedidoCevePlanta() {
             onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
             onDragOver={e => e.preventDefault()}
             onClick={() => inputRef.current.click()}
-            style={{ border: '2px dashed var(--border-strong)', borderRadius: 12, padding: '28px 20px', textAlign: 'center', cursor: 'pointer', background: 'var(--surface)', marginBottom: 16 }}
+            style={{ border: '2px dashed #93b4fd', borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', background: '#f0f4ff', marginBottom: 20, transition: 'background 0.15s' }}
           >
-            <div style={{ fontSize: 22, marginBottom: 6 }}>↑</div>
-            <div style={{ fontSize: 13, color: 'var(--text-2)' }}>Arrastra un CSV aquí o haz clic para seleccionarlo</div>
-            <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>Formato: {COLS.join(', ')}</div>
+            <div style={{ fontSize: 28, marginBottom: 8, color: '#1a56db' }}>↑</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>Arrastra un CSV aquí o haz clic para seleccionarlo</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 5 }}>Formato: {COLS.join(', ')}</div>
           </div>
         )}
 
         {/* Historial de cargas */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ fontWeight: 500, fontSize: 14 }}>Historial de cargas</span>
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{batches.length} cargas</span>
+            <span style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>Historial de cargas</span>
+            <span style={{ fontSize: 12, color: '#6b7280', background: '#f3f4f6', padding: '2px 8px', borderRadius: 10, fontWeight: 500 }}>{batches.length} cargas</span>
           </div>
           <button className="btn" onClick={loadBatches}>↻ Actualizar</button>
         </div>
@@ -257,9 +257,9 @@ export default function PedidoCevePlanta() {
                   <td style={{ fontSize: 12, color: 'var(--text-3)' }}>{fmtDateTime(b.cargadoEn)}</td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button className="btn" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => handleView(b)}>Ver</button>
-                      <button className="btn" style={{ fontSize: 12, padding: '4px 10px', color: '#185FA5' }} onClick={() => handleDownloadBatch(b)}>↓ CSV</button>
-                      <button className="btn" style={{ fontSize: 12, padding: '4px 10px', color: '#a32d2d', borderColor: '#f09595' }} onClick={() => handleDelete(b.batchId)}>Eliminar</button>
+                      <button className="btn" style={{ fontSize: 12, padding: '4px 12px', fontWeight: 500 }} onClick={() => handleView(b)}>Ver</button>
+                      <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#1a56db', borderColor: '#93b4fd', background: '#eff4ff', fontWeight: 600 }} onClick={() => handleDownloadBatch(b)}>↓ CSV</button>
+                      <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#991b1b', borderColor: '#fca5a5', background: '#fef2f2', fontWeight: 600 }} onClick={() => handleDelete(b.batchId)}>Eliminar</button>
                     </div>
                   </td>
                 </tr>
