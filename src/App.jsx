@@ -4,6 +4,7 @@ import CatalogoCupos from './pages/CatalogoCupos'
 import Remisiones from './pages/Remisiones'
 import Productos from './pages/Productos'
 import SubirArchivo from './pages/SubirArchivo'
+import PedidoCevePlanta from './pages/PedidoCevePlanta'
 import './App.css'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
@@ -26,6 +27,12 @@ const nav = [
     section: 'Carga manual',
     items: [
       { to: '/subir', label: 'Subir Excel / CSV', icon: '↑', badge: 'Nuevo', badgeType: 'new' },
+    ]
+  },
+  {
+    section: 'Cargas masivas',
+    items: [
+      { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: '⊞', badgeType: 'new', badge: 'Nuevo' },
     ]
   },
 ]
@@ -78,6 +85,7 @@ export default function App() {
           <Route path="/remisiones" element={<Remisiones />} />
           <Route path="/productos" element={<Productos />} />
           <Route path="/subir" element={<SubirArchivo />} />
+          <Route path="/pedido-ceve-planta" element={<PedidoCevePlanta />} />
         </Routes>
       </main>
     </div>
