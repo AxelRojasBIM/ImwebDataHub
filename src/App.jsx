@@ -44,7 +44,7 @@ const nav = [
     items: [
       { to: '/catalogos/ceves',      label: 'CEVEs',      icon: '◈' },
       { to: '/catalogos/productos',  label: 'Productos HubPedidos',  icon: '◉' },
-      { to: '/catalogos/metas',      label: 'Metas',      icon: '◎' },
+      { to: '/catalogos/metas',      label: 'Frecuencias Producto CeVes', icon: '◎' },
       { to: '/catalogos/calendario', label: 'Calendario', icon: '▦' },
     ]
   },
