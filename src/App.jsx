@@ -5,6 +5,10 @@ import Remisiones from './pages/Remisiones'
 import Productos from './pages/Productos'
 import SubirArchivo from './pages/SubirArchivo'
 import PedidoCevePlanta from './pages/PedidoCevePlanta'
+import CatalogoCeves from './pages/catalogos/CatalogoCeves'
+import CatalogoProductos from './pages/catalogos/CatalogoProductos'
+import CatalogoMetas from './pages/catalogos/CatalogoMetas'
+import CatalogoCalendario from './pages/catalogos/CatalogoCalendario'
 import './App.css'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
@@ -33,6 +37,15 @@ const nav = [
     section: 'Cargas masivas',
     items: [
       { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: '⊞', badgeType: 'new', badge: 'Nuevo' },
+    ]
+  },
+  {
+    section: 'Catálogos',
+    items: [
+      { to: '/catalogos/ceves',      label: 'CEVEs',      icon: '◈' },
+      { to: '/catalogos/productos',  label: 'Productos',  icon: '◉' },
+      { to: '/catalogos/metas',      label: 'Metas',      icon: '◎' },
+      { to: '/catalogos/calendario', label: 'Calendario', icon: '▦' },
     ]
   },
 ]
@@ -86,6 +99,10 @@ export default function App() {
           <Route path="/productos" element={<Productos />} />
           <Route path="/subir" element={<SubirArchivo />} />
           <Route path="/pedido-ceve-planta" element={<PedidoCevePlanta />} />
+          <Route path="/catalogos/ceves"      element={<CatalogoCeves />} />
+          <Route path="/catalogos/productos"  element={<CatalogoProductos />} />
+          <Route path="/catalogos/metas"      element={<CatalogoMetas />} />
+          <Route path="/catalogos/calendario" element={<CatalogoCalendario />} />
         </Routes>
       </main>
     </div>
