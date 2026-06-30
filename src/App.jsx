@@ -5,6 +5,7 @@ import Remisiones from './pages/Remisiones'
 import Productos from './pages/Productos'
 import SubirArchivo from './pages/SubirArchivo'
 import PedidoCevePlanta from './pages/PedidoCevePlanta'
+import FillRate from './pages/FillRate'
 import CatalogoCeves from './pages/catalogos/CatalogoCeves'
 import CatalogoProductos from './pages/catalogos/CatalogoProductos'
 import CatalogoMetas from './pages/catalogos/CatalogoMetas'
@@ -22,7 +23,7 @@ const nav = [
   {
     section: 'Ejecución Proceso',
     items: [
-      { to: '/cupos', label: 'Fill Rate Planta/Cedis a CeVe', icon: '▣' },
+      { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: '▣' },
     ]
   },
   {
@@ -97,6 +98,7 @@ export default function App() {
           <Route path="/productos" element={<Productos />} />
           <Route path="/subir" element={<SubirArchivo />} />
           <Route path="/pedido-ceve-planta" element={<PedidoCevePlanta />} />
+          <Route path="/fill-rate"            element={<FillRate />} />
           <Route path="/catalogos/ceves"      element={<CatalogoCeves />} />
           <Route path="/catalogos/productos"  element={<CatalogoProductos />} />
           <Route path="/catalogos/metas"      element={<CatalogoMetas />} />
