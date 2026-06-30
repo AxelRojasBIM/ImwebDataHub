@@ -3,257 +3,340 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
 const PAGE_SIZE = 100
 
-function fmtDT(val) {
-  if (!val) return '—'
-  const s = String(val).slice(0, 19).replace('T', ' ')
-  return s
-}
+const DIAS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']
+const DIAS_KEYS = ['lun','mar','mie','jue','vie','sab','dom']
 
-function dayDot(val) {
-  const v = val === true || val === 'true' || val === 1
+function fmtDT(val) { return val ? String(val).slice(0,19).replace('T',' ') : '—' }
+
+function DayDot({ val }) {
+  const on = val === 1 || val === true || val === '1' || val === 'true'
   return (
     <span style={{
-      display: 'inline-block', width: 18, height: 18, borderRadius: '50%', lineHeight: '18px',
-      textAlign: 'center', fontSize: 10, fontWeight: 700,
-      background: v ? '#1a56db' : '#e5e7eb',
-      color: v ? '#fff' : '#9ca3af'
-    }}>
-      {v ? '✓' : ''}
-    </span>
+      display:'inline-flex', alignItems:'center', justifyContent:'center',
+      width:22, height:22, borderRadius:'50%', fontSize:11, fontWeight:700,
+      background: on ? '#1a56db' : '#e5e7eb',
+      color: on ? '#fff' : '#9ca3af',
+    }}>{on ? '✓' : ''}</span>
   )
 }
 
-// ── Imweb tab ────────────────────────────────────────────────────────────────
-function TabImweb() {
-  const [data, setData]         = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
-  const [page, setPage]         = useState(1)
-  const [search, setSearch]     = useState('')
-  const [inputVal, setInputVal] = useState('')
-  const timer = useRef(null)
-
-  const load = useCallback(async (p, s) => {
-    setLoading(true); setError(null)
-    try {
-      const params = new URLSearchParams({ page: p, pageSize: PAGE_SIZE, ...(s ? { search: s } : {}) })
-      const r = await fetch(`${API}/api/frecuencias/imweb?${params}`)
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      setData(await r.json())
-    } catch (e) { setError(e.message) }
-    finally { setLoading(false) }
-  }, [])
-
-  useEffect(() => { load(page, search) }, [page, search, load])
-
-  const handleSearch = (val) => {
-    setInputVal(val)
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => { setPage(1); setSearch(val) }, 400)
-  }
-
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1
-
-  // alerta de última actualización
-  const lastUpdated = data?.lastUpdated
-  const lastDate    = lastUpdated ? new Date(lastUpdated) : null
-  const hoursAgo    = lastDate ? Math.floor((Date.now() - lastDate.getTime()) / 3_600_000) : null
-  const alertColor  = hoursAgo == null ? null : hoursAgo > 72 ? '#fef2f2' : hoursAgo > 24 ? '#fffbeb' : '#ecfdf5'
-  const alertBorder = hoursAgo == null ? null : hoursAgo > 72 ? '#fca5a5' : hoursAgo > 24 ? '#fcd34d' : '#6ee7b7'
-  const alertText   = hoursAgo == null ? null : hoursAgo > 72 ? '#991b1b' : hoursAgo > 24 ? '#92400e' : '#065f46'
-
+function AlertaBanner({ lastUpdated, label }) {
+  if (!lastUpdated) return null
+  const d = new Date(lastUpdated)
+  const h = Math.floor((Date.now() - d.getTime()) / 3_600_000)
+  const bg = h > 72 ? '#fef2f2' : h > 24 ? '#fffbeb' : '#ecfdf5'
+  const bd = h > 72 ? '#fca5a5' : h > 24 ? '#fcd34d' : '#6ee7b7'
+  const tx = h > 72 ? '#991b1b' : h > 24 ? '#92400e' : '#065f46'
   return (
-    <div>
-      {lastDate && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 8, fontSize: 13,
-          background: alertColor, border: `1px solid ${alertBorder}`, color: alertText, marginBottom: 14 }}>
-          <span style={{ fontWeight: 700 }}>⏱ Última sincronización Imweb:</span>
-          <span>{fmtDT(lastUpdated)}</span>
-          {hoursAgo != null && <span style={{ opacity: 0.75 }}>({hoursAgo < 1 ? 'hace menos de 1h' : `hace ${hoursAgo}h`})</span>}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
-        <input
-          value={inputVal}
-          onChange={e => handleSearch(e.target.value)}
-          placeholder="Buscar CeVe, Item o Producto..."
-          style={{ flex: 1, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, outline: 'none' }}
-        />
-        {data && <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>{data.total.toLocaleString()} registros</span>}
-      </div>
-
-      <div className="table-wrap" style={{ maxHeight: 480, overflowY: 'auto' }}>
-        <table>
-          <thead>
-            <tr>
-              <th>CeVe</th>
-              <th>Item</th>
-              <th>Producto</th>
-              <th style={{ textAlign: 'right' }}>Cupo</th>
-              <th style={{ textAlign: 'center' }}>Lun</th>
-              <th style={{ textAlign: 'center' }}>Mar</th>
-              <th style={{ textAlign: 'center' }}>Mie</th>
-              <th style={{ textAlign: 'center' }}>Jue</th>
-              <th style={{ textAlign: 'center' }}>Vie</th>
-              <th style={{ textAlign: 'center' }}>Sab</th>
-              <th>Nv. Servicio</th>
-              <th>Actualizado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={12} className="loading">Cargando...</td></tr>
-            ) : error ? (
-              <tr><td colSpan={12} style={{ textAlign: 'center', color: '#991b1b', padding: 20 }}>{error}</td></tr>
-            ) : data?.rows.length === 0 ? (
-              <tr><td colSpan={12} className="empty">Sin resultados.</td></tr>
-            ) : data?.rows.map((r, i) => (
-              <tr key={i}>
-                <td style={{ fontWeight: 500 }}>{r.ceve}</td>
-                <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.item}</td>
-                <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.producto}</td>
-                <td style={{ textAlign: 'right' }}>{r.cupo}</td>
-                <td style={{ textAlign: 'center' }}>{r.lun || '—'}</td>
-                <td style={{ textAlign: 'center' }}>{r.mar || '—'}</td>
-                <td style={{ textAlign: 'center' }}>{r.mie || '—'}</td>
-                <td style={{ textAlign: 'center' }}>{r.jue || '—'}</td>
-                <td style={{ textAlign: 'center' }}>{r.vie || '—'}</td>
-                <td style={{ textAlign: 'center' }}>{r.sab || '—'}</td>
-                <td>{r.nvServicio}</td>
-                <td style={{ fontSize: 11, color: '#6b7280' }}>{fmtDT(r.actualizadoEn)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
-          <button className="btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹ Anterior</button>
-          <span style={{ fontSize: 13, color: '#6b7280', lineHeight: '30px' }}>Pág {page} / {totalPages}</span>
-          <button className="btn" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Siguiente ›</button>
-        </div>
-      )}
+    <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 14px', borderRadius:8,
+      fontSize:13, background:bg, border:`1px solid ${bd}`, color:tx, marginBottom:14 }}>
+      <span style={{fontWeight:700}}>⏱ {label}:</span>
+      <span>{fmtDT(lastUpdated)}</span>
+      <span style={{opacity:0.7}}>({h < 1 ? 'hace menos de 1h' : `hace ${h}h`})</span>
     </div>
   )
 }
 
-// ── Hub Pedidos tab ──────────────────────────────────────────────────────────
-const DAYS_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
-const DAY_KEYS = ['transportSunday','transportMonday','transportTuesday','transportWednesday','transportThursday','transportFriday','transportSaturday']
+function SearchBar({ value, onChange, placeholder, extra }) {
+  return (
+    <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center' }}>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ flex:1, padding:'7px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:13, outline:'none' }} />
+      {extra}
+    </div>
+  )
+}
 
-function TabHub() {
-  const [data, setData]         = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
-  const [page, setPage]         = useState(1)
-  const [search, setSearch]     = useState('')
-  const [inputVal, setInputVal] = useState('')
+function Pager({ page, total, onPage }) {
+  const pages = Math.ceil(total / PAGE_SIZE)
+  if (pages <= 1) return null
+  return (
+    <div style={{ display:'flex', justifyContent:'center', gap:8, marginTop:12 }}>
+      <button className="btn" disabled={page===1} onClick={() => onPage(page-1)}>‹ Anterior</button>
+      <span style={{ fontSize:13, color:'#6b7280', lineHeight:'30px' }}>Pág {page} / {pages}</span>
+      <button className="btn" disabled={page===pages} onClick={() => onPage(page+1)}>Siguiente ›</button>
+    </div>
+  )
+}
+
+// ── Tab Imweb ────────────────────────────────────────────────────────────────
+function TabImweb() {
+  const [data, setData]   = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [page, setPage]   = useState(1)
+  const [search, setSearch] = useState('')
+  const [input, setInput] = useState('')
   const timer = useRef(null)
 
   const load = useCallback(async (p, s) => {
-    setLoading(true); setError(null)
+    setLoading(true)
     try {
-      const params = new URLSearchParams({ page: p, pageSize: PAGE_SIZE, ...(s ? { search: s } : {}) })
-      const r = await fetch(`${API}/api/frecuencias/hub?${params}`)
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      setData(await r.json())
-    } catch (e) { setError(e.message) }
+      const params = new URLSearchParams({ page:p, pageSize:PAGE_SIZE, ...(s ? {search:s} : {}) })
+      const r = await fetch(`${API}/api/frecuencias/imweb?${params}`)
+      setData(r.ok ? await r.json() : null)
+    } catch {}
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load(page, search) }, [page, search, load])
 
-  const handleSearch = (val) => {
-    setInputVal(val)
+  const handleSearch = v => {
+    setInput(v)
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => { setPage(1); setSearch(val) }, 400)
+    timer.current = setTimeout(() => { setPage(1); setSearch(v) }, 400)
   }
-
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1
-
-  const lastUpdated = data?.lastUpdated
-  const lastDate    = lastUpdated ? new Date(lastUpdated) : null
-  const hoursAgo    = lastDate ? Math.floor((Date.now() - lastDate.getTime()) / 3_600_000) : null
-  const alertColor  = hoursAgo == null ? null : hoursAgo > 72 ? '#fef2f2' : hoursAgo > 24 ? '#fffbeb' : '#ecfdf5'
-  const alertBorder = hoursAgo == null ? null : hoursAgo > 72 ? '#fca5a5' : hoursAgo > 24 ? '#fcd34d' : '#6ee7b7'
-  const alertText   = hoursAgo == null ? null : hoursAgo > 72 ? '#991b1b' : hoursAgo > 24 ? '#92400e' : '#065f46'
 
   return (
     <div>
-      {lastDate && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 8, fontSize: 13,
-          background: alertColor, border: `1px solid ${alertBorder}`, color: alertText, marginBottom: 14 }}>
-          <span style={{ fontWeight: 700 }}>⏱ Última actualización HubPedidos:</span>
-          <span>{fmtDT(lastUpdated)}</span>
-          {hoursAgo != null && <span style={{ opacity: 0.75 }}>({hoursAgo < 1 ? 'hace menos de 1h' : `hace ${hoursAgo}h`})</span>}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
-        <input
-          value={inputVal}
-          onChange={e => handleSearch(e.target.value)}
-          placeholder="Buscar CeVe, ItemCode o Producto..."
-          style={{ flex: 1, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, outline: 'none' }}
-        />
-        {data && <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>{data.total.toLocaleString()} registros</span>}
-      </div>
-
-      <div className="table-wrap" style={{ maxHeight: 480, overflowY: 'auto', overflowX: 'auto' }}>
+      <AlertaBanner lastUpdated={data?.lastUpdated} label="Última sincronización Imweb" />
+      <SearchBar value={input} onChange={handleSearch} placeholder="Buscar CeVe, Item o Producto..."
+        extra={data && <span style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap'}}>{data.total.toLocaleString()} registros</span>} />
+      <div className="table-wrap" style={{maxHeight:440,overflowY:'auto'}}>
         <table>
-          <thead>
-            <tr>
-              <th>Org</th>
-              <th style={{ textAlign: 'right' }}>CeVe</th>
-              <th>Item</th>
-              <th>Producto</th>
-              <th>Almacén</th>
-              <th>Frec. Transporte</th>
-              {DAYS_ES.map(d => <th key={d} style={{ textAlign: 'center', minWidth: 36 }}>{d}</th>)}
-              <th style={{ textAlign: 'right' }}>Frec</th>
-              <th style={{ textAlign: 'center' }}>Activo</th>
-              <th>Actualizado</th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th>CeVe</th><th>Item</th><th>Producto</th><th style={{textAlign:'right'}}>Cupo</th>
+            {['Lun','Mar','Mié','Jue','Vie','Sáb'].map(d => <th key={d} style={{textAlign:'center'}}>{d}</th>)}
+            <th>Actualizado</th>
+          </tr></thead>
           <tbody>
-            {loading ? (
-              <tr><td colSpan={14} className="loading">Cargando...</td></tr>
-            ) : error ? (
-              <tr><td colSpan={14} style={{ textAlign: 'center', color: '#991b1b', padding: 20 }}>{error}</td></tr>
-            ) : data?.rows.length === 0 ? (
-              <tr><td colSpan={14} className="empty">Sin resultados.</td></tr>
-            ) : data?.rows.map((r, i) => (
+            {loading ? <tr><td colSpan={11} className="loading">Cargando...</td></tr>
+            : !data?.rows?.length ? <tr><td colSpan={11} className="empty">Sin resultados.</td></tr>
+            : data.rows.map((r,i) => (
               <tr key={i}>
-                <td style={{ fontSize: 11 }}>{r.orgCode}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.salecenterCode}</td>
-                <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.itemCode}</td>
-                <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.longName}</td>
-                <td>{r.warehouseCode}</td>
-                <td style={{ fontSize: 12 }}>{r.transportFrequencySummary}</td>
-                {DAY_KEYS.map(k => <td key={k} style={{ textAlign: 'center' }}>{dayDot(r[k])}</td>)}
-                <td style={{ textAlign: 'right' }}>{r.transportFrequency}</td>
-                <td style={{ textAlign: 'center' }}>{r.active === true || r.active === 'true' || r.active === 1 ? '✓' : '—'}</td>
-                <td style={{ fontSize: 11, color: '#6b7280' }}>{fmtDT(r.actualizadoAt)}</td>
+                <td style={{fontWeight:500}}>{r.ceve}</td>
+                <td style={{fontFamily:'monospace',fontSize:12}}>{r.item}</td>
+                <td style={{maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.producto}</td>
+                <td style={{textAlign:'right'}}>{r.cupo}</td>
+                {['lun','mar','mie','jue','vie','sab'].map(k => <td key={k} style={{textAlign:'center'}}><DayDot val={r[k]} /></td>)}
+                <td style={{fontSize:11,color:'#6b7280'}}>{fmtDT(r.actualizadoEn)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <Pager page={page} total={data?.total ?? 0} onPage={setPage} />
+    </div>
+  )
+}
 
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
-          <button className="btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹ Anterior</button>
-          <span style={{ fontSize: 13, color: '#6b7280', lineHeight: '30px' }}>Pág {page} / {totalPages}</span>
-          <button className="btn" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Siguiente ›</button>
+// ── Tab Hub Pedidos ──────────────────────────────────────────────────────────
+function TabHub() {
+  const [data, setData]   = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [page, setPage]   = useState(1)
+  const [search, setSearch] = useState('')
+  const [input, setInput] = useState('')
+  const timer = useRef(null)
+
+  const load = useCallback(async (p, s) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page:p, pageSize:PAGE_SIZE, ...(s ? {search:s} : {}) })
+      const r = await fetch(`${API}/api/frecuencias/hub?${params}`)
+      setData(r.ok ? await r.json() : null)
+    } catch {}
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load(page, search) }, [page, search, load])
+
+  const handleSearch = v => {
+    setInput(v)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => { setPage(1); setSearch(v) }, 400)
+  }
+
+  const DAY_KEYS_HUB = ['transportMonday','transportTuesday','transportWednesday','transportThursday','transportFriday','transportSaturday','transportSunday']
+
+  return (
+    <div>
+      <AlertaBanner lastUpdated={data?.lastUpdated} label="Última actualización HubPedidos" />
+      <SearchBar value={input} onChange={handleSearch} placeholder="Buscar CeVe, Item o Producto..."
+        extra={data && <span style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap'}}>{data.total.toLocaleString()} registros</span>} />
+      <div className="table-wrap" style={{maxHeight:440,overflowY:'auto',overflowX:'auto'}}>
+        <table>
+          <thead><tr>
+            <th>Org</th><th style={{textAlign:'right'}}>CeVe</th><th>Item</th><th>Producto</th><th>Almacén</th><th>Frec.</th>
+            {DIAS.map(d => <th key={d} style={{textAlign:'center',minWidth:34}}>{d}</th>)}
+            <th style={{textAlign:'center'}}>Activo</th>
+          </tr></thead>
+          <tbody>
+            {loading ? <tr><td colSpan={14} className="loading">Cargando...</td></tr>
+            : !data?.rows?.length ? <tr><td colSpan={14} className="empty">Sin resultados.</td></tr>
+            : data.rows.map((r,i) => (
+              <tr key={i}>
+                <td style={{fontSize:11}}>{r.orgCode}</td>
+                <td style={{textAlign:'right',fontWeight:600}}>{r.salecenterCode}</td>
+                <td style={{fontFamily:'monospace',fontSize:12}}>{r.itemCode}</td>
+                <td style={{maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.longName}</td>
+                <td>{r.warehouseCode}</td>
+                <td style={{fontSize:12}}>{r.transportFrequencySummary}</td>
+                {DAY_KEYS_HUB.map(k => <td key={k} style={{textAlign:'center'}}><DayDot val={r[k]} /></td>)}
+                <td style={{textAlign:'center',color: (r.active===true||r.active===1) ? '#065f46' : '#9ca3af'}}>
+                  {(r.active===true||r.active===1) ? '✓' : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Pager page={page} total={data?.total ?? 0} onPage={setPage} />
+    </div>
+  )
+}
+
+// ── Tab Consolidado ──────────────────────────────────────────────────────────
+function TabConsolidado() {
+  const [data, setData]       = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState(false)
+  const [runResult, setRunResult] = useState(null)
+  const [page, setPage]       = useState(1)
+  const [search, setSearch]   = useState('')
+  const [input, setInput]     = useState('')
+  const [origen, setOrigen]   = useState('')
+  const timer = useRef(null)
+
+  const load = useCallback(async (p, s, o) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page:p, pageSize:PAGE_SIZE, ...(s?{search:s}:{}), ...(o?{origen:o}:{}) })
+      const r = await fetch(`${API}/api/frecuencias/consolidado?${params}`)
+      setData(r.ok ? await r.json() : null)
+    } catch {}
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load(page, search, origen) }, [page, search, origen, load])
+
+  const handleSearch = v => {
+    setInput(v)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => { setPage(1); setSearch(v) }, 400)
+  }
+
+  const handleConsolidar = async () => {
+    if (!confirm('¿Ejecutar consolidación? Esto reemplaza el catálogo actual con datos frescos de Imweb y HubPedidos.')) return
+    setRunning(true); setRunResult(null)
+    try {
+      const r = await fetch(`${API}/api/frecuencias/consolidar`, { method:'POST' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
+      setRunResult({ ok:true, d })
+      setPage(1)
+      await load(1, search, origen)
+    } catch (e) {
+      setRunResult({ ok:false, msg: e.message })
+    } finally { setRunning(false) }
+  }
+
+  const meta = data?.meta
+
+  return (
+    <div>
+      {/* Botón ejecutar */}
+      <div style={{ background:'#f0f4ff', border:'1px solid #93b4fd', borderRadius:12, padding:'14px 18px',
+        display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+        <div>
+          <div style={{fontWeight:700, fontSize:14, color:'#1e3a8a'}}>Catálogo consolidado Frecuencias Producto CeVes</div>
+          <div style={{fontSize:12, color:'#4b5563', marginTop:3}}>
+            Regla: si el par CeVe + Item existe en <strong>Hub Pedidos</strong>, prevalece Hub; sino se toma de <strong>Imweb</strong>.
+          </div>
+        </div>
+        <button className="btn primary" onClick={handleConsolidar} disabled={running}
+          style={{padding:'9px 20px', fontWeight:700, fontSize:13}}>
+          {running ? '⏳ Ejecutando...' : '▶ Ejecutar consolidación'}
+        </button>
+      </div>
+
+      {runResult && (
+        <div style={{ padding:'10px 14px', borderRadius:8, fontSize:13, marginBottom:14,
+          background: runResult.ok ? '#ecfdf5' : '#fef2f2',
+          color:      runResult.ok ? '#065f46'  : '#991b1b',
+          border:     `1px solid ${runResult.ok ? '#6ee7b7' : '#fca5a5'}` }}>
+          {runResult.ok
+            ? `✓ Consolidación exitosa — ${runResult.d.total?.toLocaleString()} registros (${runResult.d.totalHub?.toLocaleString()} Hub + ${runResult.d.totalImweb?.toLocaleString()} Imweb) · ${fmtDT(runResult.d.fechaEjecucion)}`
+            : `✕ ${runResult.msg}`}
         </div>
       )}
+
+      {meta && (
+        <div style={{ display:'flex', gap:12, marginBottom:14, flexWrap:'wrap' }}>
+          {[
+            { label:'Total registros', val: Number(meta.tot).toLocaleString() },
+            { label:'De Hub Pedidos',  val: Number(meta.hub).toLocaleString(), color:'#1a56db' },
+            { label:'De Imweb',        val: Number(meta.imweb).toLocaleString(), color:'#0f6e56' },
+            { label:'Última ejecución', val: fmtDT(meta.fechaEjecucion) },
+          ].map(m => (
+            <div key={m.label} style={{ background:'var(--surface)', border:'1px solid var(--border)',
+              borderRadius:10, padding:'10px 16px', minWidth:140 }}>
+              <div style={{fontSize:11,color:'#6b7280',marginBottom:3}}>{m.label}</div>
+              <div style={{fontSize:15,fontWeight:700,color: m.color || '#111827'}}>{m.val}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{display:'flex', gap:10, marginBottom:14, alignItems:'center', flexWrap:'wrap'}}>
+        <input value={input} onChange={e => handleSearch(e.target.value)} placeholder="Buscar CeVe o Item..."
+          style={{flex:1,minWidth:180,padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',fontSize:13,outline:'none'}} />
+        <select value={origen} onChange={e => { setOrigen(e.target.value); setPage(1) }}
+          style={{padding:'7px 10px',borderRadius:8,border:'1px solid var(--border)',fontSize:13,background:'var(--surface)',cursor:'pointer'}}>
+          <option value="">Todos los orígenes</option>
+          <option value="HubPedidos">Hub Pedidos</option>
+          <option value="Imweb">Imweb</option>
+        </select>
+        {data && <span style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap'}}>{data.total.toLocaleString()} registros</span>}
+      </div>
+
+      {!meta && !loading && (
+        <div style={{textAlign:'center',padding:'40px 20px',color:'#9ca3af',fontSize:14}}>
+          Sin datos aún. Presiona <strong>Ejecutar consolidación</strong> para generar el catálogo.
+        </div>
+      )}
+
+      {(meta || loading) && (
+        <div className="table-wrap" style={{maxHeight:440,overflowY:'auto'}}>
+          <table>
+            <thead><tr>
+              <th>CeVe</th><th>Item</th>
+              {DIAS.map(d => <th key={d} style={{textAlign:'center',minWidth:34}}>{d}</th>)}
+              <th>Origen</th><th>Ejecución</th>
+            </tr></thead>
+            <tbody>
+              {loading ? <tr><td colSpan={12} className="loading">Cargando...</td></tr>
+              : !data?.rows?.length ? <tr><td colSpan={12} className="empty">Sin resultados.</td></tr>
+              : data.rows.map((r,i) => (
+                <tr key={i}>
+                  <td style={{fontWeight:600}}>{r.cod_ceve}</td>
+                  <td style={{fontFamily:'monospace',fontSize:12}}>{r.item}</td>
+                  {DIAS_KEYS.map(k => <td key={k} style={{textAlign:'center'}}><DayDot val={r[k]} /></td>)}
+                  <td>
+                    <span style={{
+                      fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:10,
+                      background: r.sistemaOrigen==='HubPedidos' ? '#eff4ff' : '#ecfdf5',
+                      color:      r.sistemaOrigen==='HubPedidos' ? '#1a56db' : '#065f46',
+                    }}>{r.sistemaOrigen}</span>
+                  </td>
+                  <td style={{fontSize:11,color:'#6b7280'}}>{fmtDT(r.fechaEjecucion)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <Pager page={page} total={data?.total ?? 0} onPage={p => { setPage(p); load(p, search, origen) }} />
     </div>
   )
 }
 
 // ── Página principal ─────────────────────────────────────────────────────────
+const TABS = [
+  { key:'imweb',       label:'Imweb',       sub:'CatalogoCuposImweb',        icon:'🔷' },
+  { key:'hub',         label:'Hub Pedidos', sub:'FrecuenciaTransportacion',   icon:'🟦' },
+  { key:'consolidado', label:'Consolidado', sub:'FrecuenciasConsolidadas',    icon:'⚡' },
+]
+
 export default function CatalogoMetas() {
   const [tab, setTab] = useState('imweb')
 
@@ -262,35 +345,28 @@ export default function CatalogoMetas() {
       <div className="topbar">
         <div>
           <div className="topbar-title">Frecuencias Producto CeVes</div>
-          <div className="topbar-sub">Consulta de frecuencias por fuente de datos</div>
+          <div className="topbar-sub">Consulta y consolidación de frecuencias por fuente de datos</div>
         </div>
       </div>
 
       <div className="content">
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--border)', marginBottom: 20 }}>
-          {[
-            { key: 'imweb', label: '🔷 Imweb',       sub: 'CatalogoCuposImweb' },
-            { key: 'hub',   label: '🟦 Hub Pedidos',  sub: 'FrecuenciaTransportacion' },
-          ].map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                border: 'none', borderBottom: tab === t.key ? '2px solid #1a56db' : '2px solid transparent',
-                marginBottom: -2, background: 'transparent',
-                color: tab === t.key ? '#1a56db' : '#6b7280',
-                transition: 'color 0.15s',
-              }}
-            >
-              {t.label}
-              <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9ca3af', marginTop: 1 }}>{t.sub}</span>
+        <div style={{ display:'flex', gap:0, borderBottom:'2px solid var(--border)', marginBottom:20 }}>
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              padding:'10px 22px', fontSize:13, fontWeight:600, cursor:'pointer', border:'none',
+              borderBottom: tab===t.key ? '2px solid #1a56db' : '2px solid transparent',
+              marginBottom:-2, background:'transparent',
+              color: tab===t.key ? '#1a56db' : '#6b7280', transition:'color 0.15s',
+            }}>
+              <span style={{marginRight:6}}>{t.icon}</span>{t.label}
+              <span style={{display:'block',fontSize:10,fontWeight:400,color:'#9ca3af',marginTop:1}}>{t.sub}</span>
             </button>
           ))}
         </div>
 
-        {tab === 'imweb' ? <TabImweb /> : <TabHub />}
+        {tab==='imweb'       && <TabImweb />}
+        {tab==='hub'         && <TabHub />}
+        {tab==='consolidado' && <TabConsolidado />}
       </div>
     </>
   )
