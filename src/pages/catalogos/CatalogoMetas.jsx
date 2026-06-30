@@ -220,13 +220,15 @@ function TabConsolidado() {
     setRunning(true); setRunResult(null)
     try {
       const r = await fetch(`${API}/api/frecuencias/consolidar`, { method:'POST' })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
+      const text = await r.text()
+      const d = text ? JSON.parse(text) : {}
+      if (!r.ok) throw new Error(d.detail || d.error || d.title || `HTTP ${r.status}`)
       setRunResult({ ok:true, d })
       setPage(1)
       await load(1, search, origen)
     } catch (e) {
-      setRunResult({ ok:false, msg: e.message })
+      const msg = e.message.includes('JSON') ? 'La API tardó demasiado o no respondió. Intenta de nuevo.' : e.message
+      setRunResult({ ok:false, msg })
     } finally { setRunning(false) }
   }
 
