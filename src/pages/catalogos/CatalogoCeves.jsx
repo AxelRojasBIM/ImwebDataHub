@@ -14,16 +14,35 @@ const TEMPLATE = `Cod_ceve,Nombre_Indicadores_Almacenes_CeVe,Region,Organizacion
 12858,Texmelucan,Sur,Barcel,2001,Oscar Arnulfo Esquivel,oscar.esquivel@grupobimbo.com,Rosario Julieta Zafra,rosario.j.zafra@grupobimbo.com,Axel Fernando Rojas,axel.rojas@grupobimbo.com,Av. Centenario,19.296,-98.474,12405
 `
 
+function splitCSVLine(line) {
+  const fields = []
+  let cur = '', inQ = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++ }
+      else if (ch === '"') inQ = false
+      else cur += ch
+    } else {
+      if (ch === '"') inQ = true
+      else if (ch === ',') { fields.push(cur.trim()); cur = '' }
+      else cur += ch
+    }
+  }
+  fields.push(cur.trim())
+  return fields
+}
+
 function parseCSV(text) {
   const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim())
   if (lines.length < 2) return { rows: [], error: 'El archivo está vacío.' }
-  const rawHeaders = lines[0].split(',').map(h => h.trim())
+  const rawHeaders = splitCSVLine(lines[0]).map(h => h.trim())
   const headers = rawHeaders.map(h => COL_ALIASES[h] ?? h)
   const missing = COLS.filter(c => !headers.includes(c))
   if (missing.length) return { rows: [], error: `Columnas faltantes: ${missing.join(', ')}` }
   const rows = lines.slice(1).map(line => {
-    const vals = line.split(',')
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i]?.trim() ?? '']))
+    const vals = splitCSVLine(line)
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? '']))
   })
   return { rows, error: null }
 }
