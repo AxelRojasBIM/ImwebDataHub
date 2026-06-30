@@ -20,11 +20,9 @@ const nav = [
     items: [{ to: '/', label: 'Inicio', icon: '⊞' }]
   },
   {
-    section: 'Datos existentes',
+    section: 'Ejecución Proceso',
     items: [
-      { to: '/cupos', label: 'Catálogo de cupos', icon: '▣', badge: 'Imweb' },
-      { to: '/remisiones', label: 'Remisiones', icon: '⊡', badge: 'CEQ' },
-      { to: '/productos', label: 'Productos', icon: '◫', badge: 'CEQ' },
+      { to: '/cupos', label: 'Fill Rate Planta/Cedis a CeVe', icon: '▣' },
     ]
   },
   {
