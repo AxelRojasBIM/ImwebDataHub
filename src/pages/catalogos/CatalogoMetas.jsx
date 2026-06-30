@@ -61,36 +61,53 @@ function Pager({ page, total, onPage }) {
 
 // ── Tab Imweb ────────────────────────────────────────────────────────────────
 function TabImweb() {
-  const [data, setData]   = useState(null)
+  const [data, setData]     = useState(null)
   const [loading, setLoading] = useState(true)
-  const [page, setPage]   = useState(1)
-  const [search, setSearch] = useState('')
-  const [input, setInput] = useState('')
-  const timer = useRef(null)
+  const [page, setPage]     = useState(1)
+  const [ceve, setCeve]     = useState('')
+  const [item, setItem]     = useState('')
+  const [ceveInput, setCeveInput] = useState('')
+  const [itemInput, setItemInput] = useState('')
+  const ceveTimer = useRef(null)
+  const itemTimer = useRef(null)
 
-  const load = useCallback(async (p, s) => {
+  const load = useCallback(async (p, c, it) => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page:p, pageSize:PAGE_SIZE, ...(s ? {search:s} : {}) })
+      const params = new URLSearchParams({ page:p, pageSize:PAGE_SIZE })
+      if (c)  params.set('ceve', c)
+      if (it) params.set('item', it)
       const r = await fetch(`${API}/api/frecuencias/imweb?${params}`)
       setData(r.ok ? await r.json() : null)
     } catch {}
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { load(page, search) }, [page, search, load])
+  useEffect(() => { load(page, ceve, item) }, [page, ceve, item, load])
 
-  const handleSearch = v => {
-    setInput(v)
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => { setPage(1); setSearch(v) }, 400)
+  const handleCeve = v => {
+    setCeveInput(v); clearTimeout(ceveTimer.current)
+    ceveTimer.current = setTimeout(() => { setPage(1); setCeve(v) }, 400)
+  }
+  const handleItem = v => {
+    setItemInput(v); clearTimeout(itemTimer.current)
+    itemTimer.current = setTimeout(() => { setPage(1); setItem(v) }, 400)
   }
 
   return (
     <div>
       <AlertaBanner lastUpdated={data?.lastUpdated} label="Última sincronización Imweb" />
-      <SearchBar value={input} onChange={handleSearch} placeholder="Buscar CeVe, Item o Producto..."
-        extra={data && <span style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap'}}>{data.total.toLocaleString()} registros</span>} />
+      <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
+        <input value={ceveInput} onChange={e => handleCeve(e.target.value)} placeholder="Filtrar por CeVe..."
+          style={{ flex:'1 1 160px', padding:'7px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:13, outline:'none' }} />
+        <input value={itemInput} onChange={e => handleItem(e.target.value)} placeholder="Filtrar por Item..."
+          style={{ flex:'1 1 140px', padding:'7px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:13, outline:'none' }} />
+        {(ceveInput || itemInput) && (
+          <button className="btn" onClick={() => { setCeveInput(''); setItemInput(''); setCeve(''); setItem(''); setPage(1) }}
+            style={{ fontSize:12, padding:'6px 12px' }}>✕ Limpiar</button>
+        )}
+        {data && <span style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap'}}>{data.total.toLocaleString()} registros</span>}
+      </div>
       <div className="table-wrap" style={{maxHeight:440,overflowY:'auto'}}>
         <table>
           <thead><tr>
@@ -121,29 +138,37 @@ function TabImweb() {
 
 // ── Tab Hub Pedidos ──────────────────────────────────────────────────────────
 function TabHub() {
-  const [data, setData]   = useState(null)
+  const [data, setData]     = useState(null)
   const [loading, setLoading] = useState(true)
-  const [page, setPage]   = useState(1)
-  const [search, setSearch] = useState('')
-  const [input, setInput] = useState('')
-  const timer = useRef(null)
+  const [page, setPage]     = useState(1)
+  const [ceve, setCeve]     = useState('')
+  const [item, setItem]     = useState('')
+  const [ceveInput, setCeveInput] = useState('')
+  const [itemInput, setItemInput] = useState('')
+  const ceveTimer = useRef(null)
+  const itemTimer = useRef(null)
 
-  const load = useCallback(async (p, s) => {
+  const load = useCallback(async (p, c, it) => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page:p, pageSize:PAGE_SIZE, ...(s ? {search:s} : {}) })
+      const params = new URLSearchParams({ page:p, pageSize:PAGE_SIZE })
+      if (c)  params.set('ceve', c)
+      if (it) params.set('item', it)
       const r = await fetch(`${API}/api/frecuencias/hub?${params}`)
       setData(r.ok ? await r.json() : null)
     } catch {}
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { load(page, search) }, [page, search, load])
+  useEffect(() => { load(page, ceve, item) }, [page, ceve, item, load])
 
-  const handleSearch = v => {
-    setInput(v)
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => { setPage(1); setSearch(v) }, 400)
+  const handleCeve = v => {
+    setCeveInput(v); clearTimeout(ceveTimer.current)
+    ceveTimer.current = setTimeout(() => { setPage(1); setCeve(v) }, 400)
+  }
+  const handleItem = v => {
+    setItemInput(v); clearTimeout(itemTimer.current)
+    itemTimer.current = setTimeout(() => { setPage(1); setItem(v) }, 400)
   }
 
   const DAY_KEYS_HUB = ['transportMonday','transportTuesday','transportWednesday','transportThursday','transportFriday','transportSaturday','transportSunday']
@@ -151,8 +176,17 @@ function TabHub() {
   return (
     <div>
       <AlertaBanner lastUpdated={data?.lastUpdated} label="Última actualización HubPedidos" />
-      <SearchBar value={input} onChange={handleSearch} placeholder="Buscar CeVe, Item o Producto..."
-        extra={data && <span style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap'}}>{data.total.toLocaleString()} registros</span>} />
+      <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
+        <input value={ceveInput} onChange={e => handleCeve(e.target.value)} placeholder="Filtrar por CeVe..."
+          style={{ flex:'1 1 160px', padding:'7px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:13, outline:'none' }} />
+        <input value={itemInput} onChange={e => handleItem(e.target.value)} placeholder="Filtrar por Item..."
+          style={{ flex:'1 1 140px', padding:'7px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:13, outline:'none' }} />
+        {(ceveInput || itemInput) && (
+          <button className="btn" onClick={() => { setCeveInput(''); setItemInput(''); setCeve(''); setItem(''); setPage(1) }}
+            style={{ fontSize:12, padding:'6px 12px' }}>✕ Limpiar</button>
+        )}
+        {data && <span style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap'}}>{data.total.toLocaleString()} registros</span>}
+      </div>
       <div className="table-wrap" style={{maxHeight:440,overflowY:'auto',overflowX:'auto'}}>
         <table>
           <thead><tr>
