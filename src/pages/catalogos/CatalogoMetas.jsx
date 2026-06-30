@@ -219,16 +219,38 @@ function TabConsolidado() {
     if (!confirm('¿Ejecutar consolidación? Esto reemplaza el catálogo actual con datos frescos de Imweb y HubPedidos.')) return
     setRunning(true); setRunResult(null)
     try {
+      // POST dispara background task y retorna 202 inmediatamente
       const r = await fetch(`${API}/api/frecuencias/consolidar`, { method:'POST' })
-      const text = await r.text()
-      const d = text ? JSON.parse(text) : {}
-      if (!r.ok) throw new Error(d.detail || d.error || d.title || `HTTP ${r.status}`)
-      setRunResult({ ok:true, d })
-      setPage(1)
-      await load(1, search, origen)
+      if (!r.ok) {
+        const text = await r.text()
+        const d = text ? JSON.parse(text) : {}
+        throw new Error(d.detail || d.error || d.title || `HTTP ${r.status}`)
+      }
+      // Polling cada 4s hasta completado o error
+      let attempts = 0
+      while (attempts < 120) {
+        await new Promise(res => setTimeout(res, 4000))
+        attempts++
+        try {
+          const st = await fetch(`${API}/api/frecuencias/estado`)
+          if (!st.ok) continue
+          const estado = await st.json()
+          if (estado.estado === 'completado') {
+            setRunResult({ ok:true, d: estado.resultado || {} })
+            setPage(1)
+            await load(1, search, origen)
+            return
+          }
+          if (estado.estado === 'error') {
+            throw new Error(estado.error || 'Error desconocido en la consolidación')
+          }
+        } catch (pollErr) {
+          if (pollErr.message !== 'Failed to fetch') throw pollErr
+        }
+      }
+      throw new Error('Tiempo de espera agotado. La consolidación puede seguir en progreso.')
     } catch (e) {
-      const msg = e.message.includes('JSON') ? 'La API tardó demasiado o no respondió. Intenta de nuevo.' : e.message
-      setRunResult({ ok:false, msg })
+      setRunResult({ ok:false, msg: e.message })
     } finally { setRunning(false) }
   }
 
