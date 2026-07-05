@@ -6,6 +6,7 @@ import Productos from './pages/Productos'
 import SubirArchivo from './pages/SubirArchivo'
 import PedidoCevePlanta from './pages/PedidoCevePlanta'
 import FillRate from './pages/FillRate'
+import PedidoOracle from './pages/PedidoOracle'
 import CatalogoCeves from './pages/catalogos/CatalogoCeves'
 import CatalogoProductos from './pages/catalogos/CatalogoProductos'
 import CatalogoMetas from './pages/catalogos/CatalogoMetas'
@@ -36,6 +37,7 @@ const nav = [
     section: 'Cargas masivas',
     items: [
       { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: '⊞', badgeType: 'new', badge: 'Nuevo' },
+      { to: '/pedido-oracle',      label: 'Pedido Oracle',              icon: '◈' },
     ]
   },
   {
@@ -99,6 +101,7 @@ export default function App() {
           <Route path="/subir" element={<SubirArchivo />} />
           <Route path="/pedido-ceve-planta" element={<PedidoCevePlanta />} />
           <Route path="/fill-rate"            element={<FillRate />} />
+          <Route path="/pedido-oracle"        element={<PedidoOracle />} />
           <Route path="/catalogos/ceves"      element={<CatalogoCeves />} />
           <Route path="/catalogos/productos"  element={<CatalogoProductos />} />
           <Route path="/catalogos/metas"      element={<CatalogoMetas />} />
