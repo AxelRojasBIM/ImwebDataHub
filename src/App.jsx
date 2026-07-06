@@ -11,6 +11,7 @@ import CatalogoCeves from './pages/catalogos/CatalogoCeves'
 import CatalogoProductos from './pages/catalogos/CatalogoProductos'
 import CatalogoMetas from './pages/catalogos/CatalogoMetas'
 import CatalogoCalendario from './pages/catalogos/CatalogoCalendario'
+import CatalogoOracleCeves from './pages/catalogos/CatalogoOracleCeves'
 import './App.css'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
@@ -46,7 +47,8 @@ const nav = [
       { to: '/catalogos/ceves',      label: 'CEVEs',      icon: '◈' },
       { to: '/catalogos/productos',  label: 'Productos HubPedidos',  icon: '◉' },
       { to: '/catalogos/metas',      label: 'Frecuencias Producto CeVes', icon: '◎' },
-      { to: '/catalogos/calendario', label: 'Calendario', icon: '▦' },
+      { to: '/catalogos/calendario',    label: 'Calendario',          icon: '▦' },
+      { to: '/catalogos/oracle-ceves',  label: 'Catálogos Oracle',    icon: '◇' },
     ]
   },
 ]
@@ -105,7 +107,8 @@ export default function App() {
           <Route path="/catalogos/ceves"      element={<CatalogoCeves />} />
           <Route path="/catalogos/productos"  element={<CatalogoProductos />} />
           <Route path="/catalogos/metas"      element={<CatalogoMetas />} />
-          <Route path="/catalogos/calendario" element={<CatalogoCalendario />} />
+          <Route path="/catalogos/calendario"   element={<CatalogoCalendario />} />
+          <Route path="/catalogos/oracle-ceves" element={<CatalogoOracleCeves />} />
         </Routes>
       </main>
     </div>
