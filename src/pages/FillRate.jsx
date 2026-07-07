@@ -21,9 +21,11 @@ function TabFillRate() {
   const [fechaInicio, setFechaInicio] = useState(today)
   const [fechaFin, setFechaFin]       = useState(today)
   const [running, setRunning]         = useState(false)
+  const [estado, setEstado]           = useState(null)
   const [result, setResult]           = useState(null)
   const [historial, setHistorial]     = useState([])
   const [loadingH, setLoadingH]       = useState(true)
+  const pollRef = useRef(null)
 
   async function loadHistorial() {
     setLoadingH(true)
@@ -34,12 +36,41 @@ function TabFillRate() {
     finally { setLoadingH(false) }
   }
 
-  useEffect(() => { loadHistorial() }, [])
+  async function checkEstado() {
+    try {
+      const r = await fetch(`${API}/api/fill-rate/estado`)
+      if (!r.ok) return
+      const d = await r.json()
+      setEstado(d)
+      if (d.estado === 'completado' || d.estado === 'error') {
+        clearInterval(pollRef.current)
+        setRunning(false)
+        if (d.estado === 'completado') setResult({ ok: true, d: d.resultado })
+        else setResult({ ok: false, msg: d.error })
+        loadHistorial()
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    loadHistorial()
+    checkEstado().then(() => {
+      // Si ya había una ejecución en curso (p.ej. tras recargar la página), retoma el polling
+      setEstado(prev => {
+        if (prev?.estado === 'ejecutando') {
+          setRunning(true)
+          pollRef.current = setInterval(checkEstado, 3000)
+        }
+        return prev
+      })
+    })
+    return () => clearInterval(pollRef.current)
+  }, [])
 
   async function handleEjecutar() {
     if (!fechaInicio || !fechaFin) return
     if (fechaFin < fechaInicio) { alert('La fecha fin no puede ser anterior a la fecha inicio.'); return }
-    if (!confirm(`¿Ejecutar Fill Rate del ${fechaInicio} al ${fechaFin}?`)) return
+    if (!confirm(`¿Ejecutar Fill Rate del ${fechaInicio} al ${fechaFin}? Esto puede tardar varios minutos.`)) return
 
     setRunning(true); setResult(null)
     try {
@@ -50,12 +81,14 @@ function TabFillRate() {
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
-      setResult({ ok: true, d })
-      await loadHistorial()
+      pollRef.current = setInterval(checkEstado, 3000)
     } catch (e) {
+      setRunning(false)
       setResult({ ok: false, msg: e.message })
-    } finally { setRunning(false) }
+    }
   }
+
+  const pct = estado?.totalDias ? Math.round((estado.diasCompletados / estado.totalDias) * 100) : 0
 
   return (
     <>
@@ -69,13 +102,13 @@ function TabFillRate() {
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#374151' }}>
             Fecha inicio
-            <input type="date" value={fechaInicio} max={today}
+            <input type="date" value={fechaInicio} max={today} disabled={running}
               onChange={e => setFechaInicio(e.target.value)}
               style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#374151' }}>
             Fecha fin
-            <input type="date" value={fechaFin} max={today}
+            <input type="date" value={fechaFin} max={today} disabled={running}
               onChange={e => setFechaFin(e.target.value)}
               style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
           </label>
@@ -85,7 +118,27 @@ function TabFillRate() {
             {running ? '⏳ Ejecutando…' : '▶ Ejecutar'}
           </button>
         </div>
-        {result && (
+
+        {running && (
+          <div style={{ marginTop: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#1d4ed8', marginBottom: 6 }}>
+              <span>
+                {estado?.fechaActual
+                  ? `Procesando ${estado.fechaActual} — día ${estado.diasCompletados ?? 0} de ${estado.totalDias ?? '…'}`
+                  : 'Preparando datos…'}
+              </span>
+              <span style={{ fontWeight: 700 }}>{pct}%</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 99, background: '#dbeafe', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${pct}%`, background: '#2563eb',
+                transition: 'width .4s ease', borderRadius: 99,
+              }} />
+            </div>
+          </div>
+        )}
+
+        {result && !running && (
           <div style={{
             marginTop: 16, padding: '10px 14px', borderRadius: 8, fontSize: 13,
             background: result.ok ? '#ecfdf5' : '#fef2f2',
@@ -93,7 +146,7 @@ function TabFillRate() {
             border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}`,
           }}>
             {result.ok
-              ? `✓ Ejecución completada — ${result.d.totalCeves ?? 0} CeVes en ${fmtDur(result.d.duracionMs)}`
+              ? `✓ Ejecución completada — ${result.d?.totalCeves ?? 0} CeVes, ${result.d?.diasCompletados ?? 0} días en ${fmtDur(result.d?.duracionMs)}`
               : `✕ ${result.msg}`}
           </div>
         )}
@@ -114,7 +167,7 @@ function TabFillRate() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                {['Fecha inicio','Fecha fin','Ejecutado por','Ejecutado el','Hora','Duración','CeVes','Estado'].map(h => (
+                {['Fecha inicio','Fecha fin','Ejecutado por','Ejecutado el','Hora','Avance','Duración','CeVes','Estado'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600,
                     color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
@@ -125,6 +178,7 @@ function TabFillRate() {
                 const dt    = row.ejecutadoEl ? new Date(row.ejecutadoEl) : null
                 const fecha = dt ? dt.toLocaleDateString('es-MX') : '—'
                 const hora  = dt ? dt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'
+                const enCurso = row.estado === 'ejecutando'
                 return (
                   <tr key={row.id ?? i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '9px 14px' }}>{row.fechaInicio?.slice(0,10) ?? '—'}</td>
@@ -132,14 +186,17 @@ function TabFillRate() {
                     <td style={{ padding: '9px 14px' }}>{row.usuario ?? '—'}</td>
                     <td style={{ padding: '9px 14px' }}>{fecha}</td>
                     <td style={{ padding: '9px 14px' }}>{hora}</td>
+                    <td style={{ padding: '9px 14px' }}>
+                      {row.totalDias ? `${row.diasCompletados ?? 0} / ${row.totalDias} días` : '—'}
+                    </td>
                     <td style={{ padding: '9px 14px' }}>{fmtDur(row.duracionMs)}</td>
                     <td style={{ padding: '9px 14px', fontWeight: 600 }}>{row.totalCeves ?? 0}</td>
                     <td style={{ padding: '9px 14px' }}>
                       <span style={{
                         display: 'inline-block', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-                        background: row.estado === 'OK' ? '#dcfce7' : '#fef2f2',
-                        color:      row.estado === 'OK' ? '#166534' : '#991b1b',
-                      }}>{row.estado ?? '—'}</span>
+                        background: row.estado === 'OK' ? '#dcfce7' : enCurso ? '#dbeafe' : '#fef2f2',
+                        color:      row.estado === 'OK' ? '#166534' : enCurso ? '#1d4ed8' : '#991b1b',
+                      }}>{enCurso ? 'ejecutando' : (row.estado ?? '—')}</span>
                     </td>
                   </tr>
                 )
