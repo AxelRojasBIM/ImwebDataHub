@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { fetchWithRetry } from '../../apiUtils'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
 
@@ -101,31 +102,32 @@ export default function CatalogoCeves() {
     setSaveResult(null)
     const batchId = crypto.randomUUID()
     const mapped = rows.map(r => ({
-      cod_ceve:                         r.Cod_ceve,
+      cod_ceve:                          r.Cod_ceve,
       nombre_indicadores_almacenes_ceve: r.Nombre_Indicadores_Almacenes_CeVe,
-      region:                           r.Region,
-      organizacion:                     r.Organizacion,
-      area_negocio:                     r.Area_Negocio,
-      gerente:                          r.Gerente,
-      correo_gerente:                   r.Correo_Gerente,
-      subgerente:                       r.Subgerente,
-      correo_subgerente:                r.Correo_Subgerente,
-      coordinador:                      r.Coordinador,
-      correo_coordinador:               r.Correo_Coordinador,
-      direccion:                        r.Direccion,
-      latitud:                          parseFloat(r.Latitud) || null,
-      longitud:                         parseFloat(r.Longitud) || null,
-      ceve_sinergia:                    r.CeVe_Sinergia,
+      region:                            r.Region,
+      organizacion:                      r.Organizacion,
+      area_negocio:                      r.Area_Negocio,
+      gerente:                           r.Gerente,
+      correo_gerente:                    r.Correo_Gerente,
+      subgerente:                        r.Subgerente,
+      correo_subgerente:                 r.Correo_Subgerente,
+      coordinador:                       r.Coordinador,
+      correo_coordinador:                r.Correo_Coordinador,
+      direccion:                         r.Direccion,
+      latitud:                           parseFloat(r.Latitud) || null,
+      longitud:                          parseFloat(r.Longitud) || null,
+      ceve_sinergia:                     r.CeVe_Sinergia,
     }))
     const CHUNK = 5_000
     let saved = 0
     try {
       for (let i = 0; i < mapped.length; i += CHUNK) {
-        const res = await fetch(`${API}/api/ceves/sync`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ batchId, rows: mapped.slice(i, i + CHUNK) }),
-        })
+        const res = await fetchWithRetry(
+          `${API}/api/ceves/sync`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ batchId, rows: mapped.slice(i, i + CHUNK) }) },
+          { onWaking: () => setSaveResult({ ok: true, msg: '⏳ La API está despertando, reintentando en 4 segundos…' }) }
+        )
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
           throw new Error(d.detail || d.error || d.title || `HTTP ${res.status}`)
@@ -138,7 +140,7 @@ export default function CatalogoCeves() {
       setFile(null); setRows([])
       await loadBatches()
     } catch (e) {
-      setSaveResult({ ok: false, msg: e.message })
+      setSaveResult({ ok: false, msg: 'No se pudo conectar con la API. Intenta de nuevo en unos segundos.' })
     } finally {
       setSaving(false)
     }

@@ -12,10 +12,19 @@ import CatalogoProductos from './pages/catalogos/CatalogoProductos'
 import CatalogoMetas from './pages/catalogos/CatalogoMetas'
 import CatalogoCalendario from './pages/catalogos/CatalogoCalendario'
 import CatalogoOracleCeves from './pages/catalogos/CatalogoOracleCeves'
+import { useEffect } from 'react'
 import './App.css'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
 export { API }
+
+// Ping silencioso al arrancar para despertar Azure App Service
+// (free tier duerme tras 20 min de inactividad; esto evita el "Failed to fetch" en el primer request)
+function useWarmUp() {
+  useEffect(() => {
+    fetch(`${API}/api/health`, { signal: AbortSignal.timeout(30_000) }).catch(() => {})
+  }, [])
+}
 
 const nav = [
   {
@@ -54,6 +63,7 @@ const nav = [
 ]
 
 export default function App() {
+  useWarmUp()
   const location = useLocation()
 
   return (
