@@ -12,6 +12,7 @@ import CatalogoProductos from './pages/catalogos/CatalogoProductos'
 import CatalogoMetas from './pages/catalogos/CatalogoMetas'
 import CatalogoCalendario from './pages/catalogos/CatalogoCalendario'
 import CatalogoOracleCeves from './pages/catalogos/CatalogoOracleCeves'
+import CatalogoPlantas from './pages/catalogos/CatalogoPlantas'
 import { useEffect } from 'react'
 import './App.css'
 
@@ -58,6 +59,7 @@ const nav = [
       { to: '/catalogos/metas',      label: 'Frecuencias Producto CeVes', icon: '◎' },
       { to: '/catalogos/calendario',    label: 'Calendario',          icon: '▦' },
       { to: '/catalogos/oracle-ceves',  label: 'Catálogos Oracle',    icon: '◇' },
+      { to: '/catalogos/plantas',       label: 'Plantas / Cedis',     icon: '🏭' },
     ]
   },
 ]
@@ -119,6 +121,7 @@ export default function App() {
           <Route path="/catalogos/metas"      element={<CatalogoMetas />} />
           <Route path="/catalogos/calendario"   element={<CatalogoCalendario />} />
           <Route path="/catalogos/oracle-ceves" element={<CatalogoOracleCeves />} />
+          <Route path="/catalogos/plantas"      element={<CatalogoPlantas />} />
         </Routes>
       </main>
     </div>
