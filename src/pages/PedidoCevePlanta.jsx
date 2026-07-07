@@ -72,6 +72,9 @@ export default function PedidoCevePlanta() {
   const [viewBatch, setViewBatch] = useState(null)
   const [viewRows, setViewRows]   = useState([])
   const [loadingView, setLoadingView] = useState(false)
+  const [validating, setValidating]   = useState(false)
+  const [validation, setValidation]   = useState(null)   // resultado de validación
+  const [expanded, setExpanded]       = useState({})     // qué fechas están expandidas
   const inputRef = useRef()
 
   const loadBatches = useCallback(async () => {
@@ -88,12 +91,27 @@ export default function PedidoCevePlanta() {
   const handleFile = (f) => {
     if (!f) return
     setSaveResult(null)
+    setValidation(null)
+    setExpanded({})
     setFile(f)
     const reader = new FileReader()
-    reader.onload = e => {
+    reader.onload = async e => {
       const { rows: parsed, error } = parseCSV(e.target.result)
       setParseError(error)
       setRows(parsed)
+      if (!error && parsed.length > 0) {
+        setValidating(true)
+        try {
+          const payload = parsed.map(r => ({ cod_ceve: r.Cod_ceve, fecha_venta: r.Fecha_Venta }))
+          const res = await fetch(`${API}/api/pedidos/validar-ceves`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: payload }),
+          })
+          if (res.ok) setValidation(await res.json())
+        } catch {}
+        finally { setValidating(false) }
+      }
     }
     reader.readAsText(f)
   }
@@ -209,9 +227,9 @@ export default function PedidoCevePlanta() {
                     <span style={{ fontWeight: 500 }}>{file.name}</span>
                     <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-3)' }}>{rows.length.toLocaleString()} filas</span>
                   </div>
-                  <button className="btn" onClick={() => { setFile(null); setRows([]) }}>✕ Cancelar</button>
+                  <button className="btn" onClick={() => { setFile(null); setRows([]); setValidation(null); setExpanded({}) }}>✕ Cancelar</button>
                 </div>
-                <div className="table-wrap" style={{ maxHeight: 220, overflowY: 'auto', marginBottom: 12 }}>
+                <div className="table-wrap" style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 14 }}>
                   <table>
                     <thead><tr>{COLS.map(c => <th key={c}>{c}</th>)}</tr></thead>
                     <tbody>
@@ -226,6 +244,92 @@ export default function PedidoCevePlanta() {
                   </table>
                   {rows.length > 50 && <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--text-3)', borderTop: '1px solid var(--border)' }}>Mostrando 50 de {rows.length.toLocaleString()} · se guardarán todas</div>}
                 </div>
+
+                {/* ── Panel de validación ── */}
+                {validating && (
+                  <div style={{ padding:'10px 14px', borderRadius:8, fontSize:13, marginBottom:14,
+                    background:'#fffbeb', border:'1px solid #fcd34d', color:'#92400e' }}>
+                    ⏳ Validando CeVes contra el catálogo…
+                  </div>
+                )}
+                {validation && !validating && (() => {
+                  const conFaltantes = validation.resumenPorFecha.filter(f => f.totalFaltantes > 0)
+                  const totalFaltantesGlobal = conFaltantes.reduce((s, f) => s + f.totalFaltantes, 0)
+                  return (
+                    <div style={{ marginBottom:14, borderRadius:10, border:`1px solid ${totalFaltantesGlobal > 0 ? '#fca5a5' : '#6ee7b7'}`,
+                      background: totalFaltantesGlobal > 0 ? '#fef9f9' : '#f0fdf4', overflow:'hidden' }}>
+                      {/* Header resumen */}
+                      <div style={{ padding:'10px 16px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap',
+                        background: totalFaltantesGlobal > 0 ? '#fef2f2' : '#ecfdf5',
+                        borderBottom: totalFaltantesGlobal > 0 ? '1px solid #fca5a5' : '1px solid #6ee7b7' }}>
+                        <span style={{ fontSize:15 }}>{totalFaltantesGlobal > 0 ? '⚠️' : '✅'}</span>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:13, color: totalFaltantesGlobal > 0 ? '#991b1b' : '#065f46' }}>
+                            {totalFaltantesGlobal > 0
+                              ? `${totalFaltantesGlobal} CeVe(s) no encontrados en el catálogo`
+                              : 'Todos los CeVes están en el catálogo'}
+                          </div>
+                          <div style={{ fontSize:11, color:'#6b7280', marginTop:2 }}>
+                            Catálogo actual: {validation.totalCevesEnCatalogo.toLocaleString()} CeVes ·
+                            {validation.resumenPorFecha.length} fecha(s) de venta
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tabla por fecha */}
+                      <div style={{ overflowX:'auto' }}>
+                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                          <thead>
+                            <tr style={{ background:'#f9fafb' }}>
+                              {['Fecha venta','CeVes en archivo','No en catálogo',''].map(h => (
+                                <th key={h} style={{ padding:'7px 14px', textAlign:'left', fontWeight:600,
+                                  color:'#374151', borderBottom:'1px solid #e5e7eb', whiteSpace:'nowrap' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {validation.resumenPorFecha.map((f, i) => (
+                              <>
+                                <tr key={f.fechaVenta} style={{ borderBottom:'1px solid #f3f4f6',
+                                  background: f.totalFaltantes > 0 ? '#fff5f5' : (i%2===0?'#fff':'#fafafa') }}>
+                                  <td style={{ padding:'7px 14px', fontWeight:500 }}>{f.fechaVenta || '—'}</td>
+                                  <td style={{ padding:'7px 14px' }}>{f.totalCeves}</td>
+                                  <td style={{ padding:'7px 14px' }}>
+                                    {f.totalFaltantes > 0
+                                      ? <span style={{ fontWeight:700, color:'#dc2626' }}>{f.totalFaltantes}</span>
+                                      : <span style={{ color:'#16a34a' }}>0 ✓</span>}
+                                  </td>
+                                  <td style={{ padding:'7px 14px' }}>
+                                    {f.totalFaltantes > 0 && (
+                                      <button onClick={() => setExpanded(ex => ({ ...ex, [f.fechaVenta]: !ex[f.fechaVenta] }))}
+                                        style={{ fontSize:11, padding:'2px 10px', borderRadius:6,
+                                          border:'1px solid #fca5a5', background:'#fff', cursor:'pointer', color:'#dc2626' }}>
+                                        {expanded[f.fechaVenta] ? '▲ Ocultar' : '▼ Ver CeVes'}
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                                {expanded[f.fechaVenta] && (
+                                  <tr key={f.fechaVenta + '_detail'}>
+                                    <td colSpan={4} style={{ padding:'8px 14px 12px 28px', background:'#fff0f0' }}>
+                                      <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                                        {f.faltantes.map(c => (
+                                          <span key={c} style={{ fontSize:11, padding:'2px 8px', borderRadius:99,
+                                            background:'#fee2e2', color:'#991b1b', fontFamily:'monospace', fontWeight:600 }}>{c}</span>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 <button className="btn primary" style={{ width: '100%', justifyContent: 'center', padding: '9px 0' }} onClick={handleSave} disabled={saving}>
                   {saving ? 'Guardando...' : `☁ Guardar ${rows.length.toLocaleString()} filas en la base de datos`}
                 </button>
