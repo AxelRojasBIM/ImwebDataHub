@@ -13,6 +13,7 @@ import CatalogoMetas from './pages/catalogos/CatalogoMetas'
 import CatalogoCalendario from './pages/catalogos/CatalogoCalendario'
 import CatalogoOracleCeves from './pages/catalogos/CatalogoOracleCeves'
 import CatalogoPlantas from './pages/catalogos/CatalogoPlantas'
+import PedidoVendedorPromedios from './pages/PedidoVendedorPromedios'
 import { useEffect } from 'react'
 import './App.css'
 
@@ -36,6 +37,7 @@ const nav = [
     section: 'Ejecución Proceso',
     items: [
       { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: '▣' },
+      { to: '/pedido-vendedor-promedios', label: 'PedidoVendedor Vs. Promedios', icon: '📊' },
     ]
   },
   {
@@ -122,6 +124,7 @@ export default function App() {
           <Route path="/catalogos/calendario"   element={<CatalogoCalendario />} />
           <Route path="/catalogos/oracle-ceves" element={<CatalogoOracleCeves />} />
           <Route path="/catalogos/plantas"      element={<CatalogoPlantas />} />
+          <Route path="/pedido-vendedor-promedios" element={<PedidoVendedorPromedios />} />
         </Routes>
       </main>
     </div>
