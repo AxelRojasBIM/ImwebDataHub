@@ -28,11 +28,13 @@ export default function PedidoVendedorPromedios() {
   const [dragging, setDragging]   = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadResult, setUploadResult] = useState(null)
+  const [uploadingBatchId, setUploadingBatchId] = useState(null)
   const [datos, setDatos]         = useState(null)
   const [page, setPage]           = useState(1)
   const [search, setSearch]       = useState('')
   const [searchInp, setSearchInp] = useState('')
   const pollRef = useRef(null)
+  const uploadPollRef = useRef(null)
   const inputRef = useRef(null)
   const PAGE_SIZE = 100
 
@@ -70,7 +72,6 @@ export default function PedidoVendedorPromedios() {
   }
 
   useEffect(() => {
-    loadBatches()
     loadDatos(1, '')
     checkEstado().then(() => {
       setEstado(prev => {
@@ -81,8 +82,37 @@ export default function PedidoVendedorPromedios() {
         return prev
       })
     })
-    return () => clearInterval(pollRef.current)
+    // Si había una carga CSV en curso (p.ej. tras recargar la página), retoma el polling
+    fetch(`${API}/api/pedido-vendedor-promedios/batches`).then(r => r.ok ? r.json() : []).then(list => {
+      setBatches(list)
+      setLoadingB(false)
+      const enCurso = list.find(b => b.origen === 'CSV' && b.estado === 'ejecutando')
+      if (enCurso) {
+        setUploading(true)
+        setUploadingBatchId(enCurso.batchId)
+        uploadPollRef.current = setInterval(() => checkUploadBatch(enCurso.batchId), 3000)
+      }
+    }).catch(() => setLoadingB(false))
+    return () => { clearInterval(pollRef.current); clearInterval(uploadPollRef.current) }
   }, [])
+
+  async function checkUploadBatch(batchId) {
+    try {
+      const r = await fetch(`${API}/api/pedido-vendedor-promedios/batches`)
+      if (!r.ok) return
+      const list = await r.json()
+      setBatches(list)
+      const b = list.find(x => x.batchId === batchId)
+      if (b && (b.estado === 'OK' || b.estado === 'ERROR')) {
+        clearInterval(uploadPollRef.current)
+        setUploading(false)
+        setUploadingBatchId(null)
+        if (b.estado === 'OK') setUploadResult({ ok: true, saved: b.totalFilas })
+        else setUploadResult({ ok: false, msg: b.detalle || 'Error al procesar el archivo.' })
+        loadDatos(1, search)
+      }
+    } catch {}
+  }
 
   async function handleEjecutar() {
     if (!confirm('¿Ejecutar el proceso contra Synapse? Son más de 8 millones de registros — puede tardar bastante y reemplazará la corrida anterior del proceso (no afecta cargas CSV).')) return
@@ -116,13 +146,14 @@ export default function PedidoVendedorPromedios() {
       const text = await r.text()
       const d = text ? JSON.parse(text) : {}
       if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
-      setUploadResult({ ok: true, saved: d.saved })
       setFile(null)
+      setUploadingBatchId(d.batchId)
       await loadBatches()
-      await loadDatos(1, search)
+      uploadPollRef.current = setInterval(() => checkUploadBatch(d.batchId), 3000)
     } catch (e) {
+      setUploading(false)
       setUploadResult({ ok: false, msg: e.message })
-    } finally { setUploading(false) }
+    }
   }
 
   async function handleDelete(batchId, label) {
@@ -256,10 +287,17 @@ export default function PedidoVendedorPromedios() {
 
         <button className="btn primary" onClick={handleUpload} disabled={!file || uploading}
           style={{ padding: '8px 24px', fontWeight: 700, fontSize: 13 }}>
-          {uploading ? '⏳ Cargando…' : '↑ Cargar archivo'}
+          {uploading ? '⏳ Procesando…' : '↑ Cargar archivo'}
         </button>
 
-        {uploadResult && (
+        {uploading && (
+          <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13,
+            background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
+            ⏳ {fmtNum(batches.find(b => b.batchId === uploadingBatchId)?.filasProcesadas)} registros procesados hasta ahora…
+          </div>
+        )}
+
+        {uploadResult && !uploading && (
           <div style={{ marginTop: 14, padding: '9px 14px', borderRadius: 8, fontSize: 13,
             background: uploadResult.ok ? '#ecfdf5' : '#fef2f2',
             color: uploadResult.ok ? '#065f46' : '#991b1b',
@@ -298,7 +336,9 @@ export default function PedidoVendedorPromedios() {
                   <tr key={b.batchId} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '8px 14px', fontWeight: 600 }}>{b.origen}</td>
                     <td style={{ padding: '8px 14px' }}>{b.nombreArchivo ?? '—'}</td>
-                    <td style={{ padding: '8px 14px', fontWeight: 600 }}>{fmtNum(b.totalFilas)}</td>
+                    <td style={{ padding: '8px 14px', fontWeight: 600 }}>
+                      {enCurso ? `${fmtNum(b.filasProcesadas)}…` : fmtNum(b.totalFilas)}
+                    </td>
                     <td style={{ padding: '8px 14px' }}>{fmtDur(b.duracionMs)}</td>
                     <td style={{ padding: '8px 14px' }}>{new Date(b.cargadoEn).toLocaleString('es-MX')}</td>
                     <td style={{ padding: '8px 14px' }}>
