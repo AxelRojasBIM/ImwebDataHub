@@ -138,18 +138,24 @@ function TabFillRate() {
           </div>
         )}
 
-        {result && !running && (
-          <div style={{
-            marginTop: 16, padding: '10px 14px', borderRadius: 8, fontSize: 13,
-            background: result.ok ? '#ecfdf5' : '#fef2f2',
-            color:      result.ok ? '#065f46'  : '#991b1b',
-            border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}`,
-          }}>
-            {result.ok
-              ? `✓ Ejecución completada — ${result.d?.totalCeves ?? 0} CeVes, ${result.d?.diasCompletados ?? 0} días en ${fmtDur(result.d?.duracionMs)}`
-              : `✕ ${result.msg}`}
-          </div>
-        )}
+        {result && !running && (() => {
+          const diasConError = result.ok ? (result.d?.diasConError ?? []) : []
+          const parcial = diasConError.length > 0
+          return (
+            <div style={{
+              marginTop: 16, padding: '10px 14px', borderRadius: 8, fontSize: 13,
+              background: !result.ok ? '#fef2f2' : parcial ? '#fffbeb' : '#ecfdf5',
+              color:      !result.ok ? '#991b1b' : parcial ? '#92400e' : '#065f46',
+              border: `1px solid ${!result.ok ? '#fca5a5' : parcial ? '#fde68a' : '#6ee7b7'}`,
+            }}>
+              {!result.ok
+                ? `✕ ${result.msg}`
+                : parcial
+                  ? `⚠ Ejecución completada con ${diasConError.length} día(s) que fallaron y se saltaron — ${result.d?.totalCeves ?? 0} CeVes en ${fmtDur(result.d?.duracionMs)}. Vuelve a ejecutar solo estas fechas: ${diasConError.join(', ')}`
+                  : `✓ Ejecución completada — ${result.d?.totalCeves ?? 0} CeVes, ${result.d?.diasCompletados ?? 0} días en ${fmtDur(result.d?.duracionMs)}`}
+            </div>
+          )
+        })()}
       </div>
 
       <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 12 }}>
@@ -179,6 +185,7 @@ function TabFillRate() {
                 const fecha = dt ? dt.toLocaleDateString('es-MX') : '—'
                 const hora  = dt ? dt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'
                 const enCurso = row.estado === 'ejecutando'
+                const parcial = row.estado === 'OK_PARCIAL'
                 return (
                   <tr key={row.id ?? i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '9px 14px' }}>{row.fechaInicio?.slice(0,10) ?? '—'}</td>
@@ -191,12 +198,12 @@ function TabFillRate() {
                     </td>
                     <td style={{ padding: '9px 14px' }}>{fmtDur(row.duracionMs)}</td>
                     <td style={{ padding: '9px 14px', fontWeight: 600 }}>{row.totalCeves ?? 0}</td>
-                    <td style={{ padding: '9px 14px' }}>
+                    <td style={{ padding: '9px 14px' }} title={parcial ? row.detalle ?? '' : ''}>
                       <span style={{
                         display: 'inline-block', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-                        background: row.estado === 'OK' ? '#dcfce7' : enCurso ? '#dbeafe' : '#fef2f2',
-                        color:      row.estado === 'OK' ? '#166534' : enCurso ? '#1d4ed8' : '#991b1b',
-                      }}>{enCurso ? 'ejecutando' : (row.estado ?? '—')}</span>
+                        background: row.estado === 'OK' ? '#dcfce7' : enCurso ? '#dbeafe' : parcial ? '#fef3c7' : '#fef2f2',
+                        color:      row.estado === 'OK' ? '#166534' : enCurso ? '#1d4ed8' : parcial ? '#92400e' : '#991b1b',
+                      }}>{enCurso ? 'ejecutando' : parcial ? 'parcial' : (row.estado ?? '—')}</span>
                     </td>
                   </tr>
                 )
