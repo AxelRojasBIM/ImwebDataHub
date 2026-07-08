@@ -29,6 +29,7 @@ export default function PedidoVendedorPromedios() {
   const [uploading, setUploading] = useState(false)
   const [uploadResult, setUploadResult] = useState(null)
   const [uploadingBatchId, setUploadingBatchId] = useState(null)
+  const [uploadPct, setUploadPct] = useState(null)
   const [datos, setDatos]         = useState(null)
   const [page, setPage]           = useState(1)
   const [search, setSearch]       = useState('')
@@ -135,23 +136,41 @@ export default function PedidoVendedorPromedios() {
     else alert('Solo se aceptan archivos .csv')
   }
 
+  const CHUNK_SIZE = 8 * 1024 * 1024 // 8MB por request — un solo POST con el CSV completo
+                                     // (puede pesar GBs) se pasa del timeout de Azure aunque
+                                     // el servidor procese rápido, así que se sube en pedazos.
+
   async function handleUpload() {
     if (!file) return
     if (!confirm(`¿Cargar "${file.name}"?`)) return
-    setUploading(true); setUploadResult(null)
-    const form = new FormData()
-    form.append('file', file)
+    setUploading(true); setUploadResult(null); setUploadPct(0)
     try {
-      const r = await fetch(`${API}/api/pedido-vendedor-promedios/upload`, { method: 'POST', body: form })
-      const text = await r.text()
+      const initR = await fetch(`${API}/api/pedido-vendedor-promedios/upload/init`, { method: 'POST' })
+      if (!initR.ok) throw new Error(`HTTP ${initR.status} al iniciar la subida`)
+      const { uploadId } = await initR.json()
+
+      for (let offset = 0; offset < file.size; offset += CHUNK_SIZE) {
+        const chunk = file.slice(offset, offset + CHUNK_SIZE)
+        const r = await fetch(`${API}/api/pedido-vendedor-promedios/upload/chunk?uploadId=${uploadId}`, {
+          method: 'POST', body: chunk,
+        })
+        if (!r.ok) throw new Error(`HTTP ${r.status} al subir el archivo (byte ${offset})`)
+        setUploadPct(Math.round(Math.min(offset + CHUNK_SIZE, file.size) / file.size * 100))
+      }
+
+      const compR = await fetch(`${API}/api/pedido-vendedor-promedios/upload/complete?uploadId=${uploadId}&fileName=${encodeURIComponent(file.name)}`, { method: 'POST' })
+      const text = await compR.text()
       const d = text ? JSON.parse(text) : {}
-      if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
+      if (!compR.ok) throw new Error(d.detail || d.error || `HTTP ${compR.status}`)
+
       setFile(null)
+      setUploadPct(null)
       setUploadingBatchId(d.batchId)
       await loadBatches()
       uploadPollRef.current = setInterval(() => checkUploadBatch(d.batchId), 3000)
     } catch (e) {
       setUploading(false)
+      setUploadPct(null)
       setUploadResult({ ok: false, msg: e.message })
     }
   }
@@ -287,13 +306,15 @@ export default function PedidoVendedorPromedios() {
 
         <button className="btn primary" onClick={handleUpload} disabled={!file || uploading}
           style={{ padding: '8px 24px', fontWeight: 700, fontSize: 13 }}>
-          {uploading ? '⏳ Procesando…' : '↑ Cargar archivo'}
+          {uploading ? (uploadPct != null ? `⏳ Subiendo… ${uploadPct}%` : '⏳ Procesando…') : '↑ Cargar archivo'}
         </button>
 
         {uploading && (
           <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13,
             background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
-            ⏳ {fmtNum(batches.find(b => b.batchId === uploadingBatchId)?.filasProcesadas)} registros procesados hasta ahora…
+            {uploadPct != null
+              ? `⏳ Subiendo archivo… ${uploadPct}%`
+              : `⏳ ${fmtNum(batches.find(b => b.batchId === uploadingBatchId)?.filasProcesadas)} registros procesados hasta ahora…`}
           </div>
         )}
 
