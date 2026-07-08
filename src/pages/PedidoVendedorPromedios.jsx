@@ -136,29 +136,48 @@ export default function PedidoVendedorPromedios() {
     else alert('Solo se aceptan archivos .csv')
   }
 
-  const CHUNK_SIZE = 8 * 1024 * 1024 // 8MB por request — un solo POST con el CSV completo
-                                     // (puede pesar GBs) se pasa del timeout de Azure aunque
-                                     // el servidor procese rápido, así que se sube en pedazos.
+  const CHUNK_SIZE = 32 * 1024 * 1024 // 32MB por request — un solo POST con el CSV completo
+                                      // (puede pesar GBs) se pasa del timeout de Azure aunque
+                                      // el servidor procese rápido, así que se sube en pedazos.
+                                      // 32MB (en vez de menos) mantiene bajo el número total de
+                                      // requests, ya que la red es algo inestable y cada request
+                                      // extra es una oportunidad más de toparse con un corte.
+  const MAX_RETRIES = 4
+
+  async function fetchWithRetry(url, opts) {
+    let lastErr
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await fetch(url, opts)
+      } catch (e) {
+        lastErr = e
+        if (attempt < MAX_RETRIES) await new Promise(res => setTimeout(res, 1000 * attempt))
+      }
+    }
+    throw lastErr
+  }
 
   async function handleUpload() {
     if (!file) return
     if (!confirm(`¿Cargar "${file.name}"?`)) return
     setUploading(true); setUploadResult(null); setUploadPct(0)
     try {
-      const initR = await fetch(`${API}/api/pedido-vendedor-promedios/upload/init`, { method: 'POST' })
+      const initR = await fetchWithRetry(`${API}/api/pedido-vendedor-promedios/upload/init`, { method: 'POST' })
       if (!initR.ok) throw new Error(`HTTP ${initR.status} al iniciar la subida`)
       const { uploadId } = await initR.json()
 
       for (let offset = 0; offset < file.size; offset += CHUNK_SIZE) {
         const chunk = file.slice(offset, offset + CHUNK_SIZE)
-        const r = await fetch(`${API}/api/pedido-vendedor-promedios/upload/chunk?uploadId=${uploadId}`, {
+        // expectedOffset le permite al servidor truncar y reintentar de forma segura si un
+        // intento previo de este mismo chunk se cortó a medias (ver fetchWithRetry).
+        const r = await fetchWithRetry(`${API}/api/pedido-vendedor-promedios/upload/chunk?uploadId=${uploadId}&expectedOffset=${offset}`, {
           method: 'POST', body: chunk,
         })
         if (!r.ok) throw new Error(`HTTP ${r.status} al subir el archivo (byte ${offset})`)
         setUploadPct(Math.round(Math.min(offset + CHUNK_SIZE, file.size) / file.size * 100))
       }
 
-      const compR = await fetch(`${API}/api/pedido-vendedor-promedios/upload/complete?uploadId=${uploadId}&fileName=${encodeURIComponent(file.name)}`, { method: 'POST' })
+      const compR = await fetchWithRetry(`${API}/api/pedido-vendedor-promedios/upload/complete?uploadId=${uploadId}&fileName=${encodeURIComponent(file.name)}`, { method: 'POST' })
       const text = await compR.text()
       const d = text ? JSON.parse(text) : {}
       if (!compR.ok) throw new Error(d.detail || d.error || `HTTP ${compR.status}`)
@@ -171,7 +190,7 @@ export default function PedidoVendedorPromedios() {
     } catch (e) {
       setUploading(false)
       setUploadPct(null)
-      setUploadResult({ ok: false, msg: e.message })
+      setUploadResult({ ok: false, msg: `${e.message} (reintentó ${MAX_RETRIES} veces por request antes de rendirse — probablemente un corte de red; intenta de nuevo)` })
     }
   }
 
