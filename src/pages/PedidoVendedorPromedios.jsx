@@ -162,7 +162,7 @@ export default function PedidoVendedorPromedios() {
     if (!confirm(`¿Cargar "${file.name}"?`)) return
     setUploading(true); setUploadResult(null); setUploadPct(0)
     try {
-      const initR = await fetchWithRetry(`${API}/api/pedido-vendedor-promedios/upload/init`, { method: 'POST' })
+      const initR = await fetchWithRetry(`${API}/api/pedido-vendedor-promedios/upload/init?fileName=${encodeURIComponent(file.name)}`, { method: 'POST' })
       if (!initR.ok) throw new Error(`HTTP ${initR.status} al iniciar la subida`)
       const { uploadId } = await initR.json()
 
@@ -177,7 +177,7 @@ export default function PedidoVendedorPromedios() {
         setUploadPct(Math.round(Math.min(offset + CHUNK_SIZE, file.size) / file.size * 100))
       }
 
-      const compR = await fetchWithRetry(`${API}/api/pedido-vendedor-promedios/upload/complete?uploadId=${uploadId}&fileName=${encodeURIComponent(file.name)}`, { method: 'POST' })
+      const compR = await fetchWithRetry(`${API}/api/pedido-vendedor-promedios/upload/complete?uploadId=${uploadId}`, { method: 'POST' })
       const text = await compR.text()
       const d = text ? JSON.parse(text) : {}
       if (!compR.ok) throw new Error(d.detail || d.error || `HTTP ${compR.status}`)
