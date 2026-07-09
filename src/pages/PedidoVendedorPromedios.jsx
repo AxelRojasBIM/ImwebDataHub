@@ -36,6 +36,7 @@ export default function PedidoVendedorPromedios() {
   const [searchInp, setSearchInp] = useState('')
   const pollRef = useRef(null)
   const uploadPollRef = useRef(null)
+  const deletePollRef = useRef(null)
   const inputRef = useRef(null)
   const PAGE_SIZE = 100
 
@@ -93,9 +94,30 @@ export default function PedidoVendedorPromedios() {
         setUploadingBatchId(enCurso.batchId)
         uploadPollRef.current = setInterval(() => checkUploadBatch(enCurso.batchId), 3000)
       }
+      // Si había un borrado en curso (p.ej. tras recargar la página), retoma el polling
+      const eliminando = list.find(b => b.estado === 'eliminando')
+      if (eliminando) {
+        setDeleting(eliminando.batchId)
+        deletePollRef.current = setInterval(() => checkDeleteBatch(eliminando.batchId), 3000)
+      }
     }).catch(() => setLoadingB(false))
-    return () => { clearInterval(pollRef.current); clearInterval(uploadPollRef.current) }
+    return () => { clearInterval(pollRef.current); clearInterval(uploadPollRef.current); clearInterval(deletePollRef.current) }
   }, [])
+
+  async function checkDeleteBatch(batchId) {
+    try {
+      const r = await fetch(`${API}/api/pedido-vendedor-promedios/batches`)
+      if (!r.ok) return
+      const list = await r.json()
+      setBatches(list)
+      if (!list.find(b => b.batchId === batchId)) {
+        // ya no aparece en la lista → se terminó de borrar
+        clearInterval(deletePollRef.current)
+        setDeleting(null)
+        loadDatos(1, search)
+      }
+    } catch {}
+  }
 
   async function checkUploadBatch(batchId) {
     try {
@@ -195,13 +217,17 @@ export default function PedidoVendedorPromedios() {
   }
 
   async function handleDelete(batchId, label) {
-    if (!confirm(`¿Eliminar el lote "${label}"? Esto borra sus filas de la tabla de resultados.`)) return
+    if (!confirm(`¿Eliminar el lote "${label}"? Esto borra sus filas de la tabla de resultados. Si el lote es grande puede tardar varios minutos.`)) return
     setDeleting(batchId)
     try {
-      await fetch(`${API}/api/pedido-vendedor-promedios/batches/${batchId}`, { method: 'DELETE' })
+      const r = await fetch(`${API}/api/pedido-vendedor-promedios/batches/${batchId}`, { method: 'DELETE' })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
       await loadBatches()
-      await loadDatos(1, search)
-    } finally { setDeleting(null) }
+      deletePollRef.current = setInterval(() => checkDeleteBatch(batchId), 3000)
+    } catch (e) {
+      setDeleting(null)
+      alert(`No se pudo iniciar la eliminación: ${e.message}`)
+    }
   }
 
   function handleSearch(e) {
@@ -372,27 +398,28 @@ export default function PedidoVendedorPromedios() {
             <tbody>
               {batches.map((b, i) => {
                 const enCurso = b.estado === 'ejecutando'
+                const eliminando = b.estado === 'eliminando'
                 return (
                   <tr key={b.batchId} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '8px 14px', fontWeight: 600 }}>{b.origen}</td>
                     <td style={{ padding: '8px 14px' }}>{b.nombreArchivo ?? '—'}</td>
                     <td style={{ padding: '8px 14px', fontWeight: 600 }}>
-                      {enCurso ? `${fmtNum(b.filasProcesadas)}…` : fmtNum(b.totalFilas)}
+                      {eliminando ? `${fmtNum(b.filasProcesadas)} borradas…` : enCurso ? `${fmtNum(b.filasProcesadas)}…` : fmtNum(b.totalFilas)}
                     </td>
                     <td style={{ padding: '8px 14px' }}>{fmtDur(b.duracionMs)}</td>
                     <td style={{ padding: '8px 14px' }}>{new Date(b.cargadoEn).toLocaleString('es-MX')}</td>
                     <td style={{ padding: '8px 14px' }}>
                       <span style={{
                         display: 'inline-block', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-                        background: b.estado === 'OK' ? '#dcfce7' : enCurso ? '#dbeafe' : '#fef2f2',
-                        color:      b.estado === 'OK' ? '#166534' : enCurso ? '#1d4ed8' : '#991b1b',
+                        background: b.estado === 'OK' ? '#dcfce7' : (enCurso || eliminando) ? '#dbeafe' : '#fef2f2',
+                        color:      b.estado === 'OK' ? '#166534' : (enCurso || eliminando) ? '#1d4ed8' : '#991b1b',
                       }} title={b.detalle ?? ''}>{b.estado}</span>
                     </td>
                     <td style={{ padding: '8px 14px', textAlign: 'right' }}>
                       <button className="btn" onClick={() => handleDelete(b.batchId, b.nombreArchivo ?? b.origen)}
-                        disabled={deleting === b.batchId || enCurso}
+                        disabled={deleting === b.batchId || enCurso || eliminando}
                         style={{ fontSize: 12, padding: '3px 10px', color: '#dc2626', borderColor: '#fca5a5' }}>
-                        {deleting === b.batchId ? '…' : '🗑 Eliminar'}
+                        {(deleting === b.batchId || eliminando) ? '⏳ Eliminando…' : '🗑 Eliminar'}
                       </button>
                     </td>
                   </tr>
