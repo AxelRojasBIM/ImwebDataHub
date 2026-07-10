@@ -14,6 +14,7 @@ import CatalogoCalendario from './pages/catalogos/CatalogoCalendario'
 import CatalogoOracleCeves from './pages/catalogos/CatalogoOracleCeves'
 import CatalogoPlantas from './pages/catalogos/CatalogoPlantas'
 import PedidoVendedorPromedios from './pages/PedidoVendedorPromedios'
+import ParticipacionTipoMovimiento from './pages/ParticipacionTipoMovimiento'
 import { useEffect } from 'react'
 import './App.css'
 
@@ -37,7 +38,6 @@ const nav = [
     section: 'Ejecución Proceso',
     items: [
       { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: '▣' },
-      { to: '/pedido-vendedor-promedios', label: 'Promedios de Pedido', icon: '📊' },
     ]
   },
   {
@@ -51,6 +51,8 @@ const nav = [
     items: [
       { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: '⊞', badgeType: 'new', badge: 'Nuevo' },
       { to: '/pedido-oracle',      label: 'Pedido Oracle',              icon: '◈' },
+      { to: '/pedido-vendedor-promedios', label: 'Promedios de Pedido', icon: '📊' },
+      { to: '/participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', icon: '📈' },
     ]
   },
   {
@@ -125,6 +127,7 @@ export default function App() {
           <Route path="/catalogos/oracle-ceves" element={<CatalogoOracleCeves />} />
           <Route path="/catalogos/plantas"      element={<CatalogoPlantas />} />
           <Route path="/pedido-vendedor-promedios" element={<PedidoVendedorPromedios />} />
+          <Route path="/participacion-tipo-movimiento" element={<ParticipacionTipoMovimiento />} />
         </Routes>
       </main>
     </div>
