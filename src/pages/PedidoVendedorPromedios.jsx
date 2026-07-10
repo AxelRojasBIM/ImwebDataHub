@@ -9,12 +9,11 @@ function fmtDur(ms) {
   return `${Math.floor(s / 60)}m ${s % 60}s`
 }
 function fmtNum(n) { return n == null ? '—' : n.toLocaleString('es-MX') }
-function fmtDec(n) { return n == null ? '—' : Number(n).toLocaleString('es-MX', { maximumFractionDigits: 2 }) }
 
 const CSV_COLS = [
-  'Cod_CeVe','Nombre_CeVe','Item','Nombre Producto','Marca','Categoria','Día','Fecha Venta',
-  'Semana','Pedido_vendedor_env','Carga_env','Mediana_env','Clasificacion','Nro_Limpio',
-  'Estado','Periodos_usados','Promedio Final','Desviacion_std','Variacion_%',
+  'Cod_CeVe','Nombre_CeVe','Item','Nombre Producto','Día',
+  'Promedio Final Pedido','Desviacion_std_Pedido','Pedido_mas_Desviacion',
+  'Promedio Final Carga','Desviacion_std_Carga','Carga_mas_Desviacion',
 ]
 
 export default function PedidoVendedorPromedios() {
@@ -30,15 +29,10 @@ export default function PedidoVendedorPromedios() {
   const [uploadResult, setUploadResult] = useState(null)
   const [uploadingBatchId, setUploadingBatchId] = useState(null)
   const [uploadPct, setUploadPct] = useState(null)
-  const [datos, setDatos]         = useState(null)
-  const [page, setPage]           = useState(1)
-  const [search, setSearch]       = useState('')
-  const [searchInp, setSearchInp] = useState('')
   const pollRef = useRef(null)
   const uploadPollRef = useRef(null)
   const deletePollRef = useRef(null)
   const inputRef = useRef(null)
-  const PAGE_SIZE = 100
 
   async function loadBatches() {
     setLoadingB(true)
@@ -47,13 +41,6 @@ export default function PedidoVendedorPromedios() {
       if (r.ok) setBatches(await r.json())
     } catch {}
     finally { setLoadingB(false) }
-  }
-
-  async function loadDatos(p = 1, s = '') {
-    try {
-      const r = await fetch(`${API}/api/pedido-vendedor-promedios/datos?page=${p}&pageSize=${PAGE_SIZE}&search=${encodeURIComponent(s)}`)
-      if (r.ok) setDatos(await r.json())
-    } catch {}
   }
 
   async function checkEstado() {
@@ -68,13 +55,11 @@ export default function PedidoVendedorPromedios() {
         if (d.estado === 'completado') setResult({ ok: true, d: d.resultado })
         else setResult({ ok: false, msg: d.error })
         loadBatches()
-        loadDatos(1, search)
       }
     } catch {}
   }
 
   useEffect(() => {
-    loadDatos(1, '')
     checkEstado().then(() => {
       setEstado(prev => {
         if (prev?.estado === 'ejecutando') {
@@ -114,7 +99,6 @@ export default function PedidoVendedorPromedios() {
         // ya no aparece en la lista → se terminó de borrar
         clearInterval(deletePollRef.current)
         setDeleting(null)
-        loadDatos(1, search)
       }
     } catch {}
   }
@@ -132,7 +116,6 @@ export default function PedidoVendedorPromedios() {
         setUploadingBatchId(null)
         if (b.estado === 'OK') setUploadResult({ ok: true, saved: b.totalFilas })
         else setUploadResult({ ok: false, msg: b.detalle || 'Error al procesar el archivo.' })
-        loadDatos(1, search)
       }
     } catch {}
   }
@@ -230,28 +213,14 @@ export default function PedidoVendedorPromedios() {
     }
   }
 
-  function handleSearch(e) {
-    e.preventDefault()
-    setSearch(searchInp)
-    setPage(1)
-    loadDatos(1, searchInp)
-  }
-
-  function changePage(p) {
-    setPage(p)
-    loadDatos(p, search)
-  }
-
-  const totalPages = datos ? Math.ceil(datos.total / PAGE_SIZE) : 1
-
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
-          PedidoVendedor Vs. Promedios
+          Promedios de Pedido
         </h1>
         <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
-          Clasifica el pedido del vendedor contra su mediana histórica y lo compara contra el promedio de periodos normales.
+          Promedio final y desviación estándar de pedido y carga por CeVe, Item y Día.
         </p>
       </div>
 
@@ -430,79 +399,6 @@ export default function PedidoVendedorPromedios() {
         </div>
       )}
 
-      {/* Datos */}
-      <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 12 }}>
-        Datos guardados
-      </div>
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <input
-          value={searchInp}
-          onChange={e => setSearchInp(e.target.value)}
-          placeholder="Buscar por CeVe, Item o producto…"
-          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)',
-            fontSize: 13, background: '#fff', outline: 'none' }}
-        />
-        <button type="submit" className="btn primary" style={{ padding: '8px 20px', fontSize: 13 }}>Buscar</button>
-      </form>
-
-      {!datos ? (
-        <div style={{ color: '#9ca3af', fontSize: 13 }}>Cargando datos…</div>
-      ) : datos.total === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14,
-          border: '1px dashed var(--border)', borderRadius: 12 }}>
-          Sin datos. Ejecuta el proceso o carga un CSV.
-        </div>
-      ) : (
-        <>
-          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{fmtNum(datos.total)} registros</div>
-          <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#f9fafb' }}>
-                  {['CeVe','Nombre CeVe','Item','Producto','Día','Fecha','Pedido env','Carga env','Mediana','Clasif.','Estado','Promedio Final','Desv. Std','Var. %'].map(h => (
-                    <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600,
-                      color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {datos.rows.map((r, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding: '7px 12px', fontWeight: 600 }}>{r.codCeve}</td>
-                    <td style={{ padding: '7px 12px' }}>{r.nombreCeve}</td>
-                    <td style={{ padding: '7px 12px', fontFamily: 'monospace' }}>{r.item}</td>
-                    <td style={{ padding: '7px 12px', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.nombreProducto}</td>
-                    <td style={{ padding: '7px 12px' }}>{r.dia}</td>
-                    <td style={{ padding: '7px 12px' }}>{r.fechaVenta ?? '—'}</td>
-                    <td style={{ padding: '7px 12px' }}>{fmtDec(r.pedidoVendedor)}</td>
-                    <td style={{ padding: '7px 12px' }}>{fmtDec(r.cargaEnv)}</td>
-                    <td style={{ padding: '7px 12px' }}>{fmtDec(r.medianaEnv)}</td>
-                    <td style={{ padding: '7px 12px' }}>{r.clasificacion}</td>
-                    <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>{r.estado}</td>
-                    <td style={{ padding: '7px 12px' }}>{fmtDec(r.promedioFinal)}</td>
-                    <td style={{ padding: '7px 12px' }}>{fmtDec(r.desviacionStd)}</td>
-                    <td style={{ padding: '7px 12px' }}>{r.variacionPct != null ? `${r.variacionPct}%` : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', gap: 6, marginTop: 12, justifyContent: 'center' }}>
-              <button onClick={() => changePage(1)} disabled={page === 1}
-                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>««</button>
-              <button onClick={() => changePage(page - 1)} disabled={page === 1}
-                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>‹</button>
-              <span style={{ padding: '4px 12px', fontSize: 12, color: '#6b7280' }}>Página {page} / {totalPages}</span>
-              <button onClick={() => changePage(page + 1)} disabled={page >= totalPages}
-                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>›</button>
-              <button onClick={() => changePage(totalPages)} disabled={page >= totalPages}
-                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>»»</button>
-            </div>
-          )}
-        </>
-      )}
     </div>
   )
 }

@@ -37,7 +37,7 @@ const nav = [
     section: 'Ejecución Proceso',
     items: [
       { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: '▣' },
-      { to: '/pedido-vendedor-promedios', label: 'PedidoVendedor Vs. Promedios', icon: '📊' },
+      { to: '/pedido-vendedor-promedios', label: 'Promedios de Pedido', icon: '📊' },
     ]
   },
   {
