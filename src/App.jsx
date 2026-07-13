@@ -15,6 +15,8 @@ import CatalogoOracleCeves from './pages/catalogos/CatalogoOracleCeves'
 import CatalogoPlantas from './pages/catalogos/CatalogoPlantas'
 import PedidoVendedorPromedios from './pages/PedidoVendedorPromedios'
 import ParticipacionTipoMovimiento from './pages/ParticipacionTipoMovimiento'
+import ExistenciaCeveManual from './pages/ExistenciaCeveManual'
+import PedidoVsCargoReal from './pages/PedidoVsCargoReal'
 import { useEffect } from 'react'
 import './App.css'
 
@@ -53,6 +55,8 @@ const nav = [
       { to: '/pedido-oracle',      label: 'Pedido Oracle',              icon: '◈' },
       { to: '/pedido-vendedor-promedios', label: 'Promedios de Pedido', icon: '📊' },
       { to: '/participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', icon: '📈' },
+      { to: '/existencia-ceve-manual', label: 'Existencia CeVe Manual', icon: '📦' },
+      { to: '/pedido-vs-cargo-real', label: 'PedidoVSCargo Real', icon: '🚚' },
     ]
   },
   {
@@ -128,6 +132,8 @@ export default function App() {
           <Route path="/catalogos/plantas"      element={<CatalogoPlantas />} />
           <Route path="/pedido-vendedor-promedios" element={<PedidoVendedorPromedios />} />
           <Route path="/participacion-tipo-movimiento" element={<ParticipacionTipoMovimiento />} />
+          <Route path="/existencia-ceve-manual" element={<ExistenciaCeveManual />} />
+          <Route path="/pedido-vs-cargo-real" element={<PedidoVsCargoReal />} />
         </Routes>
       </main>
     </div>
