@@ -359,16 +359,18 @@ function TabConsolidado() {
             <thead><tr>
               <th>CeVe</th><th>Item</th>
               {DIAS.map(d => <th key={d} style={{textAlign:'center',minWidth:34}}>{d}</th>)}
+              <th>Frecuencia_dias</th>
               <th>Origen</th><th>Ejecución</th>
             </tr></thead>
             <tbody>
-              {loading ? <tr><td colSpan={12} className="loading">Cargando...</td></tr>
-              : !data?.rows?.length ? <tr><td colSpan={12} className="empty">Sin resultados.</td></tr>
+              {loading ? <tr><td colSpan={13} className="loading">Cargando...</td></tr>
+              : !data?.rows?.length ? <tr><td colSpan={13} className="empty">Sin resultados.</td></tr>
               : data.rows.map((r,i) => (
                 <tr key={i}>
                   <td style={{fontWeight:600}}>{r.cod_ceve}</td>
                   <td style={{fontFamily:'monospace',fontSize:12}}>{r.item}</td>
                   {DIAS_KEYS.map(k => <td key={k} style={{textAlign:'center'}}><DayDot val={r[k]} /></td>)}
+                  <td style={{fontSize:12,fontWeight:600,color:'#374151'}}>{r.frecuencia_dias || '—'}</td>
                   <td>
                     <span style={{
                       fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:10,
