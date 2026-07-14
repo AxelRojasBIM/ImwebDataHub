@@ -17,6 +17,7 @@ import PedidoVendedorPromedios from './pages/PedidoVendedorPromedios'
 import ParticipacionTipoMovimiento from './pages/ParticipacionTipoMovimiento'
 import ExistenciaCeveManual from './pages/ExistenciaCeveManual'
 import PedidoVsCargoReal from './pages/PedidoVsCargoReal'
+import ExistenciaTeorica from './pages/ExistenciaTeorica'
 import { useEffect } from 'react'
 import './App.css'
 
@@ -40,6 +41,7 @@ const nav = [
     section: 'Ejecución Proceso',
     items: [
       { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: '▣' },
+      { to: '/existencia-teorica', label: 'Existencia Teórica', icon: '📐', badgeType: 'new', badge: 'Nuevo' },
     ]
   },
   {
@@ -134,6 +136,7 @@ export default function App() {
           <Route path="/participacion-tipo-movimiento" element={<ParticipacionTipoMovimiento />} />
           <Route path="/existencia-ceve-manual" element={<ExistenciaCeveManual />} />
           <Route path="/pedido-vs-cargo-real" element={<PedidoVsCargoReal />} />
+          <Route path="/existencia-teorica" element={<ExistenciaTeorica />} />
         </Routes>
       </main>
     </div>
