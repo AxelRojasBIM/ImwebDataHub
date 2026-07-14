@@ -25,6 +25,7 @@ function TabFillRate() {
   const [result, setResult]           = useState(null)
   const [historial, setHistorial]     = useState([])
   const [loadingH, setLoadingH]       = useState(true)
+  const [deletingId, setDeletingId]   = useState(null)
   const pollRef = useRef(null)
 
   async function loadHistorial() {
@@ -34,6 +35,20 @@ function TabFillRate() {
       if (r.ok) setHistorial(await r.json())
     } catch {}
     finally { setLoadingH(false) }
+  }
+
+  function handleDescargar(ejecucionId) {
+    window.open(`${API}/api/fill-rate/exportar?ejecucionId=${encodeURIComponent(ejecucionId)}`, '_blank')
+  }
+
+  async function handleEliminar(ejecucionId) {
+    if (!confirm('¿Eliminar esta ejecución y todos sus resultados? Esta acción no se puede deshacer.')) return
+    setDeletingId(ejecucionId)
+    try {
+      await fetch(`${API}/api/fill-rate/ejecuciones/${encodeURIComponent(ejecucionId)}`, { method: 'DELETE' })
+      await loadHistorial()
+    } catch {}
+    finally { setDeletingId(null) }
   }
 
   async function checkEstado() {
@@ -173,7 +188,7 @@ function TabFillRate() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                {['Fecha inicio','Fecha fin','Ejecutado por','Ejecutado el','Hora','Avance','Duración','CeVes','Estado'].map(h => (
+                {['Fecha inicio','Fecha fin','Ejecutado por','Ejecutado el','Hora','Avance','Duración','CeVes','Estado',''].map(h => (
                   <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600,
                     color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
@@ -204,6 +219,23 @@ function TabFillRate() {
                         background: row.estado === 'OK' ? '#dcfce7' : enCurso ? '#dbeafe' : parcial ? '#fef3c7' : '#fef2f2',
                         color:      row.estado === 'OK' ? '#166534' : enCurso ? '#1d4ed8' : parcial ? '#92400e' : '#991b1b',
                       }}>{enCurso ? 'ejecutando' : parcial ? 'parcial' : (row.estado ?? '—')}</span>
+                    </td>
+                    <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
+                      {row.ejecucionId && !enCurso && (
+                        <>
+                          <button onClick={() => handleDescargar(row.ejecucionId)}
+                            style={{ background: 'none', border: '1px solid #93b4fd', borderRadius: 6,
+                              color: '#1d4ed8', cursor: 'pointer', padding: '3px 10px', fontSize: 12, marginRight: 6 }}>
+                            Descargar
+                          </button>
+                          <button onClick={() => handleEliminar(row.ejecucionId)} disabled={deletingId === row.ejecucionId}
+                            style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 6,
+                              color: '#dc2626', cursor: deletingId === row.ejecucionId ? 'default' : 'pointer', padding: '3px 10px', fontSize: 12,
+                              opacity: deletingId === row.ejecucionId ? 0.5 : 1 }}>
+                            {deletingId === row.ejecucionId ? '…' : 'Eliminar'}
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 )
