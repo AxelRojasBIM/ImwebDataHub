@@ -18,7 +18,7 @@ function fmtNum(v) {
 const PREVIEW_COLS = [
   'Fecha_venta','SCCode','ItemOrg','nombre_producto','nombre_ceve','dia','semana','anio',
   'tipo_part','tipo_mov','cargoprom_env','cargoprom_pzs','desv_standar','desv_standar_pzs','leadtime','frecuencia',
-  'Factor','ss','Invopt',
+  'Factor','Promedio_semanal','Promedio_semanal_pzs','ss','Invopt',
 ]
 
 export default function InvOpt() {
