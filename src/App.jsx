@@ -20,6 +20,7 @@ import PedidoVsCargoReal from './pages/PedidoVsCargoReal'
 import ExistenciaTeorica from './pages/ExistenciaTeorica'
 import PostMortem from './pages/PostMortem'
 import InvOpt from './pages/InvOpt'
+import CausasRecorte from './pages/CausasRecorte'
 import { useEffect } from 'react'
 import './App.css'
 
@@ -46,6 +47,7 @@ const nav = [
       { to: '/existencia-teorica', label: 'Existencia Teórica', icon: '📐', badgeType: 'new', badge: 'Nuevo' },
       { to: '/post-mortem', label: 'Post-Mortem', icon: '🔍', badgeType: 'new', badge: 'Nuevo' },
       { to: '/inv-opt', label: 'Cálculo Inventario Óptimo', icon: '🧮', badgeType: 'new', badge: 'Nuevo' },
+      { to: '/causas-recorte', label: 'Causas Recorte', icon: '🩺', badgeType: 'new', badge: 'Nuevo' },
     ]
   },
   {
@@ -143,6 +145,7 @@ export default function App() {
           <Route path="/existencia-teorica" element={<ExistenciaTeorica />} />
           <Route path="/post-mortem" element={<PostMortem />} />
           <Route path="/inv-opt" element={<InvOpt />} />
+          <Route path="/causas-recorte" element={<CausasRecorte />} />
         </Routes>
       </main>
     </div>
