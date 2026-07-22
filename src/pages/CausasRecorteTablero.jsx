@@ -170,6 +170,7 @@ export default function CausasRecorteTablero() {
         { key: 'recorteUsd', label: 'Recorte $', width: 130, align: 'right' },
         { key: 'causaPredominante', label: 'Causa Predominante', width: 200, align: 'left' },
         { key: 'causaSecundaria', label: 'Causa Secundaria', width: 200, align: 'left' },
+        { key: null, label: 'Resumen', width: 380, align: 'left' },
       ]
     : [
         { key: 'fecha', label: 'Fecha', width: 100, align: 'left' },
@@ -189,10 +190,11 @@ export default function CausasRecorteTablero() {
     { label: 'Producto', width: 260, align: 'left' },
     { label: 'Total Producto Pzs', width: 140, align: 'right' },
     { label: 'Total Producto $', width: 140, align: 'right' },
-    { label: 'CeVe', width: 200, align: 'left' },
+    { label: 'CeVe', width: 220, align: 'left' },
     { label: 'Recorte Pzs', width: 120, align: 'right' },
     { label: 'Recorte $', width: 130, align: 'right' },
     { label: 'Causa Predominante', width: 200, align: 'left' },
+    { label: 'Resumen', width: 380, align: 'left' },
   ]
 
   return (
@@ -369,10 +371,13 @@ export default function CausasRecorteTablero() {
                       <td style={cellStyle} title={row.descripcion}>{isNewItem ? `${row.item} - ${row.descripcion || ''}` : ''}</td>
                       <td style={{ ...cellStyle, textAlign: 'right', color: isNewItem ? 'inherit' : '#d1d5db' }}>{isNewItem ? fmtNum(row.itemTotalPzs) : ''}</td>
                       <td style={{ ...cellStyle, textAlign: 'right', color: isNewItem ? 'inherit' : '#d1d5db' }}>{isNewItem ? fmtMoney(row.itemTotalUsd) : ''}</td>
-                      <td style={cellStyle} title={row.ceve}>{row.ceve || row.codigoCeve}</td>
+                      <td style={cellStyle} title={`${row.codigoCeve ?? ''} - ${row.ceve ?? ''}`}>
+                        {row.codigoCeve}{row.ceve ? ` - ${row.ceve}` : ''}
+                      </td>
                       <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtNum(row.recortePzs)}</td>
                       <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
                       <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
+                      <td style={{ ...cellStyle, fontSize: 12.5, color: '#4b5563' }} title={row.resumen}>{row.resumen || '—'}</td>
                     </tr>
                   )
                 })
@@ -446,6 +451,7 @@ export default function CausasRecorteTablero() {
                       <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
                       <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
                       <td style={cellStyle}><CausaBadge causa={row.causaSecundaria} small /></td>
+                      <td style={{ ...cellStyle, fontSize: 12.5, color: '#4b5563' }} title={row.resumen}>{row.resumen || '—'}</td>
                     </tr>
                   )
                 }) : data.rows.map((row, i) => {
