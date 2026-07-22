@@ -9,6 +9,14 @@ const CAUSA_STYLES = {
 }
 const CAUSA_OPTS = Object.keys(CAUSA_STYLES)
 
+const GROUP_FIELDS = [
+  { key: 'fecha',     label: 'Fecha',     width: 110 },
+  { key: 'ceve',      label: 'CeVe',      width: 220 },
+  { key: 'item',      label: 'Item',      width: 260 },
+  { key: 'categoria', label: 'Categoría', width: 160 },
+  { key: 'canal',     label: 'Canal',     width: 140 },
+]
+
 function CausaBadge({ causa, small }) {
   if (!causa) return <span style={{ color: '#9ca3af' }}>—</span>
   const s = CAUSA_STYLES[causa] || CAUSA_STYLES['Sin causa identificada']
@@ -40,6 +48,7 @@ export default function CausasRecorteTablero() {
   const [codigoCeve, setCodigoCeve]   = useState('')
   const [canal, setCanal]             = useState('')
   const [causa, setCausa]             = useState('')
+  const [groupBy, setGroupBy]         = useState([])
   const [page, setPage]               = useState(1)
 
   const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] })
@@ -61,11 +70,16 @@ export default function CausasRecorteTablero() {
       if (codigoCeve)  params.set('codigoCeve', codigoCeve)
       if (canal)       params.set('canal', canal)
       if (causa)       params.set('causa', causa)
-      const r = await fetch(`${API}/api/causas-recorte/tablero?${params}`)
+
+      const endpoint = groupBy.length > 0
+        ? `${API}/api/causas-recorte/tablero-agrupado?groupBy=${groupBy.join(',')}&${params}`
+        : `${API}/api/causas-recorte/tablero?${params}`
+
+      const r = await fetch(endpoint)
       if (r.ok) setData(await r.json())
     } catch {}
     finally { setLoading(false) }
-  }, [page, fechaInicio, fechaFin, codigoCeve, canal, causa])
+  }, [page, fechaInicio, fechaFin, codigoCeve, canal, causa, groupBy])
 
   useEffect(() => { load() }, [load])
 
@@ -74,12 +88,18 @@ export default function CausasRecorteTablero() {
     load()
   }
   function handleLimpiar() {
-    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setPage(1)
+    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setGroupBy([]); setPage(1)
+  }
+  function toggleGroup(key) {
+    setGroupBy(g => g.includes(key) ? g.filter(k => k !== key) : [...g, key])
+    setPage(1)
   }
 
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE))
   const rangeStart = data.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const rangeEnd   = Math.min(page * PAGE_SIZE, data.total)
+  const agrupado = groupBy.length > 0
+  const activeGroupFields = GROUP_FIELDS.filter(f => groupBy.includes(f.key))
 
   return (
     <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box',
@@ -98,7 +118,7 @@ export default function CausasRecorteTablero() {
         background: '#f8faff', border: '1px solid #c7d7fd', borderRadius: 14,
         padding: '18px 22px', marginBottom: 16, flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 14 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
             Desde
             <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
@@ -143,12 +163,24 @@ export default function CausasRecorteTablero() {
             Limpiar
           </button>
         </div>
+
+        {/* Agrupar por */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid #dbe4fb' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Agrupar por:</span>
+          {GROUP_FIELDS.map(f => (
+            <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#374151', cursor: 'pointer' }}>
+              <input type="checkbox" checked={groupBy.includes(f.key)} onChange={() => toggleGroup(f.key)}
+                style={{ width: 15, height: 15, cursor: 'pointer' }} />
+              {f.label}
+            </label>
+          ))}
+        </div>
       </div>
 
       {/* Resumen */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', flexShrink: 0 }}>
         <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 18px', minWidth: 160 }}>
-          <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>Filas</div>
+          <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>{agrupado ? 'Grupos' : 'Filas'}</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{data.total.toLocaleString()}</div>
         </div>
         <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 18px', minWidth: 160 }}>
@@ -175,18 +207,34 @@ export default function CausasRecorteTablero() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ background: '#2563eb' }}>
-                  {[
-                    ['Fecha', 100], ['CeVe', 140], ['Item', 90], ['Producto', 200], ['Canal', 110],
-                    ['Recorte Pzs', 110], ['Recorte $', 110], ['Causa Principal', 170], ['Causa Secundaria', 170], ['Resumen', 380],
-                  ].map(([h, w], idx) => (
-                    <th key={h} style={{ padding: '11px 14px', width: w, textAlign: idx === 5 || idx === 6 ? 'right' : 'left', fontWeight: 700,
-                      color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
+                  {(agrupado
+                    ? [...activeGroupFields.map(f => [f.label, f.width]), ['Filas', 90], ['Recorte Pzs', 120], ['Recorte $', 130], ['Causa Predominante', 210]]
+                    : [['Fecha', 100], ['CeVe', 140], ['Item', 90], ['Producto', 200], ['Canal', 110],
+                       ['Recorte Pzs', 110], ['Recorte $', 110], ['Causa Principal', 170], ['Causa Secundaria', 170], ['Resumen', 380]]
+                  ).map(([h, w], idx, arr) => (
+                    <th key={h} style={{ padding: '11px 14px', width: w,
+                      textAlign: (agrupado ? idx >= activeGroupFields.length && idx < arr.length - 1 : idx === 5 || idx === 6) ? 'right' : 'left',
+                      fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
                       position: 'sticky', top: 0, background: '#2563eb', zIndex: 1 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {data.rows.map((row, i) => {
+                {agrupado ? data.rows.map((row, i) => {
+                  const key = activeGroupFields.map(f => row[f.key]).join('|') + '-' + i
+                  const cellStyle = { padding: '9px 14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 38 }
+                  return (
+                    <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      {activeGroupFields.map(f => (
+                        <td key={f.key} style={cellStyle} title={row[f.key]}>{row[f.key] ?? '—'}</td>
+                      ))}
+                      <td style={{ ...cellStyle, textAlign: 'right' }}>{row.filas?.toLocaleString()}</td>
+                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtNum(row.recortePzs)}</td>
+                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
+                      <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
+                    </tr>
+                  )
+                }) : data.rows.map((row, i) => {
                   const key = `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
                   const cellStyle = { padding: '9px 14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 38 }
                   return (
@@ -210,7 +258,7 @@ export default function CausasRecorteTablero() {
 
           {/* Paginación */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 13, color: '#6b7280', flexShrink: 0 }}>
-            <div>Mostrando {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} de {data.total.toLocaleString()} filas · Página {page} de {totalPages}</div>
+            <div>Mostrando {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} de {data.total.toLocaleString()} {agrupado ? 'grupos' : 'filas'} · Página {page} de {totalPages}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
                 style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff',
