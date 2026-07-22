@@ -17,6 +17,8 @@ const GROUP_FIELDS = [
   { key: 'canal',     label: 'Canal',     width: 140 },
 ]
 
+const HEADER_H = 40
+
 function CausaBadge({ causa, small }) {
   if (!causa) return <span style={{ color: '#9ca3af' }}>—</span>
   const s = CAUSA_STYLES[causa] || CAUSA_STYLES['Sin causa identificada']
@@ -42,37 +44,52 @@ function fmtMoney(v) {
 const PAGE_SIZE = 100
 
 export default function CausasRecorteTablero() {
-  const [filtros, setFiltros] = useState({ ceves: [], canales: [] })
+  const [filtros, setFiltros] = useState({ ceves: [], canales: [], categorias: [] })
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin]       = useState('')
   const [codigoCeve, setCodigoCeve]   = useState('')
   const [canal, setCanal]             = useState('')
   const [causa, setCausa]             = useState('')
+  const [categoria, setCategoria]     = useState('')
   const [groupBy, setGroupBy]         = useState([])
   const [page, setPage]               = useState(1)
   const [sortBy, setSortBy]           = useState(null)
   const [sortDir, setSortDir]         = useState('desc')
 
   const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] })
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+
+  // Top N
+  const [topNOpen, setTopNOpen]     = useState(false)
+  const [topNActive, setTopNActive] = useState(false)
+  const [topNCategoria, setTopNCategoria] = useState('')
+  const [topProductos, setTopProductos]   = useState(10)
+  const [topCeves, setTopCeves]           = useState(2)
+  const [topUnidad, setTopUnidad]         = useState('pzs')
+  const [topOrden, setTopOrden]           = useState('desc')
+  const [topNData, setTopNData]           = useState(null)
+  const [topNLoading, setTopNLoading]     = useState(false)
+  const [topNError, setTopNError]         = useState(null)
+
+  const fechasListas = !!fechaInicio && !!fechaFin
 
   useEffect(() => {
     fetch(`${API}/api/causas-recorte/filtros`)
-      .then(r => r.ok ? r.json() : { ceves: [], canales: [] })
-      .then(setFiltros)
+      .then(r => r.ok ? r.json() : {})
+      .then(d => setFiltros({ ceves: [], canales: [], categorias: [], ...d }))
       .catch(() => {})
   }, [])
 
   const load = useCallback(async () => {
+    if (!fechasListas) { setData({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] }); return }
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) })
-      if (fechaInicio) params.set('fechaInicio', fechaInicio)
-      if (fechaFin)    params.set('fechaFin', fechaFin)
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), fechaInicio, fechaFin })
       if (codigoCeve)  params.set('codigoCeve', codigoCeve)
       if (canal)       params.set('canal', canal)
       if (causa)       params.set('causa', causa)
-      if (sortBy)       { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
+      if (categoria)   params.set('categoria', categoria)
+      if (sortBy)      { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
       const endpoint = groupBy.length > 0
         ? `${API}/api/causas-recorte/tablero-agrupado?groupBy=${groupBy.join(',')}&${params}`
@@ -82,19 +99,21 @@ export default function CausasRecorteTablero() {
       if (r.ok) setData(await r.json())
     } catch {}
     finally { setLoading(false) }
-  }, [page, fechaInicio, fechaFin, codigoCeve, canal, causa, groupBy, sortBy, sortDir])
+  }, [fechasListas, page, fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, groupBy, sortBy, sortDir])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { if (!topNActive) load() }, [load, topNActive])
 
   function handleFiltrar() {
+    setTopNActive(false)
     setPage(1)
     load()
   }
   function handleLimpiar() {
-    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setGroupBy([])
-    setSortBy(null); setSortDir('desc'); setPage(1)
+    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setCategoria('')
+    setGroupBy([]); setSortBy(null); setSortDir('desc'); setPage(1); setTopNActive(false)
   }
   function toggleGroup(key) {
+    setTopNActive(false)
     setGroupBy(g => g.includes(key) ? g.filter(k => k !== key) : [...g, key])
     setPage(1)
   }
@@ -107,6 +126,34 @@ export default function CausasRecorteTablero() {
       setSortDir('desc')
     }
     setPage(1)
+  }
+
+  async function handleAplicarTopN() {
+    if (!topNCategoria) { setTopNError('Selecciona una categoría.'); return }
+    setTopNLoading(true); setTopNError(null)
+    try {
+      const params = new URLSearchParams({
+        categoria: topNCategoria, topProductos: String(topProductos), topCeves: String(topCeves),
+        unidad: topUnidad, orden: topOrden,
+      })
+      if (fechaInicio) params.set('fechaInicio', fechaInicio)
+      if (fechaFin)    params.set('fechaFin', fechaFin)
+      if (canal)        params.set('canal', canal)
+      if (causa)        params.set('causa', causa)
+      const r = await fetch(`${API}/api/causas-recorte/top-n?${params}`)
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      setTopNData(d)
+      setTopNActive(true)
+    } catch (e) {
+      setTopNError(e.message)
+    } finally {
+      setTopNLoading(false)
+    }
+  }
+  function handleSalirTopN() {
+    setTopNActive(false)
+    setTopNData(null)
   }
 
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE))
@@ -137,6 +184,17 @@ export default function CausasRecorteTablero() {
         { key: null, label: 'Resumen', width: 380, align: 'left' },
       ]
 
+  const topNColumns = [
+    { label: '#', width: 40, align: 'right' },
+    { label: 'Producto', width: 260, align: 'left' },
+    { label: 'Total Producto Pzs', width: 140, align: 'right' },
+    { label: 'Total Producto $', width: 140, align: 'right' },
+    { label: 'CeVe', width: 200, align: 'left' },
+    { label: 'Recorte Pzs', width: 120, align: 'right' },
+    { label: 'Recorte $', width: 130, align: 'right' },
+    { label: 'Causa Predominante', width: 200, align: 'left' },
+  ]
+
   return (
     <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box',
       display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -156,12 +214,12 @@ export default function CausasRecorteTablero() {
       }}>
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 14 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
-            Desde
+            Desde *
             <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
-            Hasta
+            Hasta *
             <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
           </label>
@@ -179,6 +237,14 @@ export default function CausasRecorteTablero() {
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 140 }}>
               <option value="">Todos</option>
               {filtros.canales.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+            Categoría
+            <select value={categoria} onChange={e => setCategoria(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
+              <option value="">Todas</option>
+              {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
@@ -213,24 +279,113 @@ export default function CausasRecorteTablero() {
         </div>
       </div>
 
-      {/* Resumen */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', flexShrink: 0 }}>
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 18px', minWidth: 160 }}>
-          <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>{agrupado ? 'Grupos' : 'Filas'}</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{data.total.toLocaleString()}</div>
+      {/* Top N */}
+      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, marginBottom: 16, flexShrink: 0, overflow: 'hidden' }}>
+        <div onClick={() => setTopNOpen(o => !o)}
+          style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: '#f9fafb' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>
+            📊 Análisis Top N {topNActive && <span style={{ color: '#2563eb', marginLeft: 6 }}>(activo)</span>}
+          </span>
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>{topNOpen ? '▲ ocultar' : '▼ mostrar'}</span>
         </div>
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 18px', minWidth: 160 }}>
-          <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>Recorte total (Pzs)</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#991b1b' }}>{fmtNum(data.totalRecortePzs)}</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 18px', minWidth: 160 }}>
-          <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase' }}>Recorte total</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#991b1b' }}>{fmtMoney(data.totalRecorteUsd)}</div>
-        </div>
+        {topNOpen && (
+          <div style={{ padding: '16px 18px', display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+              Categoría *
+              <select value={topNCategoria} onChange={e => setTopNCategoria(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 180 }}>
+                <option value="">Selecciona…</option>
+                {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+              Top productos
+              <input type="number" min={1} max={100} value={topProductos} onChange={e => setTopProductos(Number(e.target.value) || 1)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 80 }} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+              CeVes por producto
+              <input type="number" min={1} max={50} value={topCeves} onChange={e => setTopCeves(Number(e.target.value) || 1)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 80 }} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+              Unidad
+              <select value={topUnidad} onChange={e => setTopUnidad(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                <option value="pzs">Piezas</option>
+                <option value="usd">Pesos ($)</option>
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+              Orden
+              <select value={topOrden} onChange={e => setTopOrden(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                <option value="desc">Mayor a menor</option>
+                <option value="asc">Menor a mayor</option>
+              </select>
+            </label>
+            <button className="btn primary" onClick={handleAplicarTopN} disabled={topNLoading}
+              style={{ padding: '8px 22px', fontWeight: 700, fontSize: 13, height: 36 }}>
+              {topNLoading ? '⏳ Calculando…' : 'Aplicar Top N'}
+            </button>
+            {topNActive && (
+              <button onClick={handleSalirTopN}
+                style={{ padding: '8px 16px', height: 36, fontSize: 13, borderRadius: 8, background: '#fff',
+                  border: '1px solid var(--border)', color: '#6b7280', cursor: 'pointer' }}>
+                Salir de Top N
+              </button>
+            )}
+            {topNError && <span style={{ fontSize: 12, color: '#991b1b' }}>{topNError}</span>}
+          </div>
+        )}
       </div>
 
       {/* Tabla */}
-      {loading ? (
+      {topNActive && topNData ? (
+        <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+            <thead>
+              <tr style={{ background: '#2563eb' }}>
+                {topNColumns.map(col => (
+                  <th key={col.label} style={{ padding: '11px 14px', width: col.width, textAlign: col.align, fontWeight: 700,
+                    color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
+                    position: 'sticky', top: 0, background: '#2563eb', zIndex: 1 }}>{col.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                let lastItem = null, rank = 0
+                return topNData.rows.map((row, i) => {
+                  const isNewItem = row.item !== lastItem
+                  if (isNewItem) { rank++; lastItem = row.item }
+                  const cellStyle = { padding: '9px 14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 38 }
+                  return (
+                    <tr key={`${row.item}-${row.codigoCeve}-${i}`} style={{
+                      borderBottom: '1px solid var(--border)',
+                      borderTop: isNewItem && i > 0 ? '2px solid #c7d7fd' : undefined,
+                      background: rank % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: '#9ca3af' }}>{isNewItem ? rank : ''}</td>
+                      <td style={cellStyle} title={row.descripcion}>{isNewItem ? `${row.item} - ${row.descripcion || ''}` : ''}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: isNewItem ? 'inherit' : '#d1d5db' }}>{isNewItem ? fmtNum(row.itemTotalPzs) : ''}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: isNewItem ? 'inherit' : '#d1d5db' }}>{isNewItem ? fmtMoney(row.itemTotalUsd) : ''}</td>
+                      <td style={cellStyle} title={row.ceve}>{row.ceve || row.codigoCeve}</td>
+                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtNum(row.recortePzs)}</td>
+                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
+                      <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
+                    </tr>
+                  )
+                })
+              })()}
+            </tbody>
+          </table>
+        </div>
+      ) : !fechasListas ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14,
+          border: '1px dashed var(--border)', borderRadius: 12 }}>
+          Selecciona un rango de fechas (Desde / Hasta) para ver los datos.
+        </div>
+      ) : loading ? (
         <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0' }}>Cargando…</div>
       ) : data.rows.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '32px 0', color: '#9ca3af', fontSize: 13,
@@ -249,7 +404,7 @@ export default function CausasRecorteTablero() {
                       <th key={col.label} onClick={() => handleSort(col.key)}
                         style={{ padding: '11px 14px', width: col.width, textAlign: col.align, fontWeight: 700,
                           color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
-                          position: 'sticky', top: 0, background: '#2563eb', zIndex: 1,
+                          position: 'sticky', top: 0, background: '#2563eb', zIndex: 2, height: HEADER_H, boxSizing: 'border-box',
                           cursor: col.key ? 'pointer' : 'default', userSelect: 'none' }}>
                         {col.label}
                         {col.key && (
@@ -258,6 +413,21 @@ export default function CausasRecorteTablero() {
                           </span>
                         )}
                       </th>
+                    )
+                  })}
+                </tr>
+                {/* Fila de totales — inamovible (sticky) justo debajo del encabezado */}
+                <tr style={{ background: '#eef2ff' }}>
+                  {columns.map((col, idx) => {
+                    let content = ''
+                    if (idx === 0) content = 'TOTAL'
+                    else if (col.key === 'recortePzs') content = fmtNum(data.totalRecortePzs)
+                    else if (col.key === 'recorteUsd') content = fmtMoney(data.totalRecorteUsd)
+                    else if (col.key === 'filas') content = data.total.toLocaleString()
+                    return (
+                      <td key={col.label} style={{ padding: '8px 14px', textAlign: col.align, fontWeight: 700,
+                        color: '#1e3a8a', fontSize: 12.5, whiteSpace: 'nowrap', borderBottom: '2px solid #c7d7fd',
+                        position: 'sticky', top: HEADER_H, background: '#eef2ff', zIndex: 1 }}>{content}</td>
                     )
                   })}
                 </tr>
