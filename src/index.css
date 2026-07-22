@@ -16,7 +16,7 @@
   --success-bg:   #ecfdf5;
   --success-text: #065f46;
   --radius:       8px;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Century Gothic', 'CenturyGothic', 'Segoe UI', system-ui, Roboto, sans-serif;
   font-size: 14px;
   color: var(--text);
   background: var(--bg);
