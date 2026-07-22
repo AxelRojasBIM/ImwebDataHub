@@ -50,6 +50,8 @@ export default function CausasRecorteTablero() {
   const [causa, setCausa]             = useState('')
   const [groupBy, setGroupBy]         = useState([])
   const [page, setPage]               = useState(1)
+  const [sortBy, setSortBy]           = useState(null)
+  const [sortDir, setSortDir]         = useState('desc')
 
   const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] })
   const [loading, setLoading] = useState(true)
@@ -70,6 +72,7 @@ export default function CausasRecorteTablero() {
       if (codigoCeve)  params.set('codigoCeve', codigoCeve)
       if (canal)       params.set('canal', canal)
       if (causa)       params.set('causa', causa)
+      if (sortBy)       { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
       const endpoint = groupBy.length > 0
         ? `${API}/api/causas-recorte/tablero-agrupado?groupBy=${groupBy.join(',')}&${params}`
@@ -79,7 +82,7 @@ export default function CausasRecorteTablero() {
       if (r.ok) setData(await r.json())
     } catch {}
     finally { setLoading(false) }
-  }, [page, fechaInicio, fechaFin, codigoCeve, canal, causa, groupBy])
+  }, [page, fechaInicio, fechaFin, codigoCeve, canal, causa, groupBy, sortBy, sortDir])
 
   useEffect(() => { load() }, [load])
 
@@ -88,10 +91,21 @@ export default function CausasRecorteTablero() {
     load()
   }
   function handleLimpiar() {
-    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setGroupBy([]); setPage(1)
+    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setGroupBy([])
+    setSortBy(null); setSortDir('desc'); setPage(1)
   }
   function toggleGroup(key) {
     setGroupBy(g => g.includes(key) ? g.filter(k => k !== key) : [...g, key])
+    setPage(1)
+  }
+  function handleSort(key) {
+    if (!key) return
+    if (sortBy === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(key)
+      setSortDir('desc')
+    }
     setPage(1)
   }
 
@@ -100,6 +114,28 @@ export default function CausasRecorteTablero() {
   const rangeEnd   = Math.min(page * PAGE_SIZE, data.total)
   const agrupado = groupBy.length > 0
   const activeGroupFields = GROUP_FIELDS.filter(f => groupBy.includes(f.key))
+
+  const columns = agrupado
+    ? [
+        ...activeGroupFields.map(f => ({ key: f.key, label: f.label, width: f.width, align: 'left' })),
+        { key: 'filas', label: 'Filas', width: 90, align: 'right' },
+        { key: 'recortePzs', label: 'Recorte Pzs', width: 120, align: 'right' },
+        { key: 'recorteUsd', label: 'Recorte $', width: 130, align: 'right' },
+        { key: 'causaPredominante', label: 'Causa Predominante', width: 200, align: 'left' },
+        { key: 'causaSecundaria', label: 'Causa Secundaria', width: 200, align: 'left' },
+      ]
+    : [
+        { key: 'fecha', label: 'Fecha', width: 100, align: 'left' },
+        { key: 'ceve', label: 'CeVe', width: 140, align: 'left' },
+        { key: 'item', label: 'Item', width: 90, align: 'left' },
+        { key: 'producto', label: 'Producto', width: 200, align: 'left' },
+        { key: 'canal', label: 'Canal', width: 110, align: 'left' },
+        { key: 'recortePzs', label: 'Recorte Pzs', width: 110, align: 'right' },
+        { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
+        { key: 'causaPrincipal', label: 'Causa Principal', width: 170, align: 'left' },
+        { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
+        { key: null, label: 'Resumen', width: 380, align: 'left' },
+      ]
 
   return (
     <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box',
@@ -207,16 +243,23 @@ export default function CausasRecorteTablero() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ background: '#2563eb' }}>
-                  {(agrupado
-                    ? [...activeGroupFields.map(f => [f.label, f.width]), ['Filas', 90], ['Recorte Pzs', 120], ['Recorte $', 130], ['Causa Predominante', 210]]
-                    : [['Fecha', 100], ['CeVe', 140], ['Item', 90], ['Producto', 200], ['Canal', 110],
-                       ['Recorte Pzs', 110], ['Recorte $', 110], ['Causa Principal', 170], ['Causa Secundaria', 170], ['Resumen', 380]]
-                  ).map(([h, w], idx, arr) => (
-                    <th key={h} style={{ padding: '11px 14px', width: w,
-                      textAlign: (agrupado ? idx >= activeGroupFields.length && idx < arr.length - 1 : idx === 5 || idx === 6) ? 'right' : 'left',
-                      fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
-                      position: 'sticky', top: 0, background: '#2563eb', zIndex: 1 }}>{h}</th>
-                  ))}
+                  {columns.map(col => {
+                    const active = sortBy === col.key
+                    return (
+                      <th key={col.label} onClick={() => handleSort(col.key)}
+                        style={{ padding: '11px 14px', width: col.width, textAlign: col.align, fontWeight: 700,
+                          color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
+                          position: 'sticky', top: 0, background: '#2563eb', zIndex: 1,
+                          cursor: col.key ? 'pointer' : 'default', userSelect: 'none' }}>
+                        {col.label}
+                        {col.key && (
+                          <span style={{ marginLeft: 5, opacity: active ? 1 : 0.35, fontSize: 10 }}>
+                            {active ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                          </span>
+                        )}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -232,6 +275,7 @@ export default function CausasRecorteTablero() {
                       <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtNum(row.recortePzs)}</td>
                       <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
                       <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
+                      <td style={cellStyle}><CausaBadge causa={row.causaSecundaria} small /></td>
                     </tr>
                   )
                 }) : data.rows.map((row, i) => {
