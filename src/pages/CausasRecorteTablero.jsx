@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Fragment } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { API } from '../App'
 
 const CAUSA_STYLES = {
@@ -31,7 +31,7 @@ function fmtUsd(v) {
   return Number(v).toLocaleString('es-MX', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 }
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 100
 
 export default function CausasRecorteTablero() {
   const [filtros, setFiltros] = useState({ ceves: [], canales: [] })
@@ -44,7 +44,6 @@ export default function CausasRecorteTablero() {
 
   const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] })
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(null)
 
   useEffect(() => {
     fetch(`${API}/api/causas-recorte/filtros`)
@@ -79,9 +78,11 @@ export default function CausasRecorteTablero() {
   }
 
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE))
+  const rangeStart = data.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd   = Math.min(page * PAGE_SIZE, data.total)
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '28px 24px' }}>
+    <div style={{ width: '100%', padding: '28px 32px', boxSizing: 'border-box' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
           Causas Recorte
@@ -172,49 +173,33 @@ export default function CausasRecorteTablero() {
           <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ background: '#f9fafb' }}>
-                  {['Fecha','CeVe','Item','Producto','Canal','Recorte Pzs','Recorte $','Causa Principal','Causa Secundaria',''].map(h => (
-                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600,
-                      color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                <tr style={{ background: '#1e3a8a' }}>
+                  {['Fecha','CeVe','Item','Producto','Canal','Recorte Pzs','Recorte $','Causa Principal','Causa Secundaria','Resumen'].map((h, idx) => (
+                    <th key={h} style={{ padding: '11px 14px', textAlign: idx === 5 || idx === 6 ? 'right' : 'left', fontWeight: 700,
+                      color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.rows.map((row, i) => {
                   const key = `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
-                  const isOpen = expanded === key
                   return (
-                    <Fragment key={key}>
-                      <tr style={{ borderBottom: isOpen ? 'none' : '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                        <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>{row.fechaVenta}</td>
-                        <td style={{ padding: '9px 14px' }}>{row.ceve || row.codigoCeve}</td>
-                        <td style={{ padding: '9px 14px' }}>{row.item}</td>
-                        <td style={{ padding: '9px 14px', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.descripcion}>
-                          {row.descripcion || '—'}
-                        </td>
-                        <td style={{ padding: '9px 14px' }}>{row.canal || '—'}</td>
-                        <td style={{ padding: '9px 14px', fontWeight: 600, textAlign: 'right' }}>{fmtNum(row.recortePzs)}</td>
-                        <td style={{ padding: '9px 14px', fontWeight: 600, textAlign: 'right' }}>{fmtUsd(row.recorteUsd)}</td>
-                        <td style={{ padding: '9px 14px' }}><CausaBadge causa={row.causaPrincipal} /></td>
-                        <td style={{ padding: '9px 14px' }}><CausaBadge causa={row.causaSecundaria} small /></td>
-                        <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
-                          {row.resumen && (
-                            <button onClick={() => setExpanded(isOpen ? null : key)}
-                              style={{ background: 'none', border: '1px solid #93b4fd', borderRadius: 6,
-                                color: '#1d4ed8', cursor: 'pointer', padding: '3px 10px', fontSize: 12 }}>
-                              {isOpen ? 'Ocultar' : 'Resumen'}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                      {isOpen && (
-                        <tr style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                          <td colSpan={10} style={{ padding: '0 14px 12px', fontSize: 12.5, color: '#4b5563', lineHeight: 1.5 }}>
-                            {row.resumen}
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+                    <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>{row.fechaVenta}</td>
+                      <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>{row.ceve || row.codigoCeve}</td>
+                      <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>{row.item}</td>
+                      <td style={{ padding: '9px 14px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.descripcion}>
+                        {row.descripcion || '—'}
+                      </td>
+                      <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>{row.canal || '—'}</td>
+                      <td style={{ padding: '9px 14px', fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtNum(row.recortePzs)}</td>
+                      <td style={{ padding: '9px 14px', fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtUsd(row.recorteUsd)}</td>
+                      <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}><CausaBadge causa={row.causaPrincipal} /></td>
+                      <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}><CausaBadge causa={row.causaSecundaria} small /></td>
+                      <td style={{ padding: '9px 14px', minWidth: 320, maxWidth: 460, fontSize: 12.5, color: '#4b5563', lineHeight: 1.4 }} title={row.resumen}>
+                        {row.resumen || '—'}
+                      </td>
+                    </tr>
                   )
                 })}
               </tbody>
@@ -223,7 +208,7 @@ export default function CausasRecorteTablero() {
 
           {/* Paginación */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 13, color: '#6b7280' }}>
-            <div>Página {page} de {totalPages} · {data.total.toLocaleString()} filas</div>
+            <div>Mostrando {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} de {data.total.toLocaleString()} filas · Página {page} de {totalPages}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
                 style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff',
