@@ -21,6 +21,7 @@ import ExistenciaTeorica from './pages/ExistenciaTeorica'
 import PostMortem from './pages/PostMortem'
 import InvOpt from './pages/InvOpt'
 import CausasRecorte from './pages/CausasRecorte'
+import CausasRecorteTablero from './pages/CausasRecorteTablero'
 import { useEffect } from 'react'
 import './App.css'
 
@@ -38,7 +39,10 @@ function useWarmUp() {
 const nav = [
   {
     section: 'Principal',
-    items: [{ to: '/', label: 'Inicio', icon: '⊞' }]
+    items: [
+      { to: '/', label: 'Inicio', icon: '⊞' },
+      { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: '🩺', badgeType: 'new', badge: 'Nuevo' },
+    ]
   },
   {
     section: 'Ejecución Proceso',
@@ -146,6 +150,7 @@ export default function App() {
           <Route path="/post-mortem" element={<PostMortem />} />
           <Route path="/inv-opt" element={<InvOpt />} />
           <Route path="/causas-recorte" element={<CausasRecorte />} />
+          <Route path="/causas-recorte-tablero" element={<CausasRecorteTablero />} />
         </Routes>
       </main>
     </div>
