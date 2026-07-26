@@ -41,8 +41,42 @@ function fmtMoney(v) {
   if (v == null) return '—'
   return '$' + Number(v).toLocaleString('es-MX', { maximumFractionDigits: 0 })
 }
+function fmtDateShort(iso) {
+  if (!iso) return null
+  const [, m, d] = iso.split('-')
+  return `${d}/${m}`
+}
 
 const PAGE_SIZE = 100
+const SUBHEADER_H = 36
+
+// Detalle día por día (solo tiene sentido cuando la vista está en un solo día,
+// porque ahí las fechas de tránsito son las mismas para todas las filas).
+const DIA_METRICS_RECORTE = ['Pedido', 'Entregado', 'Recorte', 'Aumento']
+const DIA_METRICS_CONSUMO = ['Cargo Real', 'Cargo Prom.', 'Exceso', 'Ahorro']
+
+function recorteFabricaValue(row, dayIdx, metric) {
+  const pedido = dayIdx < 6 ? row.pedidoFabrica?.[dayIdx] : row.hoyPedido
+  const entregado = dayIdx < 6 ? row.embarqueReal?.[dayIdx] : row.hoyEntregado
+  if (pedido == null && entregado == null) return null
+  const diff = (entregado ?? 0) - (pedido ?? 0)
+  if (metric === 'Pedido') return pedido
+  if (metric === 'Entregado') return entregado
+  if (metric === 'Recorte') return diff < 0 ? -diff : 0
+  if (metric === 'Aumento') return diff > 0 ? diff : 0
+  return null
+}
+function consumoValue(row, dayIdx, metric) {
+  const real = row.cargoReal?.[dayIdx]
+  const prom = row.cargoPromedio?.[dayIdx]
+  if (real == null && prom == null) return null
+  const diff = (real ?? 0) - (prom ?? 0)
+  if (metric === 'Cargo Real') return real
+  if (metric === 'Cargo Prom.') return prom
+  if (metric === 'Exceso') return diff > 0 ? diff : 0
+  if (metric === 'Ahorro') return diff < 0 ? -diff : 0
+  return null
+}
 
 // Maneja orden (arrastrar encabezado) y ancho (arrastrar el borde derecho) de columnas,
 // solo en memoria — se resetea al recargar la página, como se pidió.
@@ -122,11 +156,12 @@ function useColumnLayout(baseColumns) {
   }
 }
 
-function HeaderCell({ col, width, active, sortDir, onSort, layout }) {
+function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan }) {
   const key = col.key ?? col.label
   const isDragOver = layout.dragOverKey === key
   return (
     <th
+      rowSpan={rowSpan}
       draggable
       onDragStart={() => layout.handleDragStart(key)}
       onDragOver={(e) => layout.handleDragOver(key, e)}
@@ -281,6 +316,21 @@ export default function CausasRecorteTablero() {
   const rangeEnd   = Math.min(page * PAGE_SIZE, data.total)
   const agrupado = groupBy.length > 0
   const activeGroupFields = GROUP_FIELDS.filter(f => groupBy.includes(f.key))
+
+  // El detalle día por día solo tiene sentido acotado a un solo día (Desde = Hasta):
+  // ahí las fechas de tránsito son las mismas para todas las filas, aunque los
+  // valores (Pedido, Entregado, etc.) sigan siendo distintos por fila.
+  const showDetalleDia = !agrupado && !topNActive && !!fechaInicio && fechaInicio === fechaFin
+  const sampleRow = data.rows.find(r => r.fechaTransito && r.fechaTransito.some(d => d))
+  const diaDates = sampleRow ? sampleRow.fechaTransito : [null, null, null, null, null, null]
+  function dayLabel(idx) {
+    if (idx === 6) return 'Hoy'
+    return fmtDateShort(diaDates[idx]) || `Día ${idx + 1}`
+  }
+  const recorteDayCols = [0, 1, 2, 3, 4, 5, 6]
+  const consumoDayCols = [0, 1, 2, 3, 4, 5]
+  const recorteColCount = recorteDayCols.length * DIA_METRICS_RECORTE.length
+  const consumoColCount = consumoDayCols.length * DIA_METRICS_CONSUMO.length
 
   const detailColumnsBase = useMemo(() => [
     { key: 'fecha', label: 'Fecha', width: 100, align: 'left' },
@@ -568,10 +618,40 @@ export default function CausasRecorteTablero() {
                 <tr style={{ background: '#2563eb' }}>
                   {layout.orderedColumns.map(col => (
                     <HeaderCell key={col.key} col={col} width={layout.widths[col.key] ?? col.width}
-                      active={sortBy === col.key} sortDir={sortDir}
+                      active={sortBy === col.key} sortDir={sortDir} rowSpan={showDetalleDia ? 2 : 1}
                       onSort={col.sortable === false ? null : handleSort} layout={layout} />
                   ))}
+                  {showDetalleDia && (
+                    <>
+                      <th colSpan={recorteColCount} style={{ textAlign: 'center', background: '#991b1b', color: '#fff',
+                        fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2 }}>
+                        Analisis_RecorteFabrica
+                      </th>
+                      <th colSpan={consumoColCount} style={{ textAlign: 'center', background: '#92400e', color: '#fff',
+                        fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2 }}>
+                        Analisis_Consumo
+                      </th>
+                    </>
+                  )}
                 </tr>
+                {showDetalleDia && (
+                  <tr style={{ background: '#2563eb' }}>
+                    {recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
+                      <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: '#991b1b',
+                        zIndex: 1, width: 62, height: SUBHEADER_H, boxSizing: 'border-box' }}>
+                        <div>{dayLabel(dayIdx)}</div><div style={{ opacity: 0.85 }}>{metric}</div>
+                      </th>
+                    )))}
+                    {consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
+                      <th key={`co-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: '#92400e',
+                        zIndex: 1, width: 62, height: SUBHEADER_H, boxSizing: 'border-box' }}>
+                        <div>{dayLabel(dayIdx)}</div><div style={{ opacity: 0.85 }}>{metric}</div>
+                      </th>
+                    )))}
+                  </tr>
+                )}
                 {/* Fila de totales — inamovible (sticky) justo debajo del encabezado */}
                 <tr style={{ background: '#eef2ff' }}>
                   {layout.orderedColumns.map((col, idx) => {
@@ -583,9 +663,13 @@ export default function CausasRecorteTablero() {
                     return (
                       <td key={col.key} style={{ padding: '8px 14px', textAlign: col.align, fontWeight: 700,
                         color: '#1e3a8a', fontSize: 12.5, whiteSpace: 'nowrap', borderBottom: '2px solid #c7d7fd',
-                        position: 'sticky', top: HEADER_H, background: '#eef2ff', zIndex: 1 }}>{content}</td>
+                        position: 'sticky', top: showDetalleDia ? HEADER_H + SUBHEADER_H : HEADER_H, background: '#eef2ff', zIndex: 1 }}>{content}</td>
                     )
                   })}
+                  {showDetalleDia && (
+                    <td colSpan={recorteColCount + consumoColCount} style={{
+                      position: 'sticky', top: HEADER_H + SUBHEADER_H, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -601,6 +685,28 @@ export default function CausasRecorteTablero() {
                           {renderMainCell(col, row)}
                         </td>
                       ))}
+                      {showDetalleDia && (
+                        <>
+                          {recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => {
+                            const v = recorteFabricaValue(row, dayIdx, metric)
+                            return (
+                              <td key={`rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                                whiteSpace: 'nowrap', color: metric === 'Recorte' ? '#991b1b' : metric === 'Aumento' ? '#166534' : '#374151' }}>
+                                {fmtNum(v)}
+                              </td>
+                            )
+                          }))}
+                          {consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
+                            const v = consumoValue(row, dayIdx, metric)
+                            return (
+                              <td key={`co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                                whiteSpace: 'nowrap', color: metric === 'Exceso' ? '#92400e' : metric === 'Ahorro' ? '#166534' : '#374151' }}>
+                                {fmtNum(v)}
+                              </td>
+                            )
+                          }))}
+                        </>
+                      )}
                     </tr>
                   )
                 })}
