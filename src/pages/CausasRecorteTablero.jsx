@@ -103,11 +103,18 @@ export default function CausasRecorteTablero() {
 
   useEffect(() => { if (!topNActive) load() }, [load, topNActive])
 
-  function handleFiltrar() {
-    setTopNActive(false)
-    setPage(1)
-    load()
+  // Todos los filtros aplican de inmediato (reactivo) — cambiar cualquiera
+  // resetea la página y sale del modo Top N (que quedó calculado con filtros viejos).
+  function updateFilter(setter) {
+    return (value) => { setTopNActive(false); setPage(1); setter(value) }
   }
+  const updateFechaInicio = updateFilter(setFechaInicio)
+  const updateFechaFin    = updateFilter(setFechaFin)
+  const updateCodigoCeve  = updateFilter(setCodigoCeve)
+  const updateCanal       = updateFilter(setCanal)
+  const updateCausa       = updateFilter(setCausa)
+  const updateCategoria   = updateFilter(setCategoria)
+
   function handleLimpiar() {
     setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setCategoria('')
     setGroupBy([]); setSortBy(null); setSortDir('desc'); setPage(1); setTopNActive(false)
@@ -171,6 +178,8 @@ export default function CausasRecorteTablero() {
         { key: 'causaPredominante', label: 'Causa Predominante', width: 200, align: 'left' },
         { key: 'causaSecundaria', label: 'Causa Secundaria', width: 200, align: 'left' },
         { key: null, label: 'Resumen', width: 380, align: 'left' },
+        { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
+        { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
       ]
     : [
         { key: 'fecha', label: 'Fecha', width: 100, align: 'left' },
@@ -183,6 +192,8 @@ export default function CausasRecorteTablero() {
         { key: 'causaPrincipal', label: 'Causa Principal', width: 170, align: 'left' },
         { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
         { key: null, label: 'Resumen', width: 380, align: 'left' },
+        { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
+        { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
       ]
 
   const topNColumns = [
@@ -195,6 +206,8 @@ export default function CausasRecorteTablero() {
     { label: 'Recorte $', width: 130, align: 'right' },
     { label: 'Causa Predominante', width: 200, align: 'left' },
     { label: 'Resumen', width: 380, align: 'left' },
+    { label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
+    { label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
   ]
 
   return (
@@ -217,17 +230,17 @@ export default function CausasRecorteTablero() {
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 14 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
             Desde *
-            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+            <input type="date" value={fechaInicio} onChange={e => updateFechaInicio(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
             Hasta *
-            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+            <input type="date" value={fechaFin} onChange={e => updateFechaFin(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
             CeVe
-            <select value={codigoCeve} onChange={e => setCodigoCeve(e.target.value)}
+            <select value={codigoCeve} onChange={e => updateCodigoCeve(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
               <option value="">Todos</option>
               {filtros.ceves.map(c => <option key={c.codigoCeve} value={c.codigoCeve}>{c.ceve}</option>)}
@@ -235,7 +248,7 @@ export default function CausasRecorteTablero() {
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
             Canal
-            <select value={canal} onChange={e => setCanal(e.target.value)}
+            <select value={canal} onChange={e => updateCanal(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 140 }}>
               <option value="">Todos</option>
               {filtros.canales.map(c => <option key={c} value={c}>{c}</option>)}
@@ -243,7 +256,7 @@ export default function CausasRecorteTablero() {
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
             Categoría
-            <select value={categoria} onChange={e => setCategoria(e.target.value)}
+            <select value={categoria} onChange={e => updateCategoria(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
               <option value="">Todas</option>
               {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
@@ -251,16 +264,12 @@ export default function CausasRecorteTablero() {
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
             Causa
-            <select value={causa} onChange={e => setCausa(e.target.value)}
+            <select value={causa} onChange={e => updateCausa(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 220 }}>
               <option value="">Todas</option>
               {CAUSA_OPTS.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
-          <button className="btn primary" onClick={handleFiltrar}
-            style={{ padding: '8px 22px', fontWeight: 700, fontSize: 13, height: 36 }}>
-            Filtrar
-          </button>
           <button onClick={handleLimpiar}
             style={{ padding: '8px 16px', height: 36, fontSize: 13, borderRadius: 8, background: '#fff',
               border: '1px solid var(--border)', color: '#6b7280', cursor: 'pointer' }}>
@@ -378,6 +387,8 @@ export default function CausasRecorteTablero() {
                       <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
                       <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
                       <td style={{ ...cellStyle, fontSize: 12.5, color: '#4b5563' }} title={row.resumen}>{row.resumen || '—'}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: '#92400e' }}>{fmtNum(row.envsConsumo)}</td>
                     </tr>
                   )
                 })
@@ -452,6 +463,8 @@ export default function CausasRecorteTablero() {
                       <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
                       <td style={cellStyle}><CausaBadge causa={row.causaSecundaria} small /></td>
                       <td style={{ ...cellStyle, fontSize: 12.5, color: '#4b5563' }} title={row.resumen}>{row.resumen || '—'}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: '#92400e' }}>{fmtNum(row.envsConsumo)}</td>
                     </tr>
                   )
                 }) : data.rows.map((row, i) => {
@@ -469,6 +482,8 @@ export default function CausasRecorteTablero() {
                       <td style={cellStyle}><CausaBadge causa={row.causaPrincipal} /></td>
                       <td style={cellStyle}><CausaBadge causa={row.causaSecundaria} small /></td>
                       <td style={{ ...cellStyle, fontSize: 12.5, color: '#4b5563' }} title={row.resumen}>{row.resumen || '—'}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', color: '#92400e' }}>{fmtNum(row.envsConsumo)}</td>
                     </tr>
                   )
                 })}
