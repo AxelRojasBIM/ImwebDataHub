@@ -10,23 +10,23 @@ const CAUSA_STYLES = {
 const CAUSA_OPTS = Object.keys(CAUSA_STYLES)
 
 const GROUP_FIELDS = [
-  { key: 'fecha',     label: 'Fecha',     width: 110 },
-  { key: 'ceve',      label: 'CeVe',      width: 220 },
-  { key: 'item',      label: 'Item',      width: 260 },
-  { key: 'categoria', label: 'Categoría', width: 160 },
-  { key: 'canal',     label: 'Canal',     width: 140 },
+  { key: 'fecha',     label: 'Fecha',     width: 90 },
+  { key: 'ceve',      label: 'CeVe',      width: 180 },
+  { key: 'item',      label: 'Item',      width: 220 },
+  { key: 'categoria', label: 'Categoría', width: 130 },
+  { key: 'canal',     label: 'Canal',     width: 115 },
 ]
 
-const HEADER_H = 40
-const MIN_COL_WIDTH = 60
+const HEADER_H = 32
+const MIN_COL_WIDTH = 50
 
 function CausaBadge({ causa, small }) {
   if (!causa) return <span style={{ color: '#9ca3af' }}>—</span>
   const s = CAUSA_STYLES[causa] || CAUSA_STYLES['Sin causa identificada']
   return (
     <span style={{
-      display: 'inline-block', padding: small ? '1px 8px' : '3px 10px', borderRadius: 99,
-      fontSize: small ? 11 : 12, fontWeight: 600,
+      display: 'inline-block', padding: small ? '1px 7px' : '2px 9px', borderRadius: 99,
+      fontSize: small ? 10.5 : 11.5, fontWeight: 600,
       background: s.bg, border: `1px solid ${s.border}`, color: s.text,
       whiteSpace: 'nowrap',
     }}>{causa}</span>
@@ -48,10 +48,26 @@ function fmtDateShort(iso) {
 }
 
 const PAGE_SIZE = 100
-const TITLE_H = 32
-const DATE_H = 26
-const METRIC_H = 28
-const COLLAPSED_TITLE_WIDTH = 130
+const TITLE_H = 26
+const DATE_H = 20
+const METRIC_H = 22
+const COLLAPSED_TITLE_WIDTH = 110
+const DIA_COL_WIDTH = 52
+
+// Columna a partir de la cual (inclusive) se inmovilizan las columnas de la
+// izquierda al hacer scroll horizontal, para no perder de vista el contexto
+// (Fecha/CeVe/Item/Producto) mientras se revisan las columnas de la derecha.
+const STICKY_UPTO_KEY = 'producto'
+
+// Divisores sutiles entre celdas de encabezado, para separar visualmente
+// cada bloque de fecha/métrica dentro de Recorte Fábrica y Consumo Inventario.
+const HDR_DIVIDER_SOFT = '1px solid rgba(255,255,255,0.28)'
+const HDR_DIVIDER_STRONG = '2px solid rgba(0,0,0,0.18)'
+
+// Colores vivos por bloque (título/fecha/métrica) para que ambos análisis
+// resalten más que el resto del encabezado.
+const RECORTE_COLORS = { title: '#dc2626', date: '#ef4444', metric: '#dc2626' }
+const CONSUMO_COLORS = { title: '#d97706', date: '#f59e0b', metric: '#d97706' }
 
 // Detalle día por día (solo tiene sentido cuando la vista está en un solo día,
 // porque ahí las fechas de tránsito son las mismas para todas las filas).
@@ -64,6 +80,25 @@ const METRIC_HIGHLIGHT = {
   'Aumento':  { bg: '#f0fdf4', color: '#166534' },
   'Exceso':   { bg: '#fffbeb', color: '#92400e' },
   'Ahorro':   { bg: '#eff6ff', color: '#1d4ed8' },
+}
+
+// Calcula, para las columnas ordenadas actuales, el offset "left" acumulado
+// de cada columna desde el inicio hasta (e incluyendo) `uptoKey`. Si esa
+// columna no existe en el set actual (p. ej. en la vista agrupada), no se
+// inmoviliza nada — devuelve {}.
+function computeStickyLeft(orderedColumns, widths, uptoKey) {
+  const keyOf = (c) => c.key ?? c.label
+  const idx = orderedColumns.findIndex(c => keyOf(c) === uptoKey)
+  if (idx === -1) return {}
+  const offsets = {}
+  let acc = 0
+  for (let i = 0; i <= idx; i++) {
+    const col = orderedColumns[i]
+    const key = keyOf(col)
+    offsets[key] = acc
+    acc += widths[key] ?? col.width
+  }
+  return offsets
 }
 
 function recorteFabricaValue(row, dayIdx, metric) {
@@ -172,9 +207,10 @@ function useColumnLayout(baseColumns) {
   }
 }
 
-function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, height }) {
+function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, height, stickyLeft, isLastSticky }) {
   const key = col.key ?? col.label
   const isDragOver = layout.dragOverKey === key
+  const isSticky = stickyLeft != null
   return (
     <th
       rowSpan={rowSpan}
@@ -186,11 +222,13 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
       onClick={() => { if (!layout.suppressClickRef.current) onSort?.(col.key) }}
       title="Arrastra para reordenar · arrastra el borde derecho para cambiar el ancho"
       style={{
-        padding: '11px 14px', width, textAlign: col.align, fontWeight: 700,
-        color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
-        position: 'sticky', top: 0, background: isDragOver ? '#1d4ed8' : '#2563eb',
-        zIndex: 2, height: height ?? HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
+        padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
+        color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'uppercase',
+        position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
+        background: isDragOver ? '#1d4ed8' : '#2563eb',
+        zIndex: isSticky ? 3 : 2, height: height ?? HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
+        boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
       }}>
       {col.label}
       {onSort && col.key && (
@@ -354,45 +392,45 @@ export default function CausasRecorteTablero() {
   const detalleHeaderH = TITLE_H + DATE_H + METRIC_H
 
   const detailColumnsBase = useMemo(() => [
-    { key: 'fecha', label: 'Fecha', width: 100, align: 'left' },
-    { key: 'ceve', label: 'CeVe', width: 140, align: 'left' },
-    { key: 'item', label: 'Item', width: 90, align: 'left' },
-    { key: 'producto', label: 'Producto', width: 200, align: 'left' },
-    { key: 'canal', label: 'Canal', width: 110, align: 'left' },
-    { key: 'recortePzs', label: 'Recorte Pzs', width: 110, align: 'right' },
-    { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
-    { key: 'causaPrincipal', label: 'Causa Principal', width: 170, align: 'left' },
-    { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
-    { key: 'resumen', label: 'Resumen', width: 380, align: 'left', sortable: false },
-    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
-    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
+    { key: 'fecha', label: 'Fecha', width: 85, align: 'left' },
+    { key: 'ceve', label: 'CeVe', width: 120, align: 'left' },
+    { key: 'item', label: 'Item', width: 75, align: 'left' },
+    { key: 'producto', label: 'Producto', width: 170, align: 'left' },
+    { key: 'canal', label: 'Canal', width: 95, align: 'left' },
+    { key: 'recortePzs', label: 'Recorte Pzs', width: 95, align: 'right' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 95, align: 'right' },
+    { key: 'causaPrincipal', label: 'Causa Principal', width: 150, align: 'left' },
+    { key: 'causaSecundaria', label: 'Causa Secundaria', width: 150, align: 'left' },
+    { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
+    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
+    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 160, align: 'right' },
   ], [])
 
   const groupedColumnsBase = useMemo(() => [
     ...activeGroupFields.map(f => ({ key: f.key, label: f.label, width: f.width, align: 'left' })),
-    { key: 'filas', label: 'Filas', width: 90, align: 'right' },
-    { key: 'recortePzs', label: 'Recorte Pzs', width: 120, align: 'right' },
-    { key: 'recorteUsd', label: 'Recorte $', width: 130, align: 'right' },
-    { key: 'causaPredominante', label: 'Causa Predominante', width: 200, align: 'left' },
-    { key: 'causaSecundaria', label: 'Causa Secundaria', width: 200, align: 'left' },
-    { key: 'resumen', label: 'Resumen', width: 380, align: 'left', sortable: false },
-    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
-    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
+    { key: 'filas', label: 'Filas', width: 75, align: 'right' },
+    { key: 'recortePzs', label: 'Recorte Pzs', width: 100, align: 'right' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
+    { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
+    { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
+    { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
+    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
+    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 160, align: 'right' },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [groupBy.join(',')])
 
   const topNColumnsBase = useMemo(() => [
-    { key: 'rank', label: '#', width: 40, align: 'right' },
-    { key: 'producto', label: 'Producto', width: 260, align: 'left' },
-    { key: 'itemTotalPzs', label: 'Total Producto Pzs', width: 140, align: 'right' },
-    { key: 'itemTotalUsd', label: 'Total Producto $', width: 140, align: 'right' },
-    { key: 'ceve', label: 'CeVe', width: 220, align: 'left' },
-    { key: 'recortePzs', label: 'Recorte Pzs', width: 120, align: 'right' },
-    { key: 'recorteUsd', label: 'Recorte $', width: 130, align: 'right' },
-    { key: 'causaPredominante', label: 'Causa Predominante', width: 200, align: 'left' },
-    { key: 'resumen', label: 'Resumen', width: 380, align: 'left' },
-    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
-    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
+    { key: 'rank', label: '#', width: 36, align: 'right' },
+    { key: 'producto', label: 'Producto', width: 220, align: 'left' },
+    { key: 'itemTotalPzs', label: 'Total Producto Pzs', width: 120, align: 'right' },
+    { key: 'itemTotalUsd', label: 'Total Producto $', width: 120, align: 'right' },
+    { key: 'ceve', label: 'CeVe', width: 180, align: 'left' },
+    { key: 'recortePzs', label: 'Recorte Pzs', width: 100, align: 'right' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
+    { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
+    { key: 'resumen', label: 'Resumen', width: 320, align: 'left' },
+    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
+    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 160, align: 'right' },
   ], [])
 
   const detailLayout = useColumnLayout(detailColumnsBase)
@@ -400,6 +438,15 @@ export default function CausasRecorteTablero() {
   const topNLayout = useColumnLayout(topNColumnsBase)
 
   const layout = agrupado ? groupedLayout : detailLayout
+
+  const stickyLeft = useMemo(
+    () => computeStickyLeft(layout.orderedColumns, layout.widths, STICKY_UPTO_KEY),
+    [layout.orderedColumns, layout.widths]
+  )
+  const topNStickyLeft = useMemo(
+    () => computeStickyLeft(topNLayout.orderedColumns, topNLayout.widths, STICKY_UPTO_KEY),
+    [topNLayout.orderedColumns, topNLayout.widths]
+  )
 
   function renderMainCell(col, row) {
     const key = col.key
@@ -586,12 +633,16 @@ export default function CausasRecorteTablero() {
       {/* Tabla */}
       {topNActive && topNData ? (
         <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: '#2563eb' }}>
-                {topNLayout.orderedColumns.map(col => (
-                  <HeaderCell key={col.key} col={col} width={topNLayout.widths[col.key] ?? col.width} layout={topNLayout} />
-                ))}
+                {topNLayout.orderedColumns.map(col => {
+                  const key = col.key ?? col.label
+                  return (
+                    <HeaderCell key={col.key} col={col} width={topNLayout.widths[col.key] ?? col.width} layout={topNLayout}
+                      stickyLeft={topNStickyLeft[key]} isLastSticky={key === STICKY_UPTO_KEY} />
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -600,18 +651,27 @@ export default function CausasRecorteTablero() {
                 return topNData.rows.map((row, i) => {
                   const isNewItem = row.item !== lastItem
                   if (isNewItem) { rank++; lastItem = row.item }
-                  const cellStyle = { padding: '9px 14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 38 }
+                  const cellStyle = { padding: '5px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 30 }
+                  const rowBg = rank % 2 === 0 ? '#fff' : '#fafafa'
                   return (
                     <tr key={`${row.item}-${row.codigoCeve}-${i}`} style={{
                       borderBottom: '1px solid var(--border)',
                       borderTop: isNewItem && i > 0 ? '2px solid #c7d7fd' : undefined,
-                      background: rank % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      {topNLayout.orderedColumns.map(col => (
-                        <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
-                          color: (col.key === 'itemTotalPzs' || col.key === 'itemTotalUsd' || col.key === 'rank') && !isNewItem ? '#d1d5db' : undefined }}>
-                          {renderTopNCell(col, row, isNewItem, rank)}
-                        </td>
-                      ))}
+                      background: rowBg }}>
+                      {topNLayout.orderedColumns.map(col => {
+                        const key = col.key ?? col.label
+                        const isSticky = topNStickyLeft[key] !== undefined
+                        return (
+                          <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
+                            color: (col.key === 'itemTotalPzs' || col.key === 'itemTotalUsd' || col.key === 'rank') && !isNewItem ? '#d1d5db' : undefined,
+                            ...(isSticky ? {
+                              position: 'sticky', left: topNStickyLeft[key], zIndex: 1, background: rowBg,
+                              boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.08)' : undefined,
+                            } : {}) }}>
+                            {renderTopNCell(col, row, isNewItem, rank)}
+                          </td>
+                        )
+                      })}
                     </tr>
                   )
                 })
@@ -634,7 +694,7 @@ export default function CausasRecorteTablero() {
       ) : (
         <>
           <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
               {showDetalleDia && (
                 <colgroup>
                   {layout.orderedColumns.map(col => (
@@ -642,38 +702,43 @@ export default function CausasRecorteTablero() {
                   ))}
                   {recorteExpanded
                     ? recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
-                        <col key={`rf-col-${dayIdx}-${metric}`} style={{ width: 62 }} />
+                        <col key={`rf-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
                       )))
                     : <col key="rf-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
                   {consumoExpanded
                     ? consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
-                        <col key={`co-col-${dayIdx}-${metric}`} style={{ width: 62 }} />
+                        <col key={`co-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
                       )))
                     : <col key="co-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
                 </colgroup>
               )}
               <thead>
                 <tr style={{ background: '#2563eb' }}>
-                  {layout.orderedColumns.map(col => (
-                    <HeaderCell key={col.key} col={col} width={layout.widths[col.key] ?? col.width}
-                      active={sortBy === col.key} sortDir={sortDir} rowSpan={showDetalleDia ? 3 : 1}
-                      height={showDetalleDia ? detalleHeaderH : HEADER_H}
-                      onSort={col.sortable === false ? null : handleSort} layout={layout} />
-                  ))}
+                  {layout.orderedColumns.map(col => {
+                    const key = col.key ?? col.label
+                    return (
+                      <HeaderCell key={col.key} col={col} width={layout.widths[col.key] ?? col.width}
+                        active={sortBy === col.key} sortDir={sortDir} rowSpan={showDetalleDia ? 3 : 1}
+                        height={showDetalleDia ? detalleHeaderH : HEADER_H}
+                        onSort={col.sortable === false ? null : handleSort} layout={layout}
+                        stickyLeft={stickyLeft[key]} isLastSticky={key === STICKY_UPTO_KEY} />
+                    )
+                  })}
                   {showDetalleDia && (
                     <>
                       <th colSpan={recorteColCount} rowSpan={recorteExpanded ? 1 : 3}
                         onClick={() => setRecorteExpanded(v => !v)}
                         title="Clic para expandir/contraer"
-                        style={{ textAlign: 'center', background: '#991b1b', color: '#fff', cursor: 'pointer',
+                        style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: 'pointer',
                           fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
-                          height: recorteExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box' }}>
+                          height: recorteExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box',
+                          borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
                         Recorte Fabrica {recorteExpanded ? '▲' : '▼'}
                       </th>
                       <th colSpan={consumoColCount} rowSpan={consumoExpanded ? 1 : 3}
                         onClick={() => setConsumoExpanded(v => !v)}
                         title="Clic para expandir/contraer"
-                        style={{ textAlign: 'center', background: '#92400e', color: '#fff', cursor: 'pointer',
+                        style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: 'pointer',
                           fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                           height: consumoExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box' }}>
                         Consumo Inventario {consumoExpanded ? '▲' : '▼'}
@@ -685,15 +750,17 @@ export default function CausasRecorteTablero() {
                   <tr style={{ background: '#2563eb' }}>
                     {recorteExpanded && recorteDayCols.map(dayIdx => (
                       <th key={`rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
-                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: '#b91c1c',
-                        zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600 }}>
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: RECORTE_COLORS.date,
+                        zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
+                        borderRight: HDR_DIVIDER_SOFT }}>
                         {dayLabel(dayIdx)}
                       </th>
                     ))}
                     {consumoExpanded && consumoDayCols.map(dayIdx => (
                       <th key={`co-date-${dayIdx}`} colSpan={DIA_METRICS_CONSUMO.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
-                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: '#a3560f',
-                        zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600 }}>
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: CONSUMO_COLORS.date,
+                        zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
+                        borderRight: HDR_DIVIDER_SOFT }}>
                         {dayLabel(dayIdx)}
                       </th>
                     ))}
@@ -703,15 +770,17 @@ export default function CausasRecorteTablero() {
                   <tr style={{ background: '#2563eb' }}>
                     {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                       <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
-                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: '#991b1b',
-                        zIndex: 1, width: 62, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden' }}>
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: RECORTE_COLORS.metric,
+                        zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
+                        borderRight: HDR_DIVIDER_SOFT }}>
                         {metric}
                       </th>
                     )))}
                     {consumoExpanded && consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
                       <th key={`co-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
-                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: '#92400e',
-                        zIndex: 1, width: 62, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden' }}>
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: CONSUMO_COLORS.metric,
+                        zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
+                        borderRight: HDR_DIVIDER_SOFT }}>
                         {metric}
                       </th>
                     )))}
@@ -720,15 +789,20 @@ export default function CausasRecorteTablero() {
                 {/* Fila de totales — inamovible (sticky) justo debajo del encabezado */}
                 <tr style={{ background: '#eef2ff' }}>
                   {layout.orderedColumns.map((col, idx) => {
+                    const key = col.key ?? col.label
+                    const isSticky = stickyLeft[key] !== undefined
                     let content = ''
                     if (idx === 0) content = 'TOTAL'
                     else if (col.key === 'recortePzs') content = fmtNum(data.totalRecortePzs)
                     else if (col.key === 'recorteUsd') content = fmtMoney(data.totalRecorteUsd)
                     else if (col.key === 'filas') content = data.total.toLocaleString()
                     return (
-                      <td key={col.key} style={{ padding: '8px 14px', textAlign: col.align, fontWeight: 700,
-                        color: '#1e3a8a', fontSize: 12.5, whiteSpace: 'nowrap', borderBottom: '2px solid #c7d7fd',
-                        position: 'sticky', top: showDetalleDia ? detalleHeaderH : HEADER_H, background: '#eef2ff', zIndex: 1 }}>{content}</td>
+                      <td key={col.key} style={{ padding: '6px 10px', textAlign: col.align, fontWeight: 700,
+                        color: '#1e3a8a', fontSize: 11.5, whiteSpace: 'nowrap', borderBottom: '2px solid #c7d7fd',
+                        position: 'sticky', top: showDetalleDia ? detalleHeaderH : HEADER_H,
+                        left: isSticky ? stickyLeft[key] : undefined,
+                        background: '#eef2ff', zIndex: isSticky ? 2 : 1,
+                        boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.1)' : undefined }}>{content}</td>
                     )
                   })}
                   {showDetalleDia && (
@@ -742,14 +816,23 @@ export default function CausasRecorteTablero() {
                   const key = agrupado
                     ? activeGroupFields.map(f => row[f.key]).join('|') + '-' + i
                     : `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
-                  const cellStyle = { padding: '9px 14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 38 }
+                  const cellStyle = { padding: '5px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 30 }
+                  const rowBg = i % 2 === 0 ? '#fff' : '#fafafa'
                   return (
-                    <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      {layout.orderedColumns.map(col => (
-                        <td key={col.key} style={{ ...cellStyle, textAlign: col.align }}>
-                          {renderMainCell(col, row)}
-                        </td>
-                      ))}
+                    <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: rowBg }}>
+                      {layout.orderedColumns.map(col => {
+                        const colKey = col.key ?? col.label
+                        const isSticky = stickyLeft[colKey] !== undefined
+                        return (
+                          <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
+                            ...(isSticky ? {
+                              position: 'sticky', left: stickyLeft[colKey], zIndex: 1, background: rowBg,
+                              boxShadow: colKey === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.08)' : undefined,
+                            } : {}) }}>
+                            {renderMainCell(col, row)}
+                          </td>
+                        )
+                      })}
                       {showDetalleDia && (
                         recorteExpanded ? (
                           recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => {
