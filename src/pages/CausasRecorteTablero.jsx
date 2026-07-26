@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { API } from '../App'
 
 const CAUSA_STYLES = {
@@ -18,6 +18,7 @@ const GROUP_FIELDS = [
 ]
 
 const HEADER_H = 40
+const MIN_COL_WIDTH = 60
 
 function CausaBadge({ causa, small }) {
   if (!causa) return <span style={{ color: '#9ca3af' }}>—</span>
@@ -42,6 +43,118 @@ function fmtMoney(v) {
 }
 
 const PAGE_SIZE = 100
+
+// Maneja orden (arrastrar encabezado) y ancho (arrastrar el borde derecho) de columnas,
+// solo en memoria — se resetea al recargar la página, como se pidió.
+function useColumnLayout(baseColumns) {
+  const keyOf = (c) => c.key ?? c.label
+  const [order, setOrder] = useState(() => baseColumns.map(keyOf))
+  const [widths, setWidths] = useState(() => Object.fromEntries(baseColumns.map(c => [keyOf(c), c.width])))
+  const [dragOverKey, setDragOverKey] = useState(null)
+  const dragKeyRef = useRef(null)
+  const suppressClickRef = useRef(false)
+  const customizedRef = useRef(false)
+  const baseKeysSignature = baseColumns.map(keyOf).join('|')
+
+  useEffect(() => {
+    const baseKeys = baseColumns.map(keyOf)
+    setOrder(prev => {
+      // Antes de que el usuario reordene algo, sigue el orden natural de las
+      // columnas activas (p. ej. al marcar/desmarcar "Agrupar por"). Una vez que
+      // arrastra para reordenar, se respeta su orden y las columnas nuevas se
+      // agregan al final en vez de reacomodar todo.
+      if (!customizedRef.current) return baseKeys
+      const kept = prev.filter(k => baseKeys.includes(k))
+      const added = baseKeys.filter(k => !kept.includes(k))
+      return kept.length === baseKeys.length && added.length === 0 ? prev : [...kept, ...added]
+    })
+    setWidths(prev => {
+      const next = { ...prev }
+      let changed = false
+      baseColumns.forEach(c => { const k = keyOf(c); if (next[k] == null) { next[k] = c.width; changed = true } })
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseKeysSignature])
+
+  const byKey = useMemo(() => Object.fromEntries(baseColumns.map(c => [keyOf(c), c])), [baseColumns])
+  const orderedColumns = order.map(k => byKey[k]).filter(Boolean)
+
+  function startResize(key, e) {
+    e.preventDefault()
+    e.stopPropagation()
+    suppressClickRef.current = true
+    const startX = e.clientX
+    const startWidth = widths[key] ?? byKey[key]?.width ?? 120
+    function onMove(ev) {
+      const delta = ev.clientX - startX
+      setWidths(w => ({ ...w, [key]: Math.max(MIN_COL_WIDTH, Math.round(startWidth + delta)) }))
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setTimeout(() => { suppressClickRef.current = false }, 0)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  function handleDragStart(key) { dragKeyRef.current = key }
+  function handleDragOver(key, e) { e.preventDefault(); setDragOverKey(key) }
+  function handleDrop(targetKey) {
+    const from = dragKeyRef.current
+    dragKeyRef.current = null
+    setDragOverKey(null)
+    if (!from || from === targetKey) return
+    customizedRef.current = true
+    setOrder(prev => {
+      const next = prev.filter(k => k !== from)
+      const idx = next.indexOf(targetKey)
+      next.splice(idx, 0, from)
+      return next
+    })
+  }
+  function handleDragEnd() { dragKeyRef.current = null; setDragOverKey(null) }
+
+  return {
+    orderedColumns, widths, dragOverKey, suppressClickRef,
+    startResize, handleDragStart, handleDragOver, handleDrop, handleDragEnd,
+  }
+}
+
+function HeaderCell({ col, width, active, sortDir, onSort, layout }) {
+  const key = col.key ?? col.label
+  const isDragOver = layout.dragOverKey === key
+  return (
+    <th
+      draggable
+      onDragStart={() => layout.handleDragStart(key)}
+      onDragOver={(e) => layout.handleDragOver(key, e)}
+      onDrop={() => layout.handleDrop(key)}
+      onDragEnd={layout.handleDragEnd}
+      onClick={() => { if (!layout.suppressClickRef.current) onSort?.(col.key) }}
+      title="Arrastra para reordenar · arrastra el borde derecho para cambiar el ancho"
+      style={{
+        padding: '11px 14px', width, textAlign: col.align, fontWeight: 700,
+        color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
+        position: 'sticky', top: 0, background: isDragOver ? '#1d4ed8' : '#2563eb',
+        zIndex: 2, height: HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
+        cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
+      }}>
+      {col.label}
+      {onSort && col.key && (
+        <span style={{ marginLeft: 5, opacity: active ? 1 : 0.35, fontSize: 10 }}>
+          {active ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+        </span>
+      )}
+      <div
+        onMouseDown={(e) => layout.startResize(key, e)}
+        onClick={(e) => e.stopPropagation()}
+        style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 3 }}
+      />
+    </th>
+  )
+}
 
 export default function CausasRecorteTablero() {
   const [filtros, setFiltros] = useState({ ceves: [], canales: [], categorias: [] })
@@ -169,46 +282,94 @@ export default function CausasRecorteTablero() {
   const agrupado = groupBy.length > 0
   const activeGroupFields = GROUP_FIELDS.filter(f => groupBy.includes(f.key))
 
-  const columns = agrupado
-    ? [
-        ...activeGroupFields.map(f => ({ key: f.key, label: f.label, width: f.width, align: 'left' })),
-        { key: 'filas', label: 'Filas', width: 90, align: 'right' },
-        { key: 'recortePzs', label: 'Recorte Pzs', width: 120, align: 'right' },
-        { key: 'recorteUsd', label: 'Recorte $', width: 130, align: 'right' },
-        { key: 'causaPredominante', label: 'Causa Predominante', width: 200, align: 'left' },
-        { key: 'causaSecundaria', label: 'Causa Secundaria', width: 200, align: 'left' },
-        { key: null, label: 'Resumen', width: 380, align: 'left' },
-        { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
-        { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
-      ]
-    : [
-        { key: 'fecha', label: 'Fecha', width: 100, align: 'left' },
-        { key: 'ceve', label: 'CeVe', width: 140, align: 'left' },
-        { key: 'item', label: 'Item', width: 90, align: 'left' },
-        { key: 'producto', label: 'Producto', width: 200, align: 'left' },
-        { key: 'canal', label: 'Canal', width: 110, align: 'left' },
-        { key: 'recortePzs', label: 'Recorte Pzs', width: 110, align: 'right' },
-        { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
-        { key: 'causaPrincipal', label: 'Causa Principal', width: 170, align: 'left' },
-        { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
-        { key: null, label: 'Resumen', width: 380, align: 'left' },
-        { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
-        { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
-      ]
+  const detailColumnsBase = useMemo(() => [
+    { key: 'fecha', label: 'Fecha', width: 100, align: 'left' },
+    { key: 'ceve', label: 'CeVe', width: 140, align: 'left' },
+    { key: 'item', label: 'Item', width: 90, align: 'left' },
+    { key: 'producto', label: 'Producto', width: 200, align: 'left' },
+    { key: 'canal', label: 'Canal', width: 110, align: 'left' },
+    { key: 'recortePzs', label: 'Recorte Pzs', width: 110, align: 'right' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
+    { key: 'causaPrincipal', label: 'Causa Principal', width: 170, align: 'left' },
+    { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
+    { key: 'resumen', label: 'Resumen', width: 380, align: 'left', sortable: false },
+    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
+    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
+  ], [])
 
-  const topNColumns = [
-    { label: '#', width: 40, align: 'right' },
-    { label: 'Producto', width: 260, align: 'left' },
-    { label: 'Total Producto Pzs', width: 140, align: 'right' },
-    { label: 'Total Producto $', width: 140, align: 'right' },
-    { label: 'CeVe', width: 220, align: 'left' },
-    { label: 'Recorte Pzs', width: 120, align: 'right' },
-    { label: 'Recorte $', width: 130, align: 'right' },
-    { label: 'Causa Predominante', width: 200, align: 'left' },
-    { label: 'Resumen', width: 380, align: 'left' },
-    { label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
-    { label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
-  ]
+  const groupedColumnsBase = useMemo(() => [
+    ...activeGroupFields.map(f => ({ key: f.key, label: f.label, width: f.width, align: 'left' })),
+    { key: 'filas', label: 'Filas', width: 90, align: 'right' },
+    { key: 'recortePzs', label: 'Recorte Pzs', width: 120, align: 'right' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 130, align: 'right' },
+    { key: 'causaPredominante', label: 'Causa Predominante', width: 200, align: 'left' },
+    { key: 'causaSecundaria', label: 'Causa Secundaria', width: 200, align: 'left' },
+    { key: 'resumen', label: 'Resumen', width: 380, align: 'left', sortable: false },
+    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
+    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [groupBy.join(',')])
+
+  const topNColumnsBase = useMemo(() => [
+    { key: 'rank', label: '#', width: 40, align: 'right' },
+    { key: 'producto', label: 'Producto', width: 260, align: 'left' },
+    { key: 'itemTotalPzs', label: 'Total Producto Pzs', width: 140, align: 'right' },
+    { key: 'itemTotalUsd', label: 'Total Producto $', width: 140, align: 'right' },
+    { key: 'ceve', label: 'CeVe', width: 220, align: 'left' },
+    { key: 'recortePzs', label: 'Recorte Pzs', width: 120, align: 'right' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 130, align: 'right' },
+    { key: 'causaPredominante', label: 'Causa Predominante', width: 200, align: 'left' },
+    { key: 'resumen', label: 'Resumen', width: 380, align: 'left' },
+    { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 170, align: 'right' },
+    { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 180, align: 'right' },
+  ], [])
+
+  const detailLayout = useColumnLayout(detailColumnsBase)
+  const groupedLayout = useColumnLayout(groupedColumnsBase)
+  const topNLayout = useColumnLayout(topNColumnsBase)
+
+  const layout = agrupado ? groupedLayout : detailLayout
+
+  function renderMainCell(col, row) {
+    const key = col.key
+    if (agrupado && activeGroupFields.some(f => f.key === key)) {
+      return <span title={row[key]}>{row[key] ?? '—'}</span>
+    }
+    switch (key) {
+      case 'fecha': return row.fechaVenta
+      case 'ceve': return <span title={row.ceve || row.codigoCeve}>{row.ceve || row.codigoCeve}</span>
+      case 'item': return row.item
+      case 'producto': return <span title={row.descripcion}>{row.descripcion || '—'}</span>
+      case 'canal': return row.canal || '—'
+      case 'filas': return row.filas?.toLocaleString()
+      case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
+      case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
+      case 'causaPrincipal': return <CausaBadge causa={row.causaPrincipal} />
+      case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
+      case 'causaSecundaria': return <CausaBadge causa={row.causaSecundaria} small />
+      case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
+      case 'envsPlanta': return <span style={{ color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</span>
+      case 'envsConsumo': return <span style={{ color: '#92400e' }}>{fmtNum(row.envsConsumo)}</span>
+      default: return null
+    }
+  }
+
+  function renderTopNCell(col, row, isNewItem, rank) {
+    switch (col.key) {
+      case 'rank': return isNewItem ? rank : ''
+      case 'producto': return isNewItem ? <span title={row.descripcion}>{`${row.item} - ${row.descripcion || ''}`}</span> : ''
+      case 'itemTotalPzs': return isNewItem ? fmtNum(row.itemTotalPzs) : ''
+      case 'itemTotalUsd': return isNewItem ? fmtMoney(row.itemTotalUsd) : ''
+      case 'ceve': return <span title={`${row.codigoCeve ?? ''} - ${row.ceve ?? ''}`}>{row.codigoCeve}{row.ceve ? ` - ${row.ceve}` : ''}</span>
+      case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
+      case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
+      case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
+      case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
+      case 'envsPlanta': return <span style={{ color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</span>
+      case 'envsConsumo': return <span style={{ color: '#92400e' }}>{fmtNum(row.envsConsumo)}</span>
+      default: return null
+    }
+  }
 
   return (
     <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box',
@@ -357,10 +518,8 @@ export default function CausasRecorteTablero() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: '#2563eb' }}>
-                {topNColumns.map(col => (
-                  <th key={col.label} style={{ padding: '11px 14px', width: col.width, textAlign: col.align, fontWeight: 700,
-                    color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
-                    position: 'sticky', top: 0, background: '#2563eb', zIndex: 1 }}>{col.label}</th>
+                {topNLayout.orderedColumns.map(col => (
+                  <HeaderCell key={col.key} col={col} width={topNLayout.widths[col.key] ?? col.width} layout={topNLayout} />
                 ))}
               </tr>
             </thead>
@@ -376,19 +535,12 @@ export default function CausasRecorteTablero() {
                       borderBottom: '1px solid var(--border)',
                       borderTop: isNewItem && i > 0 ? '2px solid #c7d7fd' : undefined,
                       background: rank % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: '#9ca3af' }}>{isNewItem ? rank : ''}</td>
-                      <td style={cellStyle} title={row.descripcion}>{isNewItem ? `${row.item} - ${row.descripcion || ''}` : ''}</td>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: isNewItem ? 'inherit' : '#d1d5db' }}>{isNewItem ? fmtNum(row.itemTotalPzs) : ''}</td>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: isNewItem ? 'inherit' : '#d1d5db' }}>{isNewItem ? fmtMoney(row.itemTotalUsd) : ''}</td>
-                      <td style={cellStyle} title={`${row.codigoCeve ?? ''} - ${row.ceve ?? ''}`}>
-                        {row.codigoCeve}{row.ceve ? ` - ${row.ceve}` : ''}
-                      </td>
-                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtNum(row.recortePzs)}</td>
-                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
-                      <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
-                      <td style={{ ...cellStyle, fontSize: 12.5, color: '#4b5563' }} title={row.resumen}>{row.resumen || '—'}</td>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</td>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: '#92400e' }}>{fmtNum(row.envsConsumo)}</td>
+                      {topNLayout.orderedColumns.map(col => (
+                        <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
+                          color: (col.key === 'itemTotalPzs' || col.key === 'itemTotalUsd' || col.key === 'rank') && !isNewItem ? '#d1d5db' : undefined }}>
+                          {renderTopNCell(col, row, isNewItem, rank)}
+                        </td>
+                      ))}
                     </tr>
                   )
                 })
@@ -414,34 +566,22 @@ export default function CausasRecorteTablero() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ background: '#2563eb' }}>
-                  {columns.map(col => {
-                    const active = sortBy === col.key
-                    return (
-                      <th key={col.label} onClick={() => handleSort(col.key)}
-                        style={{ padding: '11px 14px', width: col.width, textAlign: col.align, fontWeight: 700,
-                          color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
-                          position: 'sticky', top: 0, background: '#2563eb', zIndex: 2, height: HEADER_H, boxSizing: 'border-box',
-                          cursor: col.key ? 'pointer' : 'default', userSelect: 'none' }}>
-                        {col.label}
-                        {col.key && (
-                          <span style={{ marginLeft: 5, opacity: active ? 1 : 0.35, fontSize: 10 }}>
-                            {active ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
-                          </span>
-                        )}
-                      </th>
-                    )
-                  })}
+                  {layout.orderedColumns.map(col => (
+                    <HeaderCell key={col.key} col={col} width={layout.widths[col.key] ?? col.width}
+                      active={sortBy === col.key} sortDir={sortDir}
+                      onSort={col.sortable === false ? null : handleSort} layout={layout} />
+                  ))}
                 </tr>
                 {/* Fila de totales — inamovible (sticky) justo debajo del encabezado */}
                 <tr style={{ background: '#eef2ff' }}>
-                  {columns.map((col, idx) => {
+                  {layout.orderedColumns.map((col, idx) => {
                     let content = ''
                     if (idx === 0) content = 'TOTAL'
                     else if (col.key === 'recortePzs') content = fmtNum(data.totalRecortePzs)
                     else if (col.key === 'recorteUsd') content = fmtMoney(data.totalRecorteUsd)
                     else if (col.key === 'filas') content = data.total.toLocaleString()
                     return (
-                      <td key={col.label} style={{ padding: '8px 14px', textAlign: col.align, fontWeight: 700,
+                      <td key={col.key} style={{ padding: '8px 14px', textAlign: col.align, fontWeight: 700,
                         color: '#1e3a8a', fontSize: 12.5, whiteSpace: 'nowrap', borderBottom: '2px solid #c7d7fd',
                         position: 'sticky', top: HEADER_H, background: '#eef2ff', zIndex: 1 }}>{content}</td>
                     )
@@ -449,41 +589,18 @@ export default function CausasRecorteTablero() {
                 </tr>
               </thead>
               <tbody>
-                {agrupado ? data.rows.map((row, i) => {
-                  const key = activeGroupFields.map(f => row[f.key]).join('|') + '-' + i
+                {data.rows.map((row, i) => {
+                  const key = agrupado
+                    ? activeGroupFields.map(f => row[f.key]).join('|') + '-' + i
+                    : `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
                   const cellStyle = { padding: '9px 14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 38 }
                   return (
                     <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      {activeGroupFields.map(f => (
-                        <td key={f.key} style={cellStyle} title={row[f.key]}>{row[f.key] ?? '—'}</td>
+                      {layout.orderedColumns.map(col => (
+                        <td key={col.key} style={{ ...cellStyle, textAlign: col.align }}>
+                          {renderMainCell(col, row)}
+                        </td>
                       ))}
-                      <td style={{ ...cellStyle, textAlign: 'right' }}>{row.filas?.toLocaleString()}</td>
-                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtNum(row.recortePzs)}</td>
-                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
-                      <td style={cellStyle}><CausaBadge causa={row.causaPredominante} /></td>
-                      <td style={cellStyle}><CausaBadge causa={row.causaSecundaria} small /></td>
-                      <td style={{ ...cellStyle, fontSize: 12.5, color: '#4b5563' }} title={row.resumen}>{row.resumen || '—'}</td>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</td>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: '#92400e' }}>{fmtNum(row.envsConsumo)}</td>
-                    </tr>
-                  )
-                }) : data.rows.map((row, i) => {
-                  const key = `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
-                  const cellStyle = { padding: '9px 14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 38 }
-                  return (
-                    <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={cellStyle}>{row.fechaVenta}</td>
-                      <td style={cellStyle} title={row.ceve || row.codigoCeve}>{row.ceve || row.codigoCeve}</td>
-                      <td style={cellStyle}>{row.item}</td>
-                      <td style={cellStyle} title={row.descripcion}>{row.descripcion || '—'}</td>
-                      <td style={cellStyle}>{row.canal || '—'}</td>
-                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtNum(row.recortePzs)}</td>
-                      <td style={{ ...cellStyle, fontWeight: 600, textAlign: 'right' }}>{fmtMoney(row.recorteUsd)}</td>
-                      <td style={cellStyle}><CausaBadge causa={row.causaPrincipal} /></td>
-                      <td style={cellStyle}><CausaBadge causa={row.causaSecundaria} small /></td>
-                      <td style={{ ...cellStyle, fontSize: 12.5, color: '#4b5563' }} title={row.resumen}>{row.resumen || '—'}</td>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</td>
-                      <td style={{ ...cellStyle, textAlign: 'right', color: '#92400e' }}>{fmtNum(row.envsConsumo)}</td>
                     </tr>
                   )
                 })}
