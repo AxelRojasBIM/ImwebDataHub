@@ -614,6 +614,19 @@ export default function CausasRecorteTablero() {
         <>
           <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+              {showDetalleDia && (
+                <colgroup>
+                  {layout.orderedColumns.map(col => (
+                    <col key={col.key} style={{ width: layout.widths[col.key] ?? col.width }} />
+                  ))}
+                  {recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
+                    <col key={`rf-col-${dayIdx}-${metric}`} style={{ width: 62 }} />
+                  )))}
+                  {consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
+                    <col key={`co-col-${dayIdx}-${metric}`} style={{ width: 62 }} />
+                  )))}
+                </colgroup>
+              )}
               <thead>
                 <tr style={{ background: '#2563eb' }}>
                   {layout.orderedColumns.map(col => (
@@ -639,14 +652,14 @@ export default function CausasRecorteTablero() {
                     {recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                       <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: '#991b1b',
-                        zIndex: 1, width: 62, height: SUBHEADER_H, boxSizing: 'border-box' }}>
+                        zIndex: 1, width: 62, height: SUBHEADER_H, boxSizing: 'border-box', overflow: 'hidden' }}>
                         <div>{dayLabel(dayIdx)}</div><div style={{ opacity: 0.85 }}>{metric}</div>
                       </th>
                     )))}
                     {consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
                       <th key={`co-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: '#92400e',
-                        zIndex: 1, width: 62, height: SUBHEADER_H, boxSizing: 'border-box' }}>
+                        zIndex: 1, width: 62, height: SUBHEADER_H, boxSizing: 'border-box', overflow: 'hidden' }}>
                         <div>{dayLabel(dayIdx)}</div><div style={{ opacity: 0.85 }}>{metric}</div>
                       </th>
                     )))}
@@ -691,7 +704,7 @@ export default function CausasRecorteTablero() {
                             const v = recorteFabricaValue(row, dayIdx, metric)
                             return (
                               <td key={`rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
-                                whiteSpace: 'nowrap', color: metric === 'Recorte' ? '#991b1b' : metric === 'Aumento' ? '#166534' : '#374151' }}>
+                                whiteSpace: 'nowrap', overflow: 'hidden', color: metric === 'Recorte' ? '#991b1b' : metric === 'Aumento' ? '#166534' : '#374151' }}>
                                 {fmtNum(v)}
                               </td>
                             )
@@ -700,7 +713,7 @@ export default function CausasRecorteTablero() {
                             const v = consumoValue(row, dayIdx, metric)
                             return (
                               <td key={`co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
-                                whiteSpace: 'nowrap', color: metric === 'Exceso' ? '#92400e' : metric === 'Ahorro' ? '#166534' : '#374151' }}>
+                                whiteSpace: 'nowrap', overflow: 'hidden', color: metric === 'Exceso' ? '#92400e' : metric === 'Ahorro' ? '#166534' : '#374151' }}>
                                 {fmtNum(v)}
                               </td>
                             )
