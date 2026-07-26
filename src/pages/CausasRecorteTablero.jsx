@@ -65,9 +65,10 @@ const HDR_DIVIDER_SOFT = '1px solid rgba(255,255,255,0.28)'
 const HDR_DIVIDER_STRONG = '2px solid rgba(0,0,0,0.18)'
 
 // Colores vivos por bloque (título/fecha/métrica) para que ambos análisis
-// resalten más que el resto del encabezado.
-const RECORTE_COLORS = { title: '#dc2626', date: '#ef4444', metric: '#dc2626' }
-const CONSUMO_COLORS = { title: '#d97706', date: '#f59e0b', metric: '#d97706' }
+// resalten más que el resto del encabezado — tonos ejecutivos (índigo/verde
+// azulado), no rojo/marrón, para no leerse como una alerta de error.
+const RECORTE_COLORS = { title: '#4338ca', date: '#4f46e5', metric: '#4338ca' }
+const CONSUMO_COLORS = { title: '#0f766e', date: '#0d9488', metric: '#0f766e' }
 
 // Detalle día por día (solo tiene sentido cuando la vista está en un solo día,
 // porque ahí las fechas de tránsito son las mismas para todas las filas).
@@ -260,6 +261,7 @@ export default function CausasRecorteTablero() {
 
   const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] })
   const [loading, setLoading] = useState(false)
+  const [hoveredRow, setHoveredRow] = useState(null)
 
   // Nace contraído — el usuario hace clic en el título para expandir cada bloque por separado.
   const [recorteExpanded, setRecorteExpanded] = useState(false)
@@ -385,7 +387,13 @@ export default function CausasRecorteTablero() {
     if (idx === 6) return 'Hoy'
     return fmtDateShort(diaDates[idx]) || `Día ${idx + 1}`
   }
-  const recorteDayCols = [0, 1, 2, 3, 4, 5, 6]
+  // El día 6 de tránsito cae en la fecha analizada casi siempre (el tránsito
+  // solo salta domingos), así que "Hoy" repite exactamente esos mismos datos.
+  // Solo aporta algo nuevo cuando el día analizado es domingo (no cae en
+  // ninguna de las 6 columnas de tránsito) — ahí sí se muestra aparte.
+  const hoyDuplicaDia6 = !!(diaDates[5] && sampleRow?.fechaVenta
+    && String(diaDates[5]).slice(0, 10) === String(sampleRow.fechaVenta).slice(0, 10))
+  const recorteDayCols = hoyDuplicaDia6 ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6]
   const consumoDayCols = [0, 1, 2, 3, 4, 5]
   const recorteColCount = recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1
   const consumoColCount = consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1
@@ -632,7 +640,8 @@ export default function CausasRecorteTablero() {
 
       {/* Tabla */}
       {topNActive && topNData ? (
-        <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0 }}>
+        <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
+          boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: '#2563eb' }}>
@@ -693,7 +702,8 @@ export default function CausasRecorteTablero() {
         </div>
       ) : (
         <>
-          <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0 }}>
+          <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
+            boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
               {showDetalleDia && (
                 <colgroup>
@@ -730,7 +740,8 @@ export default function CausasRecorteTablero() {
                         onClick={() => setRecorteExpanded(v => !v)}
                         title="Clic para expandir/contraer"
                         style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: 'pointer',
-                          fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
+                          fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                          padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                           height: recorteExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box',
                           borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
                         Recorte Fabrica {recorteExpanded ? '▲' : '▼'}
@@ -739,7 +750,8 @@ export default function CausasRecorteTablero() {
                         onClick={() => setConsumoExpanded(v => !v)}
                         title="Clic para expandir/contraer"
                         style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: 'pointer',
-                          fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
+                          fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                          padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                           height: consumoExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box' }}>
                         Consumo Inventario {consumoExpanded ? '▲' : '▼'}
                       </th>
@@ -817,9 +829,13 @@ export default function CausasRecorteTablero() {
                     ? activeGroupFields.map(f => row[f.key]).join('|') + '-' + i
                     : `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
                   const cellStyle = { padding: '5px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 30 }
-                  const rowBg = i % 2 === 0 ? '#fff' : '#fafafa'
+                  const baseBg = i % 2 === 0 ? '#fff' : '#fafafa'
+                  const rowBg = hoveredRow === key ? '#eef2ff' : baseBg
                   return (
-                    <tr key={key} style={{ borderBottom: '1px solid var(--border)', background: rowBg }}>
+                    <tr key={key}
+                      onMouseEnter={() => setHoveredRow(key)}
+                      onMouseLeave={() => setHoveredRow(prev => prev === key ? null : prev)}
+                      style={{ borderBottom: '1px solid var(--border)', background: rowBg, transition: 'background 0.1s' }}>
                       {layout.orderedColumns.map(col => {
                         const colKey = col.key ?? col.label
                         const isSticky = stickyLeft[colKey] !== undefined
