@@ -48,19 +48,30 @@ function fmtDateShort(iso) {
 }
 
 const PAGE_SIZE = 100
-const SUBHEADER_H = 36
+const TITLE_H = 32
+const DATE_H = 26
+const METRIC_H = 28
+const COLLAPSED_TITLE_WIDTH = 130
 
 // Detalle día por día (solo tiene sentido cuando la vista está en un solo día,
 // porque ahí las fechas de tránsito son las mismas para todas las filas).
-const DIA_METRICS_RECORTE = ['Pedido', 'Entregado', 'Recorte', 'Aumento']
+const DIA_METRICS_RECORTE = ['Pedido CeVe', 'Entregado', 'Recorte', 'Aumento']
 const DIA_METRICS_CONSUMO = ['Cargo Real', 'Cargo Prom.', 'Exceso', 'Ahorro']
+// Métricas "derivadas" (una diferencia) que se resaltan con color de fondo cuando son > 0,
+// para que salte a la vista dónde sí hubo recorte/consumo sin tener que leer cada número.
+const METRIC_HIGHLIGHT = {
+  'Recorte':  { bg: '#fef2f2', color: '#991b1b' },
+  'Aumento':  { bg: '#f0fdf4', color: '#166534' },
+  'Exceso':   { bg: '#fffbeb', color: '#92400e' },
+  'Ahorro':   { bg: '#eff6ff', color: '#1d4ed8' },
+}
 
 function recorteFabricaValue(row, dayIdx, metric) {
   const pedido = dayIdx < 6 ? row.pedidoFabrica?.[dayIdx] : row.hoyPedido
   const entregado = dayIdx < 6 ? row.embarqueReal?.[dayIdx] : row.hoyEntregado
   if (pedido == null && entregado == null) return null
   const diff = (entregado ?? 0) - (pedido ?? 0)
-  if (metric === 'Pedido') return pedido
+  if (metric === 'Pedido CeVe') return pedido
   if (metric === 'Entregado') return entregado
   if (metric === 'Recorte') return diff < 0 ? -diff : 0
   if (metric === 'Aumento') return diff > 0 ? diff : 0
@@ -76,6 +87,11 @@ function consumoValue(row, dayIdx, metric) {
   if (metric === 'Exceso') return diff > 0 ? diff : 0
   if (metric === 'Ahorro') return diff < 0 ? -diff : 0
   return null
+}
+function metricCellStyle(metric, value) {
+  const hl = METRIC_HIGHLIGHT[metric]
+  if (!hl || !value || value <= 0) return { color: '#9ca3af' }
+  return { background: hl.bg, color: hl.color, fontWeight: 700, borderRadius: 4 }
 }
 
 // Maneja orden (arrastrar encabezado) y ancho (arrastrar el borde derecho) de columnas,
@@ -156,7 +172,7 @@ function useColumnLayout(baseColumns) {
   }
 }
 
-function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan }) {
+function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, height }) {
   const key = col.key ?? col.label
   const isDragOver = layout.dragOverKey === key
   return (
@@ -173,7 +189,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan }) {
         padding: '11px 14px', width, textAlign: col.align, fontWeight: 700,
         color: '#fff', whiteSpace: 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'uppercase',
         position: 'sticky', top: 0, background: isDragOver ? '#1d4ed8' : '#2563eb',
-        zIndex: 2, height: HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
+        zIndex: 2, height: height ?? HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
       }}>
       {col.label}
@@ -206,6 +222,10 @@ export default function CausasRecorteTablero() {
 
   const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] })
   const [loading, setLoading] = useState(false)
+
+  // Nace contraído — el usuario hace clic en el título para expandir cada bloque por separado.
+  const [recorteExpanded, setRecorteExpanded] = useState(false)
+  const [consumoExpanded, setConsumoExpanded] = useState(false)
 
   // Top N
   const [topNOpen, setTopNOpen]     = useState(false)
@@ -329,8 +349,9 @@ export default function CausasRecorteTablero() {
   }
   const recorteDayCols = [0, 1, 2, 3, 4, 5, 6]
   const consumoDayCols = [0, 1, 2, 3, 4, 5]
-  const recorteColCount = recorteDayCols.length * DIA_METRICS_RECORTE.length
-  const consumoColCount = consumoDayCols.length * DIA_METRICS_CONSUMO.length
+  const recorteColCount = recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1
+  const consumoColCount = consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1
+  const detalleHeaderH = TITLE_H + DATE_H + METRIC_H
 
   const detailColumnsBase = useMemo(() => [
     { key: 'fecha', label: 'Fecha', width: 100, align: 'left' },
@@ -619,48 +640,79 @@ export default function CausasRecorteTablero() {
                   {layout.orderedColumns.map(col => (
                     <col key={col.key} style={{ width: layout.widths[col.key] ?? col.width }} />
                   ))}
-                  {recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
-                    <col key={`rf-col-${dayIdx}-${metric}`} style={{ width: 62 }} />
-                  )))}
-                  {consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
-                    <col key={`co-col-${dayIdx}-${metric}`} style={{ width: 62 }} />
-                  )))}
+                  {recorteExpanded
+                    ? recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
+                        <col key={`rf-col-${dayIdx}-${metric}`} style={{ width: 62 }} />
+                      )))
+                    : <col key="rf-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
+                  {consumoExpanded
+                    ? consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
+                        <col key={`co-col-${dayIdx}-${metric}`} style={{ width: 62 }} />
+                      )))
+                    : <col key="co-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
                 </colgroup>
               )}
               <thead>
                 <tr style={{ background: '#2563eb' }}>
                   {layout.orderedColumns.map(col => (
                     <HeaderCell key={col.key} col={col} width={layout.widths[col.key] ?? col.width}
-                      active={sortBy === col.key} sortDir={sortDir} rowSpan={showDetalleDia ? 2 : 1}
+                      active={sortBy === col.key} sortDir={sortDir} rowSpan={showDetalleDia ? 3 : 1}
+                      height={showDetalleDia ? detalleHeaderH : HEADER_H}
                       onSort={col.sortable === false ? null : handleSort} layout={layout} />
                   ))}
                   {showDetalleDia && (
                     <>
-                      <th colSpan={recorteColCount} style={{ textAlign: 'center', background: '#991b1b', color: '#fff',
-                        fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2 }}>
-                        Analisis_RecorteFabrica
+                      <th colSpan={recorteColCount} rowSpan={recorteExpanded ? 1 : 3}
+                        onClick={() => setRecorteExpanded(v => !v)}
+                        title="Clic para expandir/contraer"
+                        style={{ textAlign: 'center', background: '#991b1b', color: '#fff', cursor: 'pointer',
+                          fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
+                          height: recorteExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box' }}>
+                        Recorte Fabrica {recorteExpanded ? '▲' : '▼'}
                       </th>
-                      <th colSpan={consumoColCount} style={{ textAlign: 'center', background: '#92400e', color: '#fff',
-                        fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2 }}>
-                        Analisis_Consumo
+                      <th colSpan={consumoColCount} rowSpan={consumoExpanded ? 1 : 3}
+                        onClick={() => setConsumoExpanded(v => !v)}
+                        title="Clic para expandir/contraer"
+                        style={{ textAlign: 'center', background: '#92400e', color: '#fff', cursor: 'pointer',
+                          fontWeight: 700, fontSize: 12, padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
+                          height: consumoExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box' }}>
+                        Consumo Inventario {consumoExpanded ? '▲' : '▼'}
                       </th>
                     </>
                   )}
                 </tr>
-                {showDetalleDia && (
+                {showDetalleDia && (recorteExpanded || consumoExpanded) && (
                   <tr style={{ background: '#2563eb' }}>
-                    {recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
+                    {recorteExpanded && recorteDayCols.map(dayIdx => (
+                      <th key={`rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: '#b91c1c',
+                        zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600 }}>
+                        {dayLabel(dayIdx)}
+                      </th>
+                    ))}
+                    {consumoExpanded && consumoDayCols.map(dayIdx => (
+                      <th key={`co-date-${dayIdx}`} colSpan={DIA_METRICS_CONSUMO.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: '#a3560f',
+                        zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600 }}>
+                        {dayLabel(dayIdx)}
+                      </th>
+                    ))}
+                  </tr>
+                )}
+                {showDetalleDia && (recorteExpanded || consumoExpanded) && (
+                  <tr style={{ background: '#2563eb' }}>
+                    {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                       <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
-                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: '#991b1b',
-                        zIndex: 1, width: 62, height: SUBHEADER_H, boxSizing: 'border-box', overflow: 'hidden' }}>
-                        <div>{dayLabel(dayIdx)}</div><div style={{ opacity: 0.85 }}>{metric}</div>
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: '#991b1b',
+                        zIndex: 1, width: 62, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden' }}>
+                        {metric}
                       </th>
                     )))}
-                    {consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
+                    {consumoExpanded && consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
                       <th key={`co-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
-                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: '#92400e',
-                        zIndex: 1, width: 62, height: SUBHEADER_H, boxSizing: 'border-box', overflow: 'hidden' }}>
-                        <div>{dayLabel(dayIdx)}</div><div style={{ opacity: 0.85 }}>{metric}</div>
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: '#92400e',
+                        zIndex: 1, width: 62, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden' }}>
+                        {metric}
                       </th>
                     )))}
                   </tr>
@@ -676,12 +728,12 @@ export default function CausasRecorteTablero() {
                     return (
                       <td key={col.key} style={{ padding: '8px 14px', textAlign: col.align, fontWeight: 700,
                         color: '#1e3a8a', fontSize: 12.5, whiteSpace: 'nowrap', borderBottom: '2px solid #c7d7fd',
-                        position: 'sticky', top: showDetalleDia ? HEADER_H + SUBHEADER_H : HEADER_H, background: '#eef2ff', zIndex: 1 }}>{content}</td>
+                        position: 'sticky', top: showDetalleDia ? detalleHeaderH : HEADER_H, background: '#eef2ff', zIndex: 1 }}>{content}</td>
                     )
                   })}
                   {showDetalleDia && (
                     <td colSpan={recorteColCount + consumoColCount} style={{
-                      position: 'sticky', top: HEADER_H + SUBHEADER_H, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
+                      position: 'sticky', top: detalleHeaderH, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
                   )}
                 </tr>
               </thead>
@@ -699,26 +751,34 @@ export default function CausasRecorteTablero() {
                         </td>
                       ))}
                       {showDetalleDia && (
-                        <>
-                          {recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => {
+                        recorteExpanded ? (
+                          recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => {
                             const v = recorteFabricaValue(row, dayIdx, metric)
                             return (
                               <td key={`rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
-                                whiteSpace: 'nowrap', overflow: 'hidden', color: metric === 'Recorte' ? '#991b1b' : metric === 'Aumento' ? '#166534' : '#374151' }}>
+                                whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                                 {fmtNum(v)}
                               </td>
                             )
-                          }))}
-                          {consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
+                          }))
+                        ) : (
+                          <td style={{ padding: '6px 3px', textAlign: 'center', fontSize: 11, color: '#9ca3af' }}>…</td>
+                        )
+                      )}
+                      {showDetalleDia && (
+                        consumoExpanded ? (
+                          consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
                             const v = consumoValue(row, dayIdx, metric)
                             return (
                               <td key={`co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
-                                whiteSpace: 'nowrap', overflow: 'hidden', color: metric === 'Exceso' ? '#92400e' : metric === 'Ahorro' ? '#166534' : '#374151' }}>
+                                whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                                 {fmtNum(v)}
                               </td>
                             )
-                          }))}
-                        </>
+                          }))
+                        ) : (
+                          <td style={{ padding: '6px 3px', textAlign: 'center', fontSize: 11, color: '#9ca3af' }}>…</td>
+                        )
                       )}
                     </tr>
                   )
