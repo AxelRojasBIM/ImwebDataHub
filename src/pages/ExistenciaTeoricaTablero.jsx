@@ -2,33 +2,37 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Search } from 'lucide-react'
 import { API } from '../App'
 
-const HEADER_H = 32
-const DATE_H = 22
-const METRIC_H = 24
+const ROW0_H = 24 // banda estática de grupo ("PRODUCTO" / "TRÁNSITO") — solo indica a qué se refiere, no es clickeable
+const ROW1_H = 26 // encabezado de columna individual / chip de día (clickeable en Tránsito)
+const ROW2_H = 22 // sub-encabezado de métricas, solo visible en los días expandidos
 const MIN_COL_WIDTH = 50
 const DIA_COL_WIDTH = 78
-const COLLAPSED_TRANSITO_WIDTH = 120
+const COLLAPSED_DAY_WIDTH = 100
 const DIA_METRICS = ['Pedido Fábrica', 'Carga Prom', 'Existencia Teórica']
 const STICKY_UPTO_KEY = 'producto'
-const HDR_DIVIDER_SOFT = '1px solid rgba(255,255,255,0.18)'
+const HDR_DIVIDER_SOFT = '1px solid #dbeafe'
 const PAGE_SIZE = 100
+const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
 // Paleta tomada del tablero de referencia (Order Tower / Validación de Pedido):
-// header oscuro para el grupo fijo (PRODUCTO), azul para el grupo Tránsito
-// (mismo azul primario usado en links/acciones — el verde oscuro de la
-// referencia es de otro grupo, "Inventario Óptimo", que no existe aquí),
-// ámbar para la columna de referencia manual, y grises neutros para texto y
-// filas alternas.
+// la banda de grupo (fila 0) es oscura con texto blanco — solo un rótulo, no
+// es clickeable. Los encabezados de columna individuales (fila 1) usan fondo
+// CLARO con texto oscuro, variando por área semántica (blanco para las
+// columnas normales, ámbar clarito para la columna de referencia manual). El
+// azul es el color de Tránsito específicamente (los chips de día, que sí son
+// clickeables) — el verde oscuro de la referencia original es de otro grupo
+// ("Inventario Óptimo") que no existe en esta tabla.
 const HEADER_BG = '#1a2e38'
-const HEADER_BG_ACTIVE = '#24404d'
 const TOTAL_BG = '#1a2e4a'
 const TRANSITO_BG = '#2563eb'
-const TRANSITO_BG_DATE = '#1e40af'
+const TRANSITO_BG_ACTIVE = '#1e40af'
+const TRANSITO_METRIC_BG = '#eff6ff'
 const AMBER = '#d97706'
 const AMBER_LIGHT = '#fef3c7'
 const BLUE_PRIMARY = '#2563eb'
 const PAGE_GRAY = '#f1f5f9'
 const MUTED_GRAY = '#64748b'
+const HEADER_TEXT = '#374151'
 const TEXT_MAIN = '#1e293b'
 const ZERO_GRAY = '#cbd5e1'
 
@@ -36,10 +40,14 @@ function fmtNum(v) {
   if (v == null) return '—'
   return Number(v).toLocaleString('es-MX', { maximumFractionDigits: 0 })
 }
-function fmtDateShort(iso) {
+// "Miércoles 27-07" — nombre completo del día + fecha, parseado en hora local
+// (no con `new Date(iso)`, que interpretaría la fecha en UTC y podría correr
+// un día el nombre del día según la zona horaria del navegador).
+function fmtDiaCompleto(iso) {
   if (!iso) return null
-  const [, m, d] = iso.split('-')
-  return `${d}/${m}`
+  const [y, m, d] = iso.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  return `${DIAS_SEMANA[date.getDay()]} ${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}`
 }
 // Los valores en cero o vacíos se muestran en gris muy claro para reducir el
 // ruido visual — solo los valores significativos usan texto oscuro.
@@ -121,13 +129,15 @@ function useColumnLayout(baseColumns) {
   }
 }
 
-function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, isLastSticky, headerBg, rowSpan, height }) {
+function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, isLastSticky, headerBg, headerColor }) {
   const key = col.key ?? col.label
   const isDragOver = layout.dragOverKey === key
   const isSticky = stickyLeft != null
+  const bg = isDragOver ? '#e2e8f0' : (headerBg ?? '#fff')
+  const color = headerColor ?? HEADER_TEXT
   return (
     <th
-      rowSpan={rowSpan ?? 3}
+      rowSpan={2}
       draggable
       onDragStart={() => layout.handleDragStart(key)}
       onDragOver={(e) => layout.handleDragOver(key, e)}
@@ -136,13 +146,13 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, i
       onClick={() => { if (!layout.suppressClickRef.current) onSort?.(col.key) }}
       title="Arrastra para reordenar · arrastra el borde derecho para cambiar el ancho"
       style={{
-        padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
-        color: '#fff', whiteSpace: 'nowrap', fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase',
-        position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
-        background: isDragOver ? HEADER_BG_ACTIVE : (headerBg ?? HEADER_BG),
-        zIndex: isSticky ? 3 : 2, height: height ?? (HEADER_H + DATE_H + METRIC_H), boxSizing: 'border-box', overflow: 'hidden',
+        padding: '6px 10px', width, textAlign: col.align, fontWeight: 700,
+        color, whiteSpace: 'nowrap', fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase',
+        position: 'sticky', top: ROW0_H, left: isSticky ? stickyLeft : undefined,
+        background: bg, borderBottom: '2px solid #e5e7eb',
+        zIndex: isSticky ? 3 : 2, height: ROW1_H + ROW2_H, boxSizing: 'border-box', overflow: 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
-        boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
+        boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
       }}>
       {col.label}
       {onSort && col.key && (
@@ -172,7 +182,16 @@ export default function ExistenciaTeoricaTablero() {
   const [data, setData] = useState({ total: 0, ejecucionId: null, rows: [], totals: null })
   const [loading, setLoading] = useState(false)
   const [hoveredRow, setHoveredRow] = useState(null)
-  const [transitoExpanded, setTransitoExpanded] = useState(true)
+  // Cada día de tránsito se colapsa/expande de forma independiente (clic en su
+  // propio encabezado) — vacío significa "todos expandidos".
+  const [collapsedDays, setCollapsedDays] = useState(() => new Set())
+  function toggleDay(dayIdx) {
+    setCollapsedDays(prev => {
+      const next = new Set(prev)
+      if (next.has(dayIdx)) next.delete(dayIdx); else next.add(dayIdx)
+      return next
+    })
+  }
 
   useEffect(() => {
     fetch(`${API}/api/existencia-teorica/tablero-filtros`)
@@ -227,8 +246,8 @@ export default function ExistenciaTeoricaTablero() {
   const sampleRow = data.rows.find(r => r.fechaTransito && r.fechaTransito.some(d => d))
   const diaDates = sampleRow ? sampleRow.fechaTransito : [null, null, null, null, null, null]
   const diaCols = [0, 1, 2, 3, 4, 5]
-  const detalleHeaderH = HEADER_H + DATE_H + METRIC_H
-  const transitoColCount = transitoExpanded ? diaCols.length * DIA_METRICS.length : 1
+  const mainColH = ROW1_H + ROW2_H
+  const transitoColCount = diaCols.reduce((sum, d) => sum + (collapsedDays.has(d) ? 1 : DIA_METRICS.length), 0)
 
   const columnsBase = useMemo(() => [
     { key: 'fecha', label: 'Fecha venta', width: 90, align: 'left' },
@@ -245,6 +264,7 @@ export default function ExistenciaTeoricaTablero() {
     () => computeStickyLeft(layout.orderedColumns, layout.widths, STICKY_UPTO_KEY),
     [layout.orderedColumns, layout.widths]
   )
+  const stickyColCount = Object.keys(stickyLeft).length
 
   function renderCell(col, row) {
     switch (col.key) {
@@ -346,65 +366,82 @@ export default function ExistenciaTeoricaTablero() {
                 {layout.orderedColumns.map(col => (
                   <col key={col.key} style={{ width: layout.widths[col.key] ?? col.width }} />
                 ))}
-                {transitoExpanded
-                  ? diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => (
-                      <col key={`d-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
-                    )))
-                  : <col key="d-col-collapsed" style={{ width: COLLAPSED_TRANSITO_WIDTH }} />}
+                {diaCols.flatMap(dayIdx => (
+                  collapsedDays.has(dayIdx)
+                    ? [<col key={`d-col-${dayIdx}-collapsed`} style={{ width: COLLAPSED_DAY_WIDTH }} />]
+                    : DIA_METRICS.map(metric => (
+                        <col key={`d-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
+                      ))
+                ))}
               </colgroup>
               <thead>
+                {/* Fila 0 — rótulo estático de grupo, solo indica a qué se refiere cada
+                    bloque; no es clickeable (a diferencia de los chips de día de abajo).
+                    Se divide en la parte fija (Fecha/CeVe/Producto) y el resto, porque solo
+                    esa parte queda inmóvil al hacer scroll horizontal. */}
                 <tr style={{ background: HEADER_BG }}>
+                  <th colSpan={stickyColCount} style={{
+                    textAlign: 'left', background: HEADER_BG, color: '#fff',
+                    fontWeight: 700, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase',
+                    padding: '5px 10px', position: 'sticky', top: 0, left: 0, zIndex: 2, height: ROW0_H, boxSizing: 'border-box' }}>
+                    Producto
+                  </th>
+                  {stickyColCount < layout.orderedColumns.length && (
+                    <th colSpan={layout.orderedColumns.length - stickyColCount} style={{
+                      background: HEADER_BG, padding: 0, height: ROW0_H, boxSizing: 'border-box' }} />
+                  )}
+                  <th colSpan={transitoColCount} style={{
+                    textAlign: 'left', background: TRANSITO_BG, color: '#fff',
+                    fontWeight: 700, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase',
+                    padding: 0, position: 'sticky', top: 0, zIndex: 2, height: ROW0_H, boxSizing: 'border-box' }}>
+                    {/* Anclado al borde visible — si centráramos en todo el colSpan, con
+                        scroll horizontal el texto quedaría fuera de la pantalla. */}
+                    <span style={{ position: 'sticky', left: 0, display: 'inline-block', padding: '5px 10px', whiteSpace: 'nowrap' }}>
+                      Tránsito
+                    </span>
+                  </th>
+                </tr>
+                <tr>
                   {layout.orderedColumns.map(col => {
                     const key = col.key ?? col.label
+                    const isAmber = key === 'existenciaMan'
                     return (
                       <HeaderCell key={col.key} col={col} width={layout.widths[col.key] ?? col.width}
                         active={sortBy === col.key} sortDir={sortDir}
                         onSort={col.sortable === false ? null : handleSort} layout={layout}
                         stickyLeft={stickyLeft[key]} isLastSticky={key === STICKY_UPTO_KEY}
-                        headerBg={key === 'existenciaMan' ? AMBER : undefined}
-                        rowSpan={transitoExpanded ? 3 : 1} height={detalleHeaderH} />
+                        headerBg={isAmber ? AMBER_LIGHT : undefined} headerColor={isAmber ? AMBER : undefined} />
                     )
                   })}
-                  <th colSpan={transitoColCount} rowSpan={transitoExpanded ? 1 : 3}
-                    onClick={() => setTransitoExpanded(v => !v)}
-                    title="Clic para expandir/contraer"
-                    style={{
-                      textAlign: transitoExpanded ? 'left' : 'center', background: TRANSITO_BG, color: '#fff', cursor: 'pointer',
-                      fontWeight: 700, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase',
-                      padding: 0, position: 'sticky', top: 0, zIndex: 2,
-                      height: transitoExpanded ? HEADER_H : detalleHeaderH, boxSizing: 'border-box' }}>
-                    {/* Anclado al borde izquierdo de la porción visible del bloque — si solo
-                        centráramos el texto en el colSpan completo, con scroll horizontal
-                        quedaría fuera de la pantalla la mayor parte del tiempo. */}
-                    <span style={{ position: 'sticky', left: 0, display: 'inline-block', padding: '6px 10px', whiteSpace: 'nowrap' }}>
-                      Tránsito {transitoExpanded ? '▼' : '▶'}
-                    </span>
-                  </th>
-                </tr>
-                {transitoExpanded && (
-                  <tr style={{ background: HEADER_BG }}>
-                    {diaCols.map(dayIdx => (
-                      <th key={`date-${dayIdx}`} colSpan={DIA_METRICS.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
-                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: TRANSITO_BG_DATE,
-                        zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
-                        borderRight: HDR_DIVIDER_SOFT }}>
-                        {fmtDateShort(diaDates[dayIdx]) || `Día ${dayIdx + 1}`}
+                  {diaCols.map(dayIdx => {
+                    const collapsed = collapsedDays.has(dayIdx)
+                    return (
+                      <th key={`day-${dayIdx}`} colSpan={collapsed ? 1 : DIA_METRICS.length} rowSpan={collapsed ? 2 : 1}
+                        onClick={() => toggleDay(dayIdx)}
+                        title="Clic para expandir/contraer este día"
+                        style={{ padding: '5px 6px', fontSize: 10.5, color: '#fff', cursor: 'pointer',
+                          textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: ROW0_H,
+                          background: collapsed ? TRANSITO_BG_ACTIVE : TRANSITO_BG,
+                          zIndex: 1, height: collapsed ? mainColH : ROW1_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 700,
+                          borderRight: HDR_DIVIDER_SOFT, userSelect: 'none' }}>
+                        {fmtDiaCompleto(diaDates[dayIdx]) || `Día ${dayIdx + 1}`} {collapsed ? '▶' : '▼'}
                       </th>
-                    ))}
-                  </tr>
-                )}
-                {transitoExpanded && (
-                  <tr style={{ background: HEADER_BG }}>
-                    {diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => (
-                      <th key={`h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 9.5, color: '#fff',
-                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H + DATE_H, background: TRANSITO_BG,
-                        zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
-                        borderRight: HDR_DIVIDER_SOFT }}>
+                    )
+                  })}
+                </tr>
+                <tr>
+                  {diaCols.flatMap(dayIdx => {
+                    if (collapsedDays.has(dayIdx)) return []
+                    return DIA_METRICS.map(metric => (
+                      <th key={`h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 9.5, color: HEADER_TEXT,
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: ROW0_H + ROW1_H, background: TRANSITO_METRIC_BG,
+                        zIndex: 1, width: DIA_COL_WIDTH, height: ROW2_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 700,
+                        borderRight: HDR_DIVIDER_SOFT, borderBottom: '2px solid #e5e7eb' }}>
                         {metric}
                       </th>
-                    )))}
-                  </tr>
-                )}
+                    ))
+                  })}
+                </tr>
               </thead>
               <tbody>
                 {data.rows.map((row, i) => {
@@ -430,8 +467,17 @@ export default function ExistenciaTeoricaTablero() {
                           </td>
                         )
                       })}
-                      {transitoExpanded ? (
-                        diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => {
+                      {diaCols.flatMap(dayIdx => {
+                        if (collapsedDays.has(dayIdx)) {
+                          const v = row.existenciaTeorica?.[dayIdx]
+                          return [
+                            <td key={`d-${dayIdx}-collapsed`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                              whiteSpace: 'nowrap', overflow: 'hidden', color: numColor(v) }}>
+                              {fmtNum(v)}
+                            </td>
+                          ]
+                        }
+                        return DIA_METRICS.map(metric => {
                           let v
                           if (metric === 'Pedido Fábrica') v = row.pedidoFabrica?.[dayIdx]
                           else if (metric === 'Carga Prom') v = row.cargaProm?.[dayIdx]
@@ -442,10 +488,8 @@ export default function ExistenciaTeoricaTablero() {
                               {fmtNum(v)}
                             </td>
                           )
-                        }))
-                      ) : (
-                        <td style={{ padding: '6px 3px', textAlign: 'center', fontSize: 11, color: ZERO_GRAY }}>…</td>
-                      )}
+                        })
+                      })}
                     </tr>
                   )
                 })}
@@ -470,8 +514,18 @@ export default function ExistenciaTeoricaTablero() {
                         boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.3)' : undefined }}>{content}</td>
                     )
                   })}
-                  {transitoExpanded ? (
-                    diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => {
+                  {diaCols.flatMap(dayIdx => {
+                    if (collapsedDays.has(dayIdx)) {
+                      const v = data.totals?.existenciaTeorica?.[dayIdx]
+                      return [
+                        <td key={`tot-${dayIdx}-collapsed`} style={{ padding: '7px 3px', textAlign: 'right', fontSize: 11.5,
+                          fontWeight: 600, color: '#fff', background: TOTAL_BG, borderTop: '2px solid #000',
+                          position: 'sticky', bottom: 0 }}>
+                          {fmtNum(v)}
+                        </td>
+                      ]
+                    }
+                    return DIA_METRICS.map(metric => {
                       let v
                       if (metric === 'Pedido Fábrica') v = data.totals?.pedidoFabrica?.[dayIdx]
                       else if (metric === 'Carga Prom') v = data.totals?.cargaProm?.[dayIdx]
@@ -483,10 +537,8 @@ export default function ExistenciaTeoricaTablero() {
                           {fmtNum(v)}
                         </td>
                       )
-                    }))
-                  ) : (
-                    <td style={{ padding: '7px 3px', background: TOTAL_BG, borderTop: '2px solid #000', position: 'sticky', bottom: 0 }} />
-                  )}
+                    })
+                  })}
                 </tr>
               </tfoot>
             </table>
