@@ -12,15 +12,22 @@ const STICKY_UPTO_KEY = 'producto'
 const HDR_DIVIDER_SOFT = '1px solid rgba(255,255,255,0.16)'
 const PAGE_SIZE = 100
 
-// Encabezado oscuro (columnas fijas) + banda verde para el bloque calculado
-// "Tránsito" — mismo lenguaje visual de tablero financiero: neutro para datos
-// de entrada, acento de color para lo que el sistema calcula.
-const HEADER_BG = '#111827'
-const HEADER_BG_ACTIVE = '#1f2937'
-const TRANSITO_BG = '#065f46'
-const TRANSITO_BG_LIGHT = '#047857'
-const EXISTENCIA_AUT_BG = '#f0fdf4'
-const EXISTENCIA_AUT_COLOR = '#166534'
+// Paleta tomada del tablero de referencia (Order Tower / Validación de Pedido):
+// header oscuro para el grupo fijo, verde oscuro para el grupo calculado,
+// ámbar para la columna de referencia manual, y grises neutros para texto y
+// filas alternas — mismo lenguaje "dashboard financiero" en todo el sistema.
+const HEADER_BG = '#1a2e38'
+const HEADER_BG_ACTIVE = '#24404d'
+const TOTAL_BG = '#1a2e4a'
+const TRANSITO_BG = '#153a2f'
+const TRANSITO_BG_LIGHT = '#1d5240'
+const AMBER = '#d97706'
+const AMBER_LIGHT = '#fef3c7'
+const BLUE_PRIMARY = '#2563eb'
+const PAGE_GRAY = '#f1f5f9'
+const MUTED_GRAY = '#64748b'
+const TEXT_MAIN = '#1e293b'
+const ZERO_GRAY = '#cbd5e1'
 
 function fmtNum(v) {
   if (v == null) return '—'
@@ -31,9 +38,14 @@ function fmtDateShort(iso) {
   const [, m, d] = iso.split('-')
   return `${d}/${m}`
 }
+// Los valores en cero o vacíos se muestran en gris muy claro para reducir el
+// ruido visual — solo los valores significativos usan texto oscuro.
+function numColor(v) {
+  return v == null || v === 0 ? ZERO_GRAY : TEXT_MAIN
+}
 function diferenciaStyle(v) {
-  if (v == null || v === 0) return { color: '#9ca3af' }
-  if (v > 0) return { color: '#111827', fontWeight: 600 }
+  if (v == null || v === 0) return { color: ZERO_GRAY }
+  if (v > 0) return { color: TEXT_MAIN, fontWeight: 600 }
   return { color: '#dc2626', fontWeight: 700 }
 }
 
@@ -106,7 +118,7 @@ function useColumnLayout(baseColumns) {
   }
 }
 
-function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, isLastSticky }) {
+function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, isLastSticky, headerBg }) {
   const key = col.key ?? col.label
   const isDragOver = layout.dragOverKey === key
   const isSticky = stickyLeft != null
@@ -122,9 +134,9 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, i
       title="Arrastra para reordenar · arrastra el borde derecho para cambiar el ancho"
       style={{
         padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
-        color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'uppercase',
+        color: '#fff', whiteSpace: 'nowrap', fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase',
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
-        background: isDragOver ? HEADER_BG_ACTIVE : HEADER_BG,
+        background: isDragOver ? HEADER_BG_ACTIVE : (headerBg ?? HEADER_BG),
         zIndex: isSticky ? 3 : 2, height: HEADER_H + DATE_H + METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
         boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
@@ -232,11 +244,14 @@ export default function ExistenciaTeoricaTablero() {
   function renderCell(col, row) {
     switch (col.key) {
       case 'fecha': return row.fechaVenta
-      case 'ceve': return <span title={row.ceve || row.codigoCeve}>{row.ceve || row.codigoCeve}</span>
+      case 'ceve': return <span title={row.ceve || row.codigoCeve} style={{ color: BLUE_PRIMARY, fontWeight: 500 }}>{row.ceve || row.codigoCeve}</span>
       case 'producto': return <span title={row.longName}>{row.item}{row.longName ? ` - ${row.longName}` : ''}</span>
       case 'frecuencia': return row.frecuencia || '—'
-      case 'existenciaAut': return <span style={{ fontWeight: 600 }}>{fmtNum(row.existenciaAut)}</span>
-      case 'existenciaMan': return fmtNum(row.existenciaMan)
+      case 'existenciaAut': return <span style={{ color: numColor(row.existenciaAut), fontWeight: 500 }}>{fmtNum(row.existenciaAut)}</span>
+      case 'existenciaMan': {
+        const differs = row.diferencia != null && row.diferencia !== 0
+        return <span style={differs ? { color: AMBER, fontWeight: 700 } : { color: numColor(row.existenciaMan) }}>{fmtNum(row.existenciaMan)}</span>
+      }
       case 'diferencia': return <span style={diferenciaStyle(row.diferencia)}>{fmtNum(row.diferencia)}</span>
       default: return null
     }
@@ -246,10 +261,10 @@ export default function ExistenciaTeoricaTablero() {
     <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box',
       display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ marginBottom: 16, flexShrink: 0 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: TEXT_MAIN }}>
           Existencia Teórica
         </h1>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: MUTED_GRAY }}>
           Existencia automática (Ivy) vs. manual, y proyección de existencia teórica día a día por tránsito.
         </p>
       </div>
@@ -260,36 +275,40 @@ export default function ExistenciaTeoricaTablero() {
         padding: '18px 22px', marginBottom: 16, flexShrink: 0,
       }}>
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
+            color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Fecha de venta *
             <select value={fechaVenta} onChange={e => updateFechaVenta(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 150 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 150, textTransform: 'none', fontWeight: 400 }}>
               {filtros.fechas.length === 0 && <option value="">Sin ejecuciones</option>}
               {filtros.fechas.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
+            color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             CeVe
             <select value={codigoCeve} onChange={e => updateCodigoCeve(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160, textTransform: 'none', fontWeight: 400 }}>
               <option value="">Todos</option>
               {filtros.ceves.map(c => <option key={c.codigoCeve} value={c.codigoCeve}>{c.ceve}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
+            color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Categoría
             <select value={categoria} onChange={e => updateCategoria(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160, textTransform: 'none', fontWeight: 400 }}>
               <option value="">Todas</option>
               {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
+            color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Buscar producto
             <div style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
               <input value={search} onChange={e => updateSearch(e.target.value)} placeholder="Item o descripción…"
-                style={{ padding: '7px 10px 7px 30px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 180, width: '100%' }} />
+                style={{ padding: '7px 10px 7px 30px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 180, width: '100%', textTransform: 'none', fontWeight: 400 }} />
             </div>
           </label>
           <button onClick={handleLimpiar}
@@ -317,7 +336,7 @@ export default function ExistenciaTeoricaTablero() {
         <>
           <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
             boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
               <colgroup>
                 {layout.orderedColumns.map(col => (
                   <col key={col.key} style={{ width: layout.widths[col.key] ?? col.width }} />
@@ -334,12 +353,13 @@ export default function ExistenciaTeoricaTablero() {
                       <HeaderCell key={col.key} col={col} width={layout.widths[col.key] ?? col.width}
                         active={sortBy === col.key} sortDir={sortDir}
                         onSort={col.sortable === false ? null : handleSort} layout={layout}
-                        stickyLeft={stickyLeft[key]} isLastSticky={key === STICKY_UPTO_KEY} />
+                        stickyLeft={stickyLeft[key]} isLastSticky={key === STICKY_UPTO_KEY}
+                        headerBg={key === 'existenciaMan' ? AMBER : undefined} />
                     )
                   })}
                   <th colSpan={diaCols.length * DIA_METRICS.length} style={{
                     textAlign: 'center', background: TRANSITO_BG, color: '#fff',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                    fontWeight: 700, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase',
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2, height: HEADER_H, boxSizing: 'border-box' }}>
                     Tránsito
                   </th>
@@ -366,20 +386,20 @@ export default function ExistenciaTeoricaTablero() {
                 </tr>
                 {/* Fila de totales — inamovible (sticky) justo debajo del encabezado, calculada
                     sobre TODO el conjunto filtrado (no solo la página visible) */}
-                <tr style={{ background: HEADER_BG }}>
+                <tr style={{ background: TOTAL_BG }}>
                   {layout.orderedColumns.map((col, idx) => {
                     const key = col.key ?? col.label
                     const isSticky = stickyLeft[key] !== undefined
                     let content = ''
-                    if (idx === 0) content = 'TOTAL'
+                    if (idx === 0) content = `TOTAL (${data.total.toLocaleString()} filas)`
                     else if (key === 'existenciaMan') content = fmtNum(data.totals?.existenciaMan)
                     else if (key === 'existenciaAut') content = fmtNum(data.totals?.existenciaAut)
                     else if (key === 'diferencia') content = fmtNum(data.totals?.diferencia)
                     return (
-                      <td key={col.key} style={{ padding: '7px 10px', textAlign: col.align, fontWeight: 700,
+                      <td key={col.key} style={{ padding: '7px 10px', textAlign: col.align, fontWeight: 600,
                         color: '#fff', fontSize: 12, whiteSpace: 'nowrap', borderBottom: '2px solid #000',
                         position: 'sticky', top: detalleHeaderH, left: isSticky ? stickyLeft[key] : undefined,
-                        background: HEADER_BG, zIndex: isSticky ? 2 : 1,
+                        background: TOTAL_BG, zIndex: isSticky ? 2 : 1,
                         boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.3)' : undefined }}>{content}</td>
                     )
                   })}
@@ -390,7 +410,7 @@ export default function ExistenciaTeoricaTablero() {
                     else v = data.totals?.existenciaTeorica?.[dayIdx]
                     return (
                       <td key={`tot-${dayIdx}-${metric}`} style={{ padding: '7px 3px', textAlign: 'right', fontSize: 11.5,
-                        fontWeight: 700, color: '#fff', background: TRANSITO_BG, borderBottom: '2px solid #000' }}>
+                        fontWeight: 600, color: '#fff', background: TOTAL_BG, borderBottom: '2px solid #000' }}>
                         {fmtNum(v)}
                       </td>
                     )
@@ -400,8 +420,8 @@ export default function ExistenciaTeoricaTablero() {
               <tbody>
                 {data.rows.map((row, i) => {
                   const key = `${row.codigoCeve}-${row.item}-${i}`
-                  const cellStyle = { padding: '5px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 30 }
-                  const baseBg = i % 2 === 0 ? '#fff' : '#fafafa'
+                  const cellStyle = { padding: '5px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 30, color: TEXT_MAIN }
+                  const baseBg = i % 2 === 0 ? '#fff' : PAGE_GRAY
                   const rowBg = hoveredRow === key ? '#eef2ff' : baseBg
                   return (
                     <tr key={key}
@@ -411,10 +431,8 @@ export default function ExistenciaTeoricaTablero() {
                       {layout.orderedColumns.map(col => {
                         const colKey = col.key ?? col.label
                         const isSticky = stickyLeft[colKey] !== undefined
-                        const isAut = colKey === 'existenciaAut'
                         return (
                           <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
-                            ...(isAut ? { background: EXISTENCIA_AUT_BG, color: EXISTENCIA_AUT_COLOR } : {}),
                             ...(isSticky ? {
                               position: 'sticky', left: stickyLeft[colKey], zIndex: 1, background: rowBg,
                               boxShadow: colKey === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.08)' : undefined,
@@ -430,7 +448,7 @@ export default function ExistenciaTeoricaTablero() {
                         else v = row.existenciaTeorica?.[dayIdx]
                         return (
                           <td key={`d-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
-                            whiteSpace: 'nowrap', overflow: 'hidden', color: '#374151' }}>
+                            whiteSpace: 'nowrap', overflow: 'hidden', color: numColor(v) }}>
                             {fmtNum(v)}
                           </td>
                         )
@@ -443,7 +461,7 @@ export default function ExistenciaTeoricaTablero() {
           </div>
 
           {/* Paginación */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 13, color: '#6b7280', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 12, color: MUTED_GRAY, flexShrink: 0 }}>
             <div>Mostrando {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} de {data.total.toLocaleString()} filas · Página {page} de {totalPages}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
