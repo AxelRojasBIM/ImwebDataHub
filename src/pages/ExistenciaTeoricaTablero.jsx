@@ -40,6 +40,12 @@ function fmtNum(v) {
   if (v == null) return '—'
   return Number(v).toLocaleString('es-MX', { maximumFractionDigits: 0 })
 }
+// El backend ya rellena `ceve` con el código cuando no hay nombre cargado en
+// el catálogo — solo combinamos código+nombre cuando de verdad hay un nombre.
+function ceveLabel(codigoCeve, ceve) {
+  if (!ceve || ceve === codigoCeve) return codigoCeve
+  return `${codigoCeve} - ${ceve}`
+}
 // "Miércoles 27-07" — nombre completo del día + fecha, parseado en hora local
 // (no con `new Date(iso)`, que interpretaría la fecha en UTC y podría correr
 // un día el nombre del día según la zona horaria del navegador).
@@ -270,7 +276,7 @@ export default function ExistenciaTeoricaTablero() {
     switch (col.key) {
       case 'fecha': return row.fechaVenta
       case 'ceve': {
-        const label = row.ceve ? `${row.codigoCeve} - ${row.ceve}` : row.codigoCeve
+        const label = ceveLabel(row.codigoCeve, row.ceve)
         return <span title={label} style={{ color: BLUE_PRIMARY, fontWeight: 500 }}>{label}</span>
       }
       case 'producto': return <span title={row.longName}>{row.item}{row.longName ? ` - ${row.longName}` : ''}</span>
@@ -318,7 +324,7 @@ export default function ExistenciaTeoricaTablero() {
             <select value={codigoCeve} onChange={e => updateCodigoCeve(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160, textTransform: 'none', fontWeight: 400 }}>
               <option value="">Todos</option>
-              {filtros.ceves.map(c => <option key={c.codigoCeve} value={c.codigoCeve}>{c.ceve}</option>)}
+              {filtros.ceves.map(c => <option key={c.codigoCeve} value={c.codigoCeve}>{ceveLabel(c.codigoCeve, c.ceve)}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
