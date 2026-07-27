@@ -36,6 +36,29 @@ const HEADER_TEXT = '#374151'
 const TEXT_MAIN = '#1e293b'
 const ZERO_GRAY = '#cbd5e1'
 
+// "Validador de Pedido" — apartado aparte de Tránsito, con los campos que ya
+// calcula el motor de Existencia Teórica (promedio/desviación/stock de
+// seguridad/inventario óptimo/reposición) más la diferencia final.
+const PEDIDO_BG = '#9a3412'
+const PEDIDO_GREEN_BG = '#ecfdf5'
+const PEDIDO_GREEN_TEXT = '#047857'
+const PEDIDO_RED_BG = '#fef2f2'
+const PEDIDO_RED_TEXT = '#b91c1c'
+const PEDIDO_COLS = [
+  { key: 'promedioFinalPedido',     label: 'Promedio Final',      group: 'green' },
+  { key: 'desviacionStdPedido',     label: 'Desv. Std.',          group: 'green' },
+  { key: 'estadistico',             label: 'Estadístico',         group: 'green' },
+  { key: 'stockSeguridad',          label: 'Stock Seguridad',     group: 'green' },
+  { key: 'inventarioOptimo',        label: 'Inv. Óptimo',         group: 'green' },
+  { key: 'reposicion',              label: 'Reposición',          group: 'green' },
+  { key: 'diferenciaPedidoFabrica', label: 'Dif. Pedido Fábrica', group: 'red' },
+]
+const PEDIDO_COL_WIDTH = 110
+function pedidoCellStyle(group, value) {
+  if (value == null || value === 0) return { color: ZERO_GRAY }
+  return group === 'red' ? { color: PEDIDO_RED_TEXT, fontWeight: 600 } : { color: PEDIDO_GREEN_TEXT, fontWeight: 600 }
+}
+
 function fmtNum(v) {
   if (v == null) return '—'
   return Number(v).toLocaleString('es-MX', { maximumFractionDigits: 0 })
@@ -425,6 +448,9 @@ export default function ExistenciaTeoricaTablero() {
                         <col key={`d-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
                       ))
                 ))}
+                {PEDIDO_COLS.map(col => (
+                  <col key={`p-col-${col.key}`} style={{ width: PEDIDO_COL_WIDTH }} />
+                ))}
               </colgroup>
               <thead>
                 {/* Fila 0 — rótulo estático de grupo, solo indica a qué se refiere cada
@@ -451,6 +477,12 @@ export default function ExistenciaTeoricaTablero() {
                     <span style={{ position: 'sticky', left: 0, display: 'inline-block', padding: '5px 10px', whiteSpace: 'nowrap' }}>
                       Tránsito
                     </span>
+                  </th>
+                  <th colSpan={PEDIDO_COLS.length} style={{
+                    textAlign: 'left', background: PEDIDO_BG, color: '#fff',
+                    fontWeight: 700, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase',
+                    padding: '5px 10px', position: 'sticky', top: 0, zIndex: 2, height: ROW0_H, boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
+                    Validador de Pedido
                   </th>
                 </tr>
                 <tr>
@@ -480,6 +512,16 @@ export default function ExistenciaTeoricaTablero() {
                       </th>
                     )
                   })}
+                  {PEDIDO_COLS.map(col => (
+                    <th key={`p-h-${col.key}`} rowSpan={2} style={{ padding: '5px 6px', fontSize: 10, fontWeight: 700,
+                      color: col.group === 'red' ? PEDIDO_RED_TEXT : PEDIDO_GREEN_TEXT,
+                      background: col.group === 'red' ? PEDIDO_RED_BG : PEDIDO_GREEN_BG,
+                      textAlign: 'right', whiteSpace: 'nowrap', position: 'sticky', top: ROW0_H,
+                      zIndex: 1, height: mainColH, boxSizing: 'border-box', overflow: 'hidden',
+                      borderRight: '1px solid rgba(0,0,0,0.06)' }}>
+                      {col.label}
+                    </th>
+                  ))}
                 </tr>
                 <tr>
                   {diaCols.flatMap(dayIdx => {
@@ -542,6 +584,12 @@ export default function ExistenciaTeoricaTablero() {
                           )
                         })
                       })}
+                      {PEDIDO_COLS.map(col => (
+                        <td key={`p-${col.key}`} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12,
+                          whiteSpace: 'nowrap', overflow: 'hidden', ...pedidoCellStyle(col.group, row[col.key]) }}>
+                          {fmtNum(row[col.key])}
+                        </td>
+                      ))}
                     </tr>
                   )
                 })}
@@ -591,6 +639,13 @@ export default function ExistenciaTeoricaTablero() {
                       )
                     })
                   })}
+                  {PEDIDO_COLS.map(col => (
+                    <td key={`tot-p-${col.key}`} style={{ padding: '7px 10px', textAlign: 'right', fontSize: 12,
+                      fontWeight: 600, color: '#fff', background: TOTAL_BG, borderTop: '2px solid #000',
+                      position: 'sticky', bottom: 0 }}>
+                      {fmtNum(data.totals?.[col.key])}
+                    </td>
+                  ))}
                 </tr>
               </tfoot>
             </table>
