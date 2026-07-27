@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Search } from 'lucide-react'
 import { API } from '../App'
 
 const HEADER_H = 32
@@ -8,8 +9,18 @@ const MIN_COL_WIDTH = 50
 const DIA_COL_WIDTH = 78
 const DIA_METRICS = ['Pedido Fábrica', 'Carga Prom', 'Existencia Teórica']
 const STICKY_UPTO_KEY = 'producto'
-const HDR_DIVIDER_SOFT = '1px solid rgba(255,255,255,0.28)'
+const HDR_DIVIDER_SOFT = '1px solid rgba(255,255,255,0.16)'
 const PAGE_SIZE = 100
+
+// Encabezado oscuro (columnas fijas) + banda verde para el bloque calculado
+// "Tránsito" — mismo lenguaje visual de tablero financiero: neutro para datos
+// de entrada, acento de color para lo que el sistema calcula.
+const HEADER_BG = '#111827'
+const HEADER_BG_ACTIVE = '#1f2937'
+const TRANSITO_BG = '#065f46'
+const TRANSITO_BG_LIGHT = '#047857'
+const EXISTENCIA_AUT_BG = '#f0fdf4'
+const EXISTENCIA_AUT_COLOR = '#166534'
 
 function fmtNum(v) {
   if (v == null) return '—'
@@ -22,8 +33,8 @@ function fmtDateShort(iso) {
 }
 function diferenciaStyle(v) {
   if (v == null || v === 0) return { color: '#9ca3af' }
-  if (v > 0) return { background: '#fffbeb', color: '#92400e', fontWeight: 700, borderRadius: 4 }
-  return { background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, borderRadius: 4 }
+  if (v > 0) return { color: '#111827', fontWeight: 600 }
+  return { color: '#dc2626', fontWeight: 700 }
 }
 
 function computeStickyLeft(orderedColumns, widths, uptoKey) {
@@ -113,7 +124,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, i
         padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
         color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'uppercase',
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
-        background: isDragOver ? '#1d4ed8' : '#2563eb',
+        background: isDragOver ? HEADER_BG_ACTIVE : HEADER_BG,
         zIndex: isSticky ? 3 : 2, height: HEADER_H + DATE_H + METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
         boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
@@ -143,7 +154,7 @@ export default function ExistenciaTeoricaTablero() {
   const [sortBy, setSortBy] = useState(null)
   const [sortDir, setSortDir] = useState('desc')
 
-  const [data, setData] = useState({ total: 0, ejecucionId: null, rows: [] })
+  const [data, setData] = useState({ total: 0, ejecucionId: null, rows: [], totals: null })
   const [loading, setLoading] = useState(false)
   const [hoveredRow, setHoveredRow] = useState(null)
 
@@ -158,7 +169,7 @@ export default function ExistenciaTeoricaTablero() {
   }, [])
 
   const load = useCallback(async () => {
-    if (!fechaVenta) { setData({ total: 0, ejecucionId: null, rows: [] }); return }
+    if (!fechaVenta) { setData({ total: 0, ejecucionId: null, rows: [], totals: null }); return }
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), fechaVenta })
@@ -224,7 +235,7 @@ export default function ExistenciaTeoricaTablero() {
       case 'ceve': return <span title={row.ceve || row.codigoCeve}>{row.ceve || row.codigoCeve}</span>
       case 'producto': return <span title={row.longName}>{row.item}{row.longName ? ` - ${row.longName}` : ''}</span>
       case 'frecuencia': return row.frecuencia || '—'
-      case 'existenciaAut': return fmtNum(row.existenciaAut)
+      case 'existenciaAut': return <span style={{ fontWeight: 600 }}>{fmtNum(row.existenciaAut)}</span>
       case 'existenciaMan': return fmtNum(row.existenciaMan)
       case 'diferencia': return <span style={diferenciaStyle(row.diferencia)}>{fmtNum(row.diferencia)}</span>
       default: return null
@@ -245,7 +256,7 @@ export default function ExistenciaTeoricaTablero() {
 
       {/* Filtros */}
       <div style={{
-        background: '#f8faff', border: '1px solid #c7d7fd', borderRadius: 14,
+        background: '#fff', border: '1px solid var(--border)', borderRadius: 14,
         padding: '18px 22px', marginBottom: 16, flexShrink: 0,
       }}>
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -275,8 +286,11 @@ export default function ExistenciaTeoricaTablero() {
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
             Buscar producto
-            <input value={search} onChange={e => updateSearch(e.target.value)} placeholder="Item o descripción…"
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 180 }} />
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+              <input value={search} onChange={e => updateSearch(e.target.value)} placeholder="Item o descripción…"
+                style={{ padding: '7px 10px 7px 30px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 180, width: '100%' }} />
+            </div>
           </label>
           <button onClick={handleLimpiar}
             style={{ padding: '8px 16px', height: 36, fontSize: 13, borderRadius: 8, background: '#fff',
@@ -313,7 +327,7 @@ export default function ExistenciaTeoricaTablero() {
                 )))}
               </colgroup>
               <thead>
-                <tr style={{ background: '#2563eb' }}>
+                <tr style={{ background: HEADER_BG }}>
                   {layout.orderedColumns.map(col => {
                     const key = col.key ?? col.label
                     return (
@@ -324,31 +338,63 @@ export default function ExistenciaTeoricaTablero() {
                     )
                   })}
                   <th colSpan={diaCols.length * DIA_METRICS.length} style={{
-                    textAlign: 'center', background: '#2563eb', color: '#fff',
+                    textAlign: 'center', background: TRANSITO_BG, color: '#fff',
                     fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2, height: HEADER_H, boxSizing: 'border-box' }}>
                     Tránsito
                   </th>
                 </tr>
-                <tr style={{ background: '#2563eb' }}>
+                <tr style={{ background: HEADER_BG }}>
                   {diaCols.map(dayIdx => (
                     <th key={`date-${dayIdx}`} colSpan={DIA_METRICS.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
-                      textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: '#1d4ed8',
+                      textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: TRANSITO_BG_LIGHT,
                       zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
                       borderRight: HDR_DIVIDER_SOFT }}>
                       {fmtDateShort(diaDates[dayIdx]) || `Día ${dayIdx + 1}`}
                     </th>
                   ))}
                 </tr>
-                <tr style={{ background: '#2563eb' }}>
+                <tr style={{ background: HEADER_BG }}>
                   {diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => (
                     <th key={`h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 9.5, color: '#fff',
-                      textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H + DATE_H, background: '#2563eb',
+                      textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H + DATE_H, background: TRANSITO_BG,
                       zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
                       borderRight: HDR_DIVIDER_SOFT }}>
                       {metric}
                     </th>
                   )))}
+                </tr>
+                {/* Fila de totales — inamovible (sticky) justo debajo del encabezado, calculada
+                    sobre TODO el conjunto filtrado (no solo la página visible) */}
+                <tr style={{ background: HEADER_BG }}>
+                  {layout.orderedColumns.map((col, idx) => {
+                    const key = col.key ?? col.label
+                    const isSticky = stickyLeft[key] !== undefined
+                    let content = ''
+                    if (idx === 0) content = 'TOTAL'
+                    else if (key === 'existenciaMan') content = fmtNum(data.totals?.existenciaMan)
+                    else if (key === 'existenciaAut') content = fmtNum(data.totals?.existenciaAut)
+                    else if (key === 'diferencia') content = fmtNum(data.totals?.diferencia)
+                    return (
+                      <td key={col.key} style={{ padding: '7px 10px', textAlign: col.align, fontWeight: 700,
+                        color: '#fff', fontSize: 12, whiteSpace: 'nowrap', borderBottom: '2px solid #000',
+                        position: 'sticky', top: detalleHeaderH, left: isSticky ? stickyLeft[key] : undefined,
+                        background: HEADER_BG, zIndex: isSticky ? 2 : 1,
+                        boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.3)' : undefined }}>{content}</td>
+                    )
+                  })}
+                  {diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => {
+                    let v
+                    if (metric === 'Pedido Fábrica') v = data.totals?.pedidoFabrica?.[dayIdx]
+                    else if (metric === 'Carga Prom') v = data.totals?.cargaProm?.[dayIdx]
+                    else v = data.totals?.existenciaTeorica?.[dayIdx]
+                    return (
+                      <td key={`tot-${dayIdx}-${metric}`} style={{ padding: '7px 3px', textAlign: 'right', fontSize: 11.5,
+                        fontWeight: 700, color: '#fff', background: TRANSITO_BG, borderBottom: '2px solid #000' }}>
+                        {fmtNum(v)}
+                      </td>
+                    )
+                  }))}
                 </tr>
               </thead>
               <tbody>
@@ -365,8 +411,10 @@ export default function ExistenciaTeoricaTablero() {
                       {layout.orderedColumns.map(col => {
                         const colKey = col.key ?? col.label
                         const isSticky = stickyLeft[colKey] !== undefined
+                        const isAut = colKey === 'existenciaAut'
                         return (
                           <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
+                            ...(isAut ? { background: EXISTENCIA_AUT_BG, color: EXISTENCIA_AUT_COLOR } : {}),
                             ...(isSticky ? {
                               position: 'sticky', left: stickyLeft[colKey], zIndex: 1, background: rowBg,
                               boxShadow: colKey === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.08)' : undefined,

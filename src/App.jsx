@@ -24,6 +24,11 @@ import CausasRecorte from './pages/CausasRecorte'
 import CausasRecorteTablero from './pages/CausasRecorteTablero'
 import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
 import { useEffect } from 'react'
+import {
+  Home, Stethoscope, Ruler, BarChart3, Search, Calculator, Upload,
+  LayoutGrid, Database, TrendingUp, PieChart, Package, Truck,
+  MapPin, Boxes, Target, Calendar, Factory,
+} from 'lucide-react'
 import './App.css'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
@@ -41,47 +46,47 @@ const nav = [
   {
     section: 'Principal',
     items: [
-      { to: '/', label: 'Inicio', icon: '⊞' },
-      { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: '🩺', badgeType: 'new', badge: 'Nuevo' },
-      { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: '📐', badgeType: 'new', badge: 'Nuevo' },
+      { to: '/', label: 'Inicio', icon: Home },
+      { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: Stethoscope, badgeType: 'new', badge: 'Nuevo' },
+      { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: Ruler, badgeType: 'new', badge: 'Nuevo' },
     ]
   },
   {
     section: 'Ejecución Proceso',
     items: [
-      { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: '▣' },
-      { to: '/existencia-teorica', label: 'Existencia Teórica', icon: '📐', badgeType: 'new', badge: 'Nuevo' },
-      { to: '/post-mortem', label: 'Post-Mortem', icon: '🔍', badgeType: 'new', badge: 'Nuevo' },
-      { to: '/inv-opt', label: 'Cálculo Inventario Óptimo', icon: '🧮', badgeType: 'new', badge: 'Nuevo' },
-      { to: '/causas-recorte', label: 'Causas Recorte', icon: '🩺', badgeType: 'new', badge: 'Nuevo' },
+      { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: BarChart3 },
+      { to: '/existencia-teorica', label: 'Existencia Teórica', icon: Ruler, badgeType: 'new', badge: 'Nuevo' },
+      { to: '/post-mortem', label: 'Post-Mortem', icon: Search, badgeType: 'new', badge: 'Nuevo' },
+      { to: '/inv-opt', label: 'Cálculo Inventario Óptimo', icon: Calculator, badgeType: 'new', badge: 'Nuevo' },
+      { to: '/causas-recorte', label: 'Causas Recorte', icon: Stethoscope, badgeType: 'new', badge: 'Nuevo' },
     ]
   },
   {
     section: 'Carga manual',
     items: [
-      { to: '/subir', label: 'Subir Excel / CSV', icon: '↑', badge: 'Nuevo', badgeType: 'new' },
+      { to: '/subir', label: 'Subir Excel / CSV', icon: Upload, badge: 'Nuevo', badgeType: 'new' },
     ]
   },
   {
     section: 'Cargas masivas',
     items: [
-      { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: '⊞', badgeType: 'new', badge: 'Nuevo' },
-      { to: '/pedido-oracle',      label: 'Pedido Oracle',              icon: '◈' },
-      { to: '/pedido-vendedor-promedios', label: 'Promedios de Pedido', icon: '📊' },
-      { to: '/participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', icon: '📈' },
-      { to: '/existencia-ceve-manual', label: 'Existencia CeVe Manual', icon: '📦' },
-      { to: '/pedido-vs-cargo-real', label: 'PedidoVSCargo Real', icon: '🚚' },
+      { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: LayoutGrid, badgeType: 'new', badge: 'Nuevo' },
+      { to: '/pedido-oracle',      label: 'Pedido Oracle',              icon: Database },
+      { to: '/pedido-vendedor-promedios', label: 'Promedios de Pedido', icon: TrendingUp },
+      { to: '/participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', icon: PieChart },
+      { to: '/existencia-ceve-manual', label: 'Existencia CeVe Manual', icon: Package },
+      { to: '/pedido-vs-cargo-real', label: 'PedidoVSCargo Real', icon: Truck },
     ]
   },
   {
     section: 'Catálogos',
     items: [
-      { to: '/catalogos/ceves',      label: 'CEVEs',      icon: '◈' },
-      { to: '/catalogos/productos',  label: 'Productos HubPedidos',  icon: '◉' },
-      { to: '/catalogos/metas',      label: 'Frecuencias Producto CeVes', icon: '◎' },
-      { to: '/catalogos/calendario',    label: 'Calendario',          icon: '▦' },
-      { to: '/catalogos/oracle-ceves',  label: 'Catálogos Oracle',    icon: '◇' },
-      { to: '/catalogos/plantas',       label: 'Plantas / Cedis',     icon: '🏭' },
+      { to: '/catalogos/ceves',      label: 'CEVEs',      icon: MapPin },
+      { to: '/catalogos/productos',  label: 'Productos HubPedidos',  icon: Boxes },
+      { to: '/catalogos/metas',      label: 'Frecuencias Producto CeVes', icon: Target },
+      { to: '/catalogos/calendario',    label: 'Calendario',          icon: Calendar },
+      { to: '/catalogos/oracle-ceves',  label: 'Catálogos Oracle',    icon: Database },
+      { to: '/catalogos/plantas',       label: 'Plantas / Cedis',     icon: Factory },
     ]
   },
 ]
@@ -112,7 +117,7 @@ export default function App() {
                   end={item.to === '/'}
                   className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}
                 >
-                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-icon"><item.icon size={17} strokeWidth={1.75} /></span>
                   <span className="nav-label">{item.label}</span>
                   {item.badge && (
                     <span className={'nav-badge' + (item.badgeType === 'new' ? ' new' : '')}>
