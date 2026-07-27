@@ -7,20 +7,23 @@ const DATE_H = 22
 const METRIC_H = 24
 const MIN_COL_WIDTH = 50
 const DIA_COL_WIDTH = 78
+const COLLAPSED_TRANSITO_WIDTH = 120
 const DIA_METRICS = ['Pedido Fábrica', 'Carga Prom', 'Existencia Teórica']
 const STICKY_UPTO_KEY = 'producto'
-const HDR_DIVIDER_SOFT = '1px solid rgba(255,255,255,0.16)'
+const HDR_DIVIDER_SOFT = '1px solid rgba(255,255,255,0.18)'
 const PAGE_SIZE = 100
 
 // Paleta tomada del tablero de referencia (Order Tower / Validación de Pedido):
-// header oscuro para el grupo fijo, verde oscuro para el grupo calculado,
+// header oscuro para el grupo fijo (PRODUCTO), azul para el grupo Tránsito
+// (mismo azul primario usado en links/acciones — el verde oscuro de la
+// referencia es de otro grupo, "Inventario Óptimo", que no existe aquí),
 // ámbar para la columna de referencia manual, y grises neutros para texto y
-// filas alternas — mismo lenguaje "dashboard financiero" en todo el sistema.
+// filas alternas.
 const HEADER_BG = '#1a2e38'
 const HEADER_BG_ACTIVE = '#24404d'
 const TOTAL_BG = '#1a2e4a'
-const TRANSITO_BG = '#153a2f'
-const TRANSITO_BG_LIGHT = '#1d5240'
+const TRANSITO_BG = '#2563eb'
+const TRANSITO_BG_DATE = '#1e40af'
 const AMBER = '#d97706'
 const AMBER_LIGHT = '#fef3c7'
 const BLUE_PRIMARY = '#2563eb'
@@ -118,13 +121,13 @@ function useColumnLayout(baseColumns) {
   }
 }
 
-function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, isLastSticky, headerBg }) {
+function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, isLastSticky, headerBg, rowSpan, height }) {
   const key = col.key ?? col.label
   const isDragOver = layout.dragOverKey === key
   const isSticky = stickyLeft != null
   return (
     <th
-      rowSpan={3}
+      rowSpan={rowSpan ?? 3}
       draggable
       onDragStart={() => layout.handleDragStart(key)}
       onDragOver={(e) => layout.handleDragOver(key, e)}
@@ -137,7 +140,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, i
         color: '#fff', whiteSpace: 'nowrap', fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase',
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
         background: isDragOver ? HEADER_BG_ACTIVE : (headerBg ?? HEADER_BG),
-        zIndex: isSticky ? 3 : 2, height: HEADER_H + DATE_H + METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
+        zIndex: isSticky ? 3 : 2, height: height ?? (HEADER_H + DATE_H + METRIC_H), boxSizing: 'border-box', overflow: 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
         boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
       }}>
@@ -169,6 +172,7 @@ export default function ExistenciaTeoricaTablero() {
   const [data, setData] = useState({ total: 0, ejecucionId: null, rows: [], totals: null })
   const [loading, setLoading] = useState(false)
   const [hoveredRow, setHoveredRow] = useState(null)
+  const [transitoExpanded, setTransitoExpanded] = useState(true)
 
   useEffect(() => {
     fetch(`${API}/api/existencia-teorica/tablero-filtros`)
@@ -224,6 +228,7 @@ export default function ExistenciaTeoricaTablero() {
   const diaDates = sampleRow ? sampleRow.fechaTransito : [null, null, null, null, null, null]
   const diaCols = [0, 1, 2, 3, 4, 5]
   const detalleHeaderH = HEADER_H + DATE_H + METRIC_H
+  const transitoColCount = transitoExpanded ? diaCols.length * DIA_METRICS.length : 1
 
   const columnsBase = useMemo(() => [
     { key: 'fecha', label: 'Fecha venta', width: 90, align: 'left' },
@@ -341,9 +346,11 @@ export default function ExistenciaTeoricaTablero() {
                 {layout.orderedColumns.map(col => (
                   <col key={col.key} style={{ width: layout.widths[col.key] ?? col.width }} />
                 ))}
-                {diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => (
-                  <col key={`d-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
-                )))}
+                {transitoExpanded
+                  ? diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => (
+                      <col key={`d-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
+                    )))
+                  : <col key="d-col-collapsed" style={{ width: COLLAPSED_TRANSITO_WIDTH }} />}
               </colgroup>
               <thead>
                 <tr style={{ background: HEADER_BG }}>
@@ -354,68 +361,50 @@ export default function ExistenciaTeoricaTablero() {
                         active={sortBy === col.key} sortDir={sortDir}
                         onSort={col.sortable === false ? null : handleSort} layout={layout}
                         stickyLeft={stickyLeft[key]} isLastSticky={key === STICKY_UPTO_KEY}
-                        headerBg={key === 'existenciaMan' ? AMBER : undefined} />
+                        headerBg={key === 'existenciaMan' ? AMBER : undefined}
+                        rowSpan={transitoExpanded ? 3 : 1} height={detalleHeaderH} />
                     )
                   })}
-                  <th colSpan={diaCols.length * DIA_METRICS.length} style={{
-                    textAlign: 'center', background: TRANSITO_BG, color: '#fff',
-                    fontWeight: 700, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase',
-                    padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2, height: HEADER_H, boxSizing: 'border-box' }}>
-                    Tránsito
+                  <th colSpan={transitoColCount} rowSpan={transitoExpanded ? 1 : 3}
+                    onClick={() => setTransitoExpanded(v => !v)}
+                    title="Clic para expandir/contraer"
+                    style={{
+                      textAlign: transitoExpanded ? 'left' : 'center', background: TRANSITO_BG, color: '#fff', cursor: 'pointer',
+                      fontWeight: 700, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase',
+                      padding: 0, position: 'sticky', top: 0, zIndex: 2,
+                      height: transitoExpanded ? HEADER_H : detalleHeaderH, boxSizing: 'border-box' }}>
+                    {/* Anclado al borde izquierdo de la porción visible del bloque — si solo
+                        centráramos el texto en el colSpan completo, con scroll horizontal
+                        quedaría fuera de la pantalla la mayor parte del tiempo. */}
+                    <span style={{ position: 'sticky', left: 0, display: 'inline-block', padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                      Tránsito {transitoExpanded ? '▼' : '▶'}
+                    </span>
                   </th>
                 </tr>
-                <tr style={{ background: HEADER_BG }}>
-                  {diaCols.map(dayIdx => (
-                    <th key={`date-${dayIdx}`} colSpan={DIA_METRICS.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
-                      textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: TRANSITO_BG_LIGHT,
-                      zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
-                      borderRight: HDR_DIVIDER_SOFT }}>
-                      {fmtDateShort(diaDates[dayIdx]) || `Día ${dayIdx + 1}`}
-                    </th>
-                  ))}
-                </tr>
-                <tr style={{ background: HEADER_BG }}>
-                  {diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => (
-                    <th key={`h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 9.5, color: '#fff',
-                      textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H + DATE_H, background: TRANSITO_BG,
-                      zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
-                      borderRight: HDR_DIVIDER_SOFT }}>
-                      {metric}
-                    </th>
-                  )))}
-                </tr>
-                {/* Fila de totales — inamovible (sticky) justo debajo del encabezado, calculada
-                    sobre TODO el conjunto filtrado (no solo la página visible) */}
-                <tr style={{ background: TOTAL_BG }}>
-                  {layout.orderedColumns.map((col, idx) => {
-                    const key = col.key ?? col.label
-                    const isSticky = stickyLeft[key] !== undefined
-                    let content = ''
-                    if (idx === 0) content = `TOTAL (${data.total.toLocaleString()} filas)`
-                    else if (key === 'existenciaMan') content = fmtNum(data.totals?.existenciaMan)
-                    else if (key === 'existenciaAut') content = fmtNum(data.totals?.existenciaAut)
-                    else if (key === 'diferencia') content = fmtNum(data.totals?.diferencia)
-                    return (
-                      <td key={col.key} style={{ padding: '7px 10px', textAlign: col.align, fontWeight: 600,
-                        color: '#fff', fontSize: 12, whiteSpace: 'nowrap', borderBottom: '2px solid #000',
-                        position: 'sticky', top: detalleHeaderH, left: isSticky ? stickyLeft[key] : undefined,
-                        background: TOTAL_BG, zIndex: isSticky ? 2 : 1,
-                        boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.3)' : undefined }}>{content}</td>
-                    )
-                  })}
-                  {diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => {
-                    let v
-                    if (metric === 'Pedido Fábrica') v = data.totals?.pedidoFabrica?.[dayIdx]
-                    else if (metric === 'Carga Prom') v = data.totals?.cargaProm?.[dayIdx]
-                    else v = data.totals?.existenciaTeorica?.[dayIdx]
-                    return (
-                      <td key={`tot-${dayIdx}-${metric}`} style={{ padding: '7px 3px', textAlign: 'right', fontSize: 11.5,
-                        fontWeight: 600, color: '#fff', background: TOTAL_BG, borderBottom: '2px solid #000' }}>
-                        {fmtNum(v)}
-                      </td>
-                    )
-                  }))}
-                </tr>
+                {transitoExpanded && (
+                  <tr style={{ background: HEADER_BG }}>
+                    {diaCols.map(dayIdx => (
+                      <th key={`date-${dayIdx}`} colSpan={DIA_METRICS.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H, background: TRANSITO_BG_DATE,
+                        zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
+                        borderRight: HDR_DIVIDER_SOFT }}>
+                        {fmtDateShort(diaDates[dayIdx]) || `Día ${dayIdx + 1}`}
+                      </th>
+                    ))}
+                  </tr>
+                )}
+                {transitoExpanded && (
+                  <tr style={{ background: HEADER_BG }}>
+                    {diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => (
+                      <th key={`h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 9.5, color: '#fff',
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: HEADER_H + DATE_H, background: TRANSITO_BG,
+                        zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
+                        borderRight: HDR_DIVIDER_SOFT }}>
+                        {metric}
+                      </th>
+                    )))}
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {data.rows.map((row, i) => {
@@ -441,22 +430,65 @@ export default function ExistenciaTeoricaTablero() {
                           </td>
                         )
                       })}
-                      {diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => {
-                        let v
-                        if (metric === 'Pedido Fábrica') v = row.pedidoFabrica?.[dayIdx]
-                        else if (metric === 'Carga Prom') v = row.cargaProm?.[dayIdx]
-                        else v = row.existenciaTeorica?.[dayIdx]
-                        return (
-                          <td key={`d-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
-                            whiteSpace: 'nowrap', overflow: 'hidden', color: numColor(v) }}>
-                            {fmtNum(v)}
-                          </td>
-                        )
-                      }))}
+                      {transitoExpanded ? (
+                        diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => {
+                          let v
+                          if (metric === 'Pedido Fábrica') v = row.pedidoFabrica?.[dayIdx]
+                          else if (metric === 'Carga Prom') v = row.cargaProm?.[dayIdx]
+                          else v = row.existenciaTeorica?.[dayIdx]
+                          return (
+                            <td key={`d-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                              whiteSpace: 'nowrap', overflow: 'hidden', color: numColor(v) }}>
+                              {fmtNum(v)}
+                            </td>
+                          )
+                        }))
+                      ) : (
+                        <td style={{ padding: '6px 3px', textAlign: 'center', fontSize: 11, color: ZERO_GRAY }}>…</td>
+                      )}
                     </tr>
                   )
                 })}
               </tbody>
+              {/* Fila de totales — fija al fondo de la tabla (sticky bottom), calculada
+                  sobre TODO el conjunto filtrado (no solo la página visible) */}
+              <tfoot>
+                <tr style={{ background: TOTAL_BG }}>
+                  {layout.orderedColumns.map((col, idx) => {
+                    const key = col.key ?? col.label
+                    const isSticky = stickyLeft[key] !== undefined
+                    let content = ''
+                    if (idx === 0) content = `TOTAL (${data.total.toLocaleString()} filas)`
+                    else if (key === 'existenciaMan') content = fmtNum(data.totals?.existenciaMan)
+                    else if (key === 'existenciaAut') content = fmtNum(data.totals?.existenciaAut)
+                    else if (key === 'diferencia') content = fmtNum(data.totals?.diferencia)
+                    return (
+                      <td key={col.key} style={{ padding: '7px 10px', textAlign: col.align, fontWeight: 600,
+                        color: '#fff', fontSize: 12, whiteSpace: 'nowrap', borderTop: '2px solid #000',
+                        position: 'sticky', bottom: 0, left: isSticky ? stickyLeft[key] : undefined,
+                        background: TOTAL_BG, zIndex: isSticky ? 2 : 1,
+                        boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.3)' : undefined }}>{content}</td>
+                    )
+                  })}
+                  {transitoExpanded ? (
+                    diaCols.flatMap(dayIdx => DIA_METRICS.map(metric => {
+                      let v
+                      if (metric === 'Pedido Fábrica') v = data.totals?.pedidoFabrica?.[dayIdx]
+                      else if (metric === 'Carga Prom') v = data.totals?.cargaProm?.[dayIdx]
+                      else v = data.totals?.existenciaTeorica?.[dayIdx]
+                      return (
+                        <td key={`tot-${dayIdx}-${metric}`} style={{ padding: '7px 3px', textAlign: 'right', fontSize: 11.5,
+                          fontWeight: 600, color: '#fff', background: TOTAL_BG, borderTop: '2px solid #000',
+                          position: 'sticky', bottom: 0 }}>
+                          {fmtNum(v)}
+                        </td>
+                      )
+                    }))
+                  ) : (
+                    <td style={{ padding: '7px 3px', background: TOTAL_BG, borderTop: '2px solid #000', position: 'sticky', bottom: 0 }} />
+                  )}
+                </tr>
+              </tfoot>
             </table>
           </div>
 
