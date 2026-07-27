@@ -25,8 +25,8 @@ const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Vier
 const HEADER_BG = '#1a2e38'
 const TOTAL_BG = '#1a2e4a'
 const TRANSITO_BG = '#2563eb'
-const TRANSITO_BG_ACTIVE = '#1e40af'
 const TRANSITO_METRIC_BG = '#eff6ff'
+const HEADER_COL_BG = '#eff6ff'
 const AMBER = '#d97706'
 const AMBER_LIGHT = '#fef3c7'
 const BLUE_PRIMARY = '#2563eb'
@@ -133,7 +133,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, i
   const key = col.key ?? col.label
   const isDragOver = layout.dragOverKey === key
   const isSticky = stickyLeft != null
-  const bg = isDragOver ? '#e2e8f0' : (headerBg ?? '#fff')
+  const bg = isDragOver ? '#dbeafe' : (headerBg ?? HEADER_COL_BG)
   const color = headerColor ?? HEADER_TEXT
   return (
     <th
@@ -251,7 +251,7 @@ export default function ExistenciaTeoricaTablero() {
 
   const columnsBase = useMemo(() => [
     { key: 'fecha', label: 'Fecha venta', width: 90, align: 'left' },
-    { key: 'ceve', label: 'CeVe', width: 170, align: 'left' },
+    { key: 'ceve', label: 'CeVe', width: 210, align: 'left' },
     { key: 'producto', label: 'Producto', width: 190, align: 'left' },
     { key: 'frecuencia', label: 'Frecuencia', width: 85, align: 'left', sortable: false },
     { key: 'existenciaAut', label: 'Existencia Aut', width: 100, align: 'right' },
@@ -269,7 +269,10 @@ export default function ExistenciaTeoricaTablero() {
   function renderCell(col, row) {
     switch (col.key) {
       case 'fecha': return row.fechaVenta
-      case 'ceve': return <span title={row.ceve || row.codigoCeve} style={{ color: BLUE_PRIMARY, fontWeight: 500 }}>{row.ceve || row.codigoCeve}</span>
+      case 'ceve': {
+        const label = row.ceve ? `${row.codigoCeve} - ${row.ceve}` : row.codigoCeve
+        return <span title={label} style={{ color: BLUE_PRIMARY, fontWeight: 500 }}>{label}</span>
+      }
       case 'producto': return <span title={row.longName}>{row.item}{row.longName ? ` - ${row.longName}` : ''}</span>
       case 'frecuencia': return row.frecuencia || '—'
       case 'existenciaAut': return <span style={{ color: numColor(row.existenciaAut), fontWeight: 500 }}>{fmtNum(row.existenciaAut)}</span>
@@ -421,7 +424,7 @@ export default function ExistenciaTeoricaTablero() {
                         title="Clic para expandir/contraer este día"
                         style={{ padding: '5px 6px', fontSize: 10.5, color: '#fff', cursor: 'pointer',
                           textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: ROW0_H,
-                          background: collapsed ? TRANSITO_BG_ACTIVE : TRANSITO_BG,
+                          background: TRANSITO_BG,
                           zIndex: 1, height: collapsed ? mainColH : ROW1_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 700,
                           borderRight: HDR_DIVIDER_SOFT, userSelect: 'none' }}>
                         {fmtDiaCompleto(diaDates[dayIdx]) || `Día ${dayIdx + 1}`} {collapsed ? '▶' : '▼'}
