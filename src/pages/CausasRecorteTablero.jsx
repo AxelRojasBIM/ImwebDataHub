@@ -5,7 +5,7 @@ const CAUSA_STYLES = {
   'Recorte Fabrica':                  { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b' },
   'Consumo arriba del promedio':      { bg: '#fffbeb', border: '#fde68a', text: '#92400e' },
   'Sin causa identificada':           { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' },
-  'Producto sin planeación en torre': { bg: '#f5f3ff', border: '#ddd6fe', text: '#5b21b6' },
+  'Sin Pedido CeVe Ult Semana':       { bg: '#f5f3ff', border: '#ddd6fe', text: '#5b21b6' },
 }
 const CAUSA_OPTS = Object.keys(CAUSA_STYLES)
 
@@ -114,8 +114,12 @@ function recorteFabricaValue(row, dayIdx, metric) {
   return null
 }
 function consumoValue(row, dayIdx, metric) {
-  const real = row.cargoReal?.[dayIdx]
-  const prom = row.cargoPromedio?.[dayIdx]
+  // Día 6 ("Hoy") no es un día de tránsito más — es el pedido de HOY comparado
+  // contra el promedio del día (el factor que en realidad decide la causa
+  // "Consumo arriba del promedio" cuando los 6 días de tránsito no alcanzan a
+  // explicarla por sí solos, ej. cuando ahí solo hay Ahorro).
+  const real = dayIdx < 6 ? row.cargoReal?.[dayIdx] : row.hoyPedidoConsumo
+  const prom = dayIdx < 6 ? row.cargoPromedio?.[dayIdx] : row.hoyCargoPromedioConsumo
   if (real == null && prom == null) return null
   const diff = (real ?? 0) - (prom ?? 0)
   if (metric === 'Cargo Real') return real
@@ -400,7 +404,11 @@ export default function CausasRecorteTablero() {
   const hoyDuplicaDia6 = !!(diaDates[5] && fechaFin
     && String(diaDates[5]).slice(0, 10) === String(fechaFin).slice(0, 10))
   const recorteDayCols = hoyDuplicaDia6 ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6]
-  const consumoDayCols = [0, 1, 2, 3, 4, 5]
+  // "Hoy" aquí no es un día de tránsito más (a diferencia de Recorte Fábrica, donde
+  // el día 6 casi siempre repite la misma fecha) — es el pedido de hoy vs el promedio
+  // del día, la señal que realmente puede estar detrás de "Consumo arriba del
+  // promedio" cuando los 6 días de tránsito no la explican. Siempre se muestra.
+  const consumoDayCols = [0, 1, 2, 3, 4, 5, 6]
   const recorteColCount = recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1
   const consumoColCount = consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1
   const detalleHeaderH = TITLE_H + DATE_H + METRIC_H
