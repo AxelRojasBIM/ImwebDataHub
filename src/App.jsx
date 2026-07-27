@@ -22,6 +22,7 @@ import PostMortem from './pages/PostMortem'
 import InvOpt from './pages/InvOpt'
 import CausasRecorte from './pages/CausasRecorte'
 import CausasRecorteTablero from './pages/CausasRecorteTablero'
+import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
 import { useEffect } from 'react'
 import './App.css'
 
@@ -42,6 +43,7 @@ const nav = [
     items: [
       { to: '/', label: 'Inicio', icon: '⊞' },
       { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: '🩺', badgeType: 'new', badge: 'Nuevo' },
+      { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: '📐', badgeType: 'new', badge: 'Nuevo' },
     ]
   },
   {
@@ -151,6 +153,7 @@ export default function App() {
           <Route path="/inv-opt" element={<InvOpt />} />
           <Route path="/causas-recorte" element={<CausasRecorte />} />
           <Route path="/causas-recorte-tablero" element={<CausasRecorteTablero />} />
+          <Route path="/existencia-teorica-tablero" element={<ExistenciaTeoricaTablero />} />
         </Routes>
       </main>
     </div>
