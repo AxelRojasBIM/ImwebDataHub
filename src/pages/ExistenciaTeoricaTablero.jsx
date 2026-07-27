@@ -176,8 +176,9 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, i
 }
 
 export default function ExistenciaTeoricaTablero() {
-  const [filtros, setFiltros] = useState({ ceves: [], categorias: [], fechas: [] })
+  const [filtros, setFiltros] = useState({ ceves: [], categorias: [], fechas: [], organizaciones: [] })
   const [fechaVenta, setFechaVenta] = useState('')
+  const [organizacion, setOrganizacion] = useState('')
   const [codigoCeve, setCodigoCeve] = useState('')
   const [categoria, setCategoria] = useState('')
   const [search, setSearch] = useState('')
@@ -188,6 +189,9 @@ export default function ExistenciaTeoricaTablero() {
   const [data, setData] = useState({ total: 0, ejecucionId: null, rows: [], totals: null })
   const [loading, setLoading] = useState(false)
   const [hoveredRow, setHoveredRow] = useState(null)
+  // La tabla no se carga sola al tocar los filtros — solo al pulsar "Analizar".
+  // Cambiar cualquier filtro la vuelve a ocultar hasta el próximo clic.
+  const [hasAnalyzed, setHasAnalyzed] = useState(false)
   // Cada día de tránsito se colapsa/expande de forma independiente (clic en su
   // propio encabezado) — vacío significa "todos expandidos".
   const [collapsedDays, setCollapsedDays] = useState(() => new Set())
@@ -203,17 +207,19 @@ export default function ExistenciaTeoricaTablero() {
     fetch(`${API}/api/existencia-teorica/tablero-filtros`)
       .then(r => r.ok ? r.json() : {})
       .then(d => {
-        setFiltros({ ceves: [], categorias: [], fechas: [], ...d })
+        setFiltros({ ceves: [], categorias: [], fechas: [], organizaciones: [], ...d })
         setFechaVenta(prev => prev || d?.fechas?.[0] || '')
       })
       .catch(() => {})
   }, [])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pageOverride) => {
     if (!fechaVenta) { setData({ total: 0, ejecucionId: null, rows: [], totals: null }); return }
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), fechaVenta })
+      const p = pageOverride ?? page
+      const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE), fechaVenta })
+      if (organizacion) params.set('organizacion', organizacion)
       if (codigoCeve) params.set('codigoCeve', codigoCeve)
       if (categoria)  params.set('categoria', categoria)
       if (search)     params.set('search', search)
@@ -223,20 +229,33 @@ export default function ExistenciaTeoricaTablero() {
       if (r.ok) setData(await r.json())
     } catch {}
     finally { setLoading(false) }
-  }, [fechaVenta, codigoCeve, categoria, search, sortBy, sortDir, page])
+  }, [fechaVenta, organizacion, codigoCeve, categoria, search, sortBy, sortDir, page])
 
-  useEffect(() => { load() }, [load])
+  // Página y orden sí recargan solos, pero solo después de haber analizado al
+  // menos una vez — cambiar de página no debería exigir un nuevo clic.
+  useEffect(() => {
+    if (hasAnalyzed) load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, sortBy, sortDir])
+
+  function handleAnalizar() {
+    setPage(1)
+    setHasAnalyzed(true)
+    load(1)
+  }
 
   function updateFilter(setter) {
-    return (value) => { setPage(1); setter(value) }
+    return (value) => { setPage(1); setHasAnalyzed(false); setter(value) }
   }
-  const updateFechaVenta = updateFilter(setFechaVenta)
-  const updateCodigoCeve = updateFilter(setCodigoCeve)
-  const updateCategoria  = updateFilter(setCategoria)
-  const updateSearch     = updateFilter(setSearch)
+  const updateFechaVenta    = updateFilter(setFechaVenta)
+  const updateOrganizacion  = updateFilter(setOrganizacion)
+  const updateCodigoCeve    = updateFilter(setCodigoCeve)
+  const updateCategoria     = updateFilter(setCategoria)
+  const updateSearch        = updateFilter(setSearch)
 
   function handleLimpiar() {
-    setCodigoCeve(''); setCategoria(''); setSearch(''); setSortBy(null); setSortDir('desc'); setPage(1)
+    setOrganizacion(''); setCodigoCeve(''); setCategoria(''); setSearch('')
+    setSortBy(null); setSortDir('desc'); setPage(1); setHasAnalyzed(false)
   }
   function handleSort(key) {
     if (!key) return
@@ -320,6 +339,15 @@ export default function ExistenciaTeoricaTablero() {
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
             color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Organización
+            <select value={organizacion} onChange={e => updateOrganizacion(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 140, textTransform: 'none', fontWeight: 400 }}>
+              <option value="">Todas</option>
+              {filtros.organizaciones.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
+            color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             CeVe
             <select value={codigoCeve} onChange={e => updateCodigoCeve(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160, textTransform: 'none', fontWeight: 400 }}>
@@ -345,6 +373,12 @@ export default function ExistenciaTeoricaTablero() {
                 style={{ padding: '7px 10px 7px 30px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 180, width: '100%', textTransform: 'none', fontWeight: 400 }} />
             </div>
           </label>
+          <button onClick={handleAnalizar} disabled={!fechaVenta}
+            style={{ padding: '8px 20px', height: 36, fontSize: 13, fontWeight: 600, borderRadius: 8,
+              background: BLUE_PRIMARY, border: 'none', color: '#fff',
+              cursor: fechaVenta ? 'pointer' : 'default', opacity: fechaVenta ? 1 : 0.5 }}>
+            Analizar
+          </button>
           <button onClick={handleLimpiar}
             style={{ padding: '8px 16px', height: 36, fontSize: 13, borderRadius: 8, background: '#fff',
               border: '1px solid var(--border)', color: '#6b7280', cursor: 'pointer' }}>
@@ -358,6 +392,11 @@ export default function ExistenciaTeoricaTablero() {
         <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14,
           border: '1px dashed var(--border)', borderRadius: 12 }}>
           Selecciona una fecha de venta para ver los datos.
+        </div>
+      ) : !hasAnalyzed ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14,
+          border: '1px dashed var(--border)', borderRadius: 12 }}>
+          Ajusta los filtros y pulsa <strong style={{ color: MUTED_GRAY }}>Analizar</strong> para ver los datos.
         </div>
       ) : loading ? (
         <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0' }}>Cargando…</div>
