@@ -398,7 +398,7 @@ export default function ExistenciaTeoricaTablero() {
           border: '1px dashed var(--border)', borderRadius: 12 }}>
           Ajusta los filtros y pulsa <strong style={{ color: MUTED_GRAY }}>Analizar</strong> para ver los datos.
         </div>
-      ) : loading ? (
+      ) : loading && data.rows.length === 0 ? (
         <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0' }}>Cargando…</div>
       ) : data.rows.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '32px 0', color: '#9ca3af', fontSize: 13,
@@ -407,8 +407,12 @@ export default function ExistenciaTeoricaTablero() {
         </div>
       ) : (
         <>
+          {/* Al reordenar o cambiar de página no se oculta la tabla completa —
+              solo se atenúa mientras llega la respuesta, para evitar el parpadeo
+              de perder toda la vista (scroll, columnas fijas, etc.) en cada clic. */}
           <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
-            boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
+            boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)',
+            opacity: loading ? 0.55 : 1, transition: 'opacity 0.15s', pointerEvents: loading ? 'none' : 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
               <colgroup>
                 {layout.orderedColumns.map(col => (
