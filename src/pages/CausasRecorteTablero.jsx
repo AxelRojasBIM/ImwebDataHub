@@ -262,6 +262,7 @@ export default function CausasRecorteTablero() {
   const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] })
   const [loading, setLoading] = useState(false)
   const [hoveredRow, setHoveredRow] = useState(null)
+  const [exporting, setExporting] = useState(false)
 
   // Nace contraído — el usuario hace clic en el título para expandir cada bloque por separado.
   const [recorteExpanded, setRecorteExpanded] = useState(false)
@@ -376,6 +377,7 @@ export default function CausasRecorteTablero() {
   const rangeEnd   = Math.min(page * PAGE_SIZE, data.total)
   const agrupado = groupBy.length > 0
   const activeGroupFields = GROUP_FIELDS.filter(f => groupBy.includes(f.key))
+  const puedeExportar = (topNActive && !!topNData && topNData.rows.length > 0) || data.rows.length > 0
 
   // El detalle día por día solo tiene sentido acotado a un solo día (Desde = Hasta):
   // ahí las fechas de tránsito son las mismas para todas las filas, aunque los
@@ -501,6 +503,139 @@ export default function CausasRecorteTablero() {
     }
   }
 
+  // Valor "crudo" (número o texto plano, sin JSX ni formato de moneda) de una
+  // celda para exportar — misma fuente de datos que renderMainCell/renderTopNCell,
+  // pero pensado para que Excel lo trate como número donde corresponda.
+  function getExportValueMain(col, row) {
+    const key = col.key
+    if (agrupado && activeGroupFields.some(f => f.key === key)) return row[key] ?? ''
+    switch (key) {
+      case 'fecha': return row.fechaVenta ?? ''
+      case 'ceve': return row.ceve || row.codigoCeve || ''
+      case 'item': return row.item ?? ''
+      case 'producto': return row.descripcion ?? ''
+      case 'canal': return row.canal ?? ''
+      case 'filas': return row.filas ?? ''
+      case 'recortePzs': return row.recortePzs ?? ''
+      case 'recorteUsd': return row.recorteUsd ?? ''
+      case 'causaPrincipal': return row.causaPrincipal ?? ''
+      case 'causaPredominante': return row.causaPredominante ?? ''
+      case 'causaSecundaria': return row.causaSecundaria ?? ''
+      case 'resumen': return row.resumen ?? ''
+      case 'envsPlanta': return row.envsPlanta ?? ''
+      case 'envsConsumo': return row.envsConsumo ?? ''
+      default: return ''
+    }
+  }
+  function getExportValueTopN(col, row) {
+    switch (col.key) {
+      case 'producto': return row.item ? `${row.item} - ${row.descripcion || ''}` : ''
+      case 'itemTotalPzs': return row.itemTotalPzs ?? ''
+      case 'itemTotalUsd': return row.itemTotalUsd ?? ''
+      case 'ceve': return row.codigoCeve ? `${row.codigoCeve}${row.ceve ? ' - ' + row.ceve : ''}` : ''
+      case 'recortePzs': return row.recortePzs ?? ''
+      case 'recorteUsd': return row.recorteUsd ?? ''
+      case 'causaPredominante': return row.causaPredominante ?? ''
+      case 'resumen': return row.resumen ?? ''
+      case 'envsPlanta': return row.envsPlanta ?? ''
+      case 'envsConsumo': return row.envsConsumo ?? ''
+      default: return ''
+    }
+  }
+  function csvEscape(v) {
+    if (v == null) return ''
+    const s = String(v)
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+  }
+  function downloadCsv(filename, headerRows, dataRows) {
+    const lines = [...headerRows, ...dataRows].map(r => r.map(csvEscape).join(','))
+    const csv = '﻿' + lines.join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  // Exporta exactamente la vista activa en ese momento — Top N, agrupada o de
+  // detalle — incluyendo el desglose día por día completo (Recorte Fábrica /
+  // Consumo Inventario) cuando el rango es de un solo día, sin importar si esos
+  // bloques están colapsados en pantalla (colapsar es solo para ahorrar espacio,
+  // no significa que ese detalle no exista). Para Top N ya tenemos todas las
+  // filas en memoria (esa vista no pagina); para la vista normal/agrupada, en
+  // cambio, `data.rows` solo trae la página visible — hay que volver a pedir
+  // el conjunto completo con los mismos filtros, si no el export saldría
+  // truncado a 100 filas.
+  async function handleExportar() {
+    setExporting(true)
+    try {
+      const isTopN = topNActive && !!topNData
+      const detalleActivo = isTopN ? showDetalleDiaTopN : showDetalleDia
+      const sourceLayout = isTopN ? topNLayout : layout
+      const getValue = isTopN ? getExportValueTopN : getExportValueMain
+
+      let sourceRows
+      if (isTopN) {
+        sourceRows = topNData.rows
+      } else {
+        const params = new URLSearchParams({ page: '1', pageSize: String(Math.max(data.total, 1)), fechaInicio, fechaFin })
+        if (codigoCeve) params.set('codigoCeve', codigoCeve)
+        if (canal)      params.set('canal', canal)
+        if (causa)      params.set('causa', causa)
+        if (categoria)  params.set('categoria', categoria)
+        if (sortBy)     { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
+        const endpoint = agrupado
+          ? `${API}/api/causas-recorte/tablero-agrupado?groupBy=${groupBy.join(',')}&${params}`
+          : `${API}/api/causas-recorte/tablero?${params}`
+        const r = await fetch(endpoint)
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        sourceRows = (await r.json()).rows
+      }
+
+      const headers = sourceLayout.orderedColumns.map(c => c.label)
+      if (detalleActivo) {
+        recorteDayCols.forEach(dayIdx => DIA_METRICS_RECORTE.forEach(metric => {
+          headers.push(`Recorte Fabrica ${dayLabel(dayIdx)} ${metric}`)
+        }))
+        consumoDayCols.forEach(dayIdx => DIA_METRICS_CONSUMO.forEach(metric => {
+          headers.push(`Consumo Inventario ${dayLabel(dayIdx)} ${metric}`)
+        }))
+      }
+
+      let lastItem = null, rank = 0
+      const rows = sourceRows.map(row => {
+        if (isTopN) {
+          if (row.item !== lastItem) { rank++; lastItem = row.item }
+        }
+        const vals = sourceLayout.orderedColumns.map(col => {
+          if (isTopN && col.key === 'rank') return rank
+          return getValue(col, row)
+        })
+        if (detalleActivo) {
+          recorteDayCols.forEach(dayIdx => DIA_METRICS_RECORTE.forEach(metric => {
+            vals.push(recorteFabricaValue(row, dayIdx, metric) ?? '')
+          }))
+          consumoDayCols.forEach(dayIdx => DIA_METRICS_CONSUMO.forEach(metric => {
+            vals.push(consumoValue(row, dayIdx, metric) ?? '')
+          }))
+        }
+        return vals
+      })
+
+      const suffix = isTopN ? '_topN' : agrupado ? '_agrupado' : ''
+      const filename = `causas_recorte_${fechaInicio || 'sf'}_a_${fechaFin || 'sf'}${suffix}.csv`
+      downloadCsv(filename, [headers], rows)
+    } catch (e) {
+      alert('No se pudo exportar: ' + e.message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box',
       display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -565,6 +700,14 @@ export default function CausasRecorteTablero() {
             style={{ padding: '8px 16px', height: 36, fontSize: 13, borderRadius: 8, background: '#fff',
               border: '1px solid var(--border)', color: '#6b7280', cursor: 'pointer' }}>
             Limpiar
+          </button>
+          <button onClick={handleExportar} disabled={!puedeExportar || exporting}
+            title="Exporta a CSV (se abre en Excel) exactamente la vista actual — Top N, agrupada o detalle, con el mismo desglose día por día si aplica. Trae todas las filas que cumplen los filtros, no solo la página visible."
+            style={{ padding: '8px 16px', height: 36, fontSize: 13, fontWeight: 600, borderRadius: 8,
+              background: puedeExportar ? '#ecfdf5' : '#fff', border: `1px solid ${puedeExportar ? '#6ee7b7' : 'var(--border)'}`,
+              color: puedeExportar ? '#047857' : '#9ca3af', cursor: (puedeExportar && !exporting) ? 'pointer' : 'default',
+              opacity: exporting ? 0.6 : 1 }}>
+            {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
           </button>
         </div>
 
