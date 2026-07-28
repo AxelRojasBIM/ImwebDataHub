@@ -99,9 +99,8 @@ export default function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="logo-icon">DB</div>
           <div>
-            <div className="logo-title">Bimbo Data Hub</div>
+            <div className="logo-title"><span className="logo-title-accent">CeVe</span>Data</div>
             <div className="logo-sub">Gestión e indicadores</div>
           </div>
         </div>
