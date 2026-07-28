@@ -1,5 +1,4 @@
-import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import Inicio from './pages/Inicio'
+import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
 import CatalogoCupos from './pages/CatalogoCupos'
 import Remisiones from './pages/Remisiones'
 import Productos from './pages/Productos'
@@ -25,7 +24,7 @@ import CausasRecorteTablero from './pages/CausasRecorteTablero'
 import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
 import { useEffect } from 'react'
 import {
-  Home, Stethoscope, Ruler, BarChart3, Search, Calculator, Upload,
+  Stethoscope, Ruler, BarChart3, Search, Calculator, Upload,
   LayoutGrid, Database, TrendingUp, PieChart, Package, Truck,
   MapPin, Boxes, Target, Calendar, Factory,
 } from 'lucide-react'
@@ -46,31 +45,30 @@ const nav = [
   {
     section: 'Principal',
     items: [
-      { to: '/', label: 'Inicio', icon: Home },
-      { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: Stethoscope, badgeType: 'new', badge: 'Nuevo' },
-      { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: Ruler, badgeType: 'new', badge: 'Nuevo' },
+      { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: Stethoscope },
+      { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: Ruler },
     ]
   },
   {
     section: 'Ejecución Proceso',
     items: [
       { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: BarChart3 },
-      { to: '/existencia-teorica', label: 'Existencia Teórica', icon: Ruler, badgeType: 'new', badge: 'Nuevo' },
-      { to: '/post-mortem', label: 'Post-Mortem', icon: Search, badgeType: 'new', badge: 'Nuevo' },
-      { to: '/inv-opt', label: 'Cálculo Inventario Óptimo', icon: Calculator, badgeType: 'new', badge: 'Nuevo' },
-      { to: '/causas-recorte', label: 'Causas Recorte', icon: Stethoscope, badgeType: 'new', badge: 'Nuevo' },
+      { to: '/existencia-teorica', label: 'Existencia Teórica', icon: Ruler },
+      { to: '/post-mortem', label: 'Post-Mortem', icon: Search },
+      { to: '/inv-opt', label: 'Cálculo Inventario Óptimo', icon: Calculator },
+      { to: '/causas-recorte', label: 'Causas Recorte', icon: Stethoscope },
     ]
   },
   {
     section: 'Carga manual',
     items: [
-      { to: '/subir', label: 'Subir Excel / CSV', icon: Upload, badge: 'Nuevo', badgeType: 'new' },
+      { to: '/subir', label: 'Subir Excel / CSV', icon: Upload },
     ]
   },
   {
     section: 'Cargas masivas',
     items: [
-      { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: LayoutGrid, badgeType: 'new', badge: 'Nuevo' },
+      { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: LayoutGrid },
       { to: '/pedido-oracle',      label: 'Pedido Oracle',              icon: Database },
       { to: '/pedido-vendedor-promedios', label: 'Promedios de Pedido', icon: TrendingUp },
       { to: '/participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', icon: PieChart },
@@ -118,11 +116,6 @@ export default function App() {
                 >
                   <span className="nav-icon"><item.icon size={17} strokeWidth={1.75} /></span>
                   <span className="nav-label">{item.label}</span>
-                  {item.badge && (
-                    <span className={'nav-badge' + (item.badgeType === 'new' ? ' new' : '')}>
-                      {item.badge}
-                    </span>
-                  )}
                 </NavLink>
               ))}
             </div>
@@ -134,7 +127,7 @@ export default function App() {
 
       <main className="main">
         <Routes>
-          <Route path="/" element={<Inicio />} />
+          <Route path="/" element={<Navigate to="/causas-recorte-tablero" replace />} />
           <Route path="/cupos" element={<CatalogoCupos />} />
           <Route path="/remisiones" element={<Remisiones />} />
           <Route path="/productos" element={<Productos />} />
