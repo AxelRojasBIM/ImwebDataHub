@@ -41,6 +41,12 @@
   padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.07);
   font-size: 11px; color: #4b5563;
 }
+.sidebar-footer-name { color: #9ca3af; font-weight: 500; }
+.sidebar-footer-logout {
+  background: none; border: none; color: #6b7280; font-size: 11px;
+  padding: 0; margin-top: 4px; cursor: pointer;
+}
+.sidebar-footer-logout:hover { color: #9ca3af; text-decoration: underline; }
 
 /* ── Main ── */
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }

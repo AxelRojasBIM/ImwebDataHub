@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
+import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import CatalogoCupos from './pages/CatalogoCupos'
 import Remisiones from './pages/Remisiones'
 import Productos from './pages/Productos'
@@ -22,12 +22,12 @@ import InvOpt from './pages/InvOpt'
 import CausasRecorte from './pages/CausasRecorte'
 import CausasRecorteTablero from './pages/CausasRecorteTablero'
 import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
+import Login from './pages/Login'
+import Administracion from './pages/admin/Administracion'
 import { useEffect } from 'react'
-import {
-  Stethoscope, Ruler, BarChart3, Search, Calculator, Upload,
-  LayoutGrid, Database, TrendingUp, PieChart, Package, Truck,
-  MapPin, Boxes, Target, Calendar, Factory,
-} from 'lucide-react'
+import { useAuth } from './AuthContext'
+import { hasMenuAccess, firstAllowedPath } from './permissions'
+import nav from './navConfig'
 import './App.css'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
@@ -41,57 +41,39 @@ function useWarmUp() {
   }, [])
 }
 
-const nav = [
-  {
-    section: 'Principal',
-    items: [
-      { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: Stethoscope },
-      { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: Ruler },
-    ]
-  },
-  {
-    section: 'Ejecución Proceso',
-    items: [
-      { to: '/fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', icon: BarChart3 },
-      { to: '/existencia-teorica', label: 'Existencia Teórica', icon: Ruler },
-      { to: '/post-mortem', label: 'Post-Mortem', icon: Search },
-      { to: '/inv-opt', label: 'Cálculo Inventario Óptimo', icon: Calculator },
-      { to: '/causas-recorte', label: 'Causas Recorte', icon: Stethoscope },
-    ]
-  },
-  {
-    section: 'Carga manual',
-    items: [
-      { to: '/subir', label: 'Subir Excel / CSV', icon: Upload },
-    ]
-  },
-  {
-    section: 'Cargas masivas',
-    items: [
-      { to: '/pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', icon: LayoutGrid },
-      { to: '/pedido-oracle',      label: 'Pedido Oracle',              icon: Database },
-      { to: '/pedido-vendedor-promedios', label: 'Promedios de Pedido', icon: TrendingUp },
-      { to: '/participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', icon: PieChart },
-      { to: '/existencia-ceve-manual', label: 'Existencia CeVe Manual', icon: Package },
-      { to: '/pedido-vs-cargo-real', label: 'PedidoVSCargo Real', icon: Truck },
-    ]
-  },
-  {
-    section: 'Catálogos',
-    items: [
-      { to: '/catalogos/ceves',      label: 'CEVEs',      icon: MapPin },
-      { to: '/catalogos/productos',  label: 'Productos HubPedidos',  icon: Boxes },
-      { to: '/catalogos/metas',      label: 'Frecuencias Producto CeVes', icon: Target },
-      { to: '/catalogos/calendario',    label: 'Calendario',          icon: Calendar },
-      { to: '/catalogos/oracle-ceves',  label: 'Catálogos Oracle',    icon: Database },
-      { to: '/catalogos/plantas',       label: 'Plantas / Cedis',     icon: Factory },
-    ]
-  },
-]
+// Redirige si la ruta actual no está permitida para el rol del usuario — cubre
+// la navegación directa por URL, no solo lo que se oculta del sidebar.
+function Guarded({ path, rol, children }) {
+  if (!hasMenuAccess(rol, path)) {
+    const fallback = firstAllowedPath(nav, rol)
+    return <Navigate to={fallback ?? '/sin-acceso'} replace />
+  }
+  return children
+}
 
 export default function App() {
   useWarmUp()
-  const location = useLocation()
+  const { usuario, authLoading, logout } = useAuth()
+
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+        Cargando…
+      </div>
+    )
+  }
+
+  if (!usuario) return <Login />
+
+  return <AppShell usuario={usuario} logout={logout} />
+}
+
+function AppShell({ usuario, logout }) {
+  const rol = usuario.rol
+  const navFiltered = nav
+    .map(group => ({ ...group, items: group.items.filter(item => hasMenuAccess(rol, item.to)) }))
+    .filter(group => group.items.length > 0)
+  const home = firstAllowedPath(nav, rol)
 
   return (
     <div className="shell">
@@ -104,7 +86,7 @@ export default function App() {
         </div>
 
         <nav className="sidebar-nav">
-          {nav.map(group => (
+          {navFiltered.map(group => (
             <div key={group.section}>
               <div className="nav-section">{group.section}</div>
               {group.items.map(item => (
@@ -122,35 +104,44 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="sidebar-footer">axel.rojas · Bimbo</div>
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-name">{usuario.nombreCompleto}</div>
+          <button className="sidebar-footer-logout" onClick={logout}>Cerrar sesión</button>
+        </div>
       </aside>
 
       <main className="main">
         <Routes>
-          <Route path="/" element={<Navigate to="/causas-recorte-tablero" replace />} />
-          <Route path="/cupos" element={<CatalogoCupos />} />
-          <Route path="/remisiones" element={<Remisiones />} />
-          <Route path="/productos" element={<Productos />} />
-          <Route path="/subir" element={<SubirArchivo />} />
-          <Route path="/pedido-ceve-planta" element={<PedidoCevePlanta />} />
-          <Route path="/fill-rate"            element={<FillRate />} />
-          <Route path="/pedido-oracle"        element={<PedidoOracle />} />
-          <Route path="/catalogos/ceves"      element={<CatalogoCeves />} />
-          <Route path="/catalogos/productos"  element={<CatalogoProductos />} />
-          <Route path="/catalogos/metas"      element={<CatalogoMetas />} />
-          <Route path="/catalogos/calendario"   element={<CatalogoCalendario />} />
-          <Route path="/catalogos/oracle-ceves" element={<CatalogoOracleCeves />} />
-          <Route path="/catalogos/plantas"      element={<CatalogoPlantas />} />
-          <Route path="/pedido-vendedor-promedios" element={<PedidoVendedorPromedios />} />
-          <Route path="/participacion-tipo-movimiento" element={<ParticipacionTipoMovimiento />} />
-          <Route path="/existencia-ceve-manual" element={<ExistenciaCeveManual />} />
-          <Route path="/pedido-vs-cargo-real" element={<PedidoVsCargoReal />} />
-          <Route path="/existencia-teorica" element={<ExistenciaTeorica />} />
-          <Route path="/post-mortem" element={<PostMortem />} />
-          <Route path="/inv-opt" element={<InvOpt />} />
-          <Route path="/causas-recorte" element={<CausasRecorte />} />
-          <Route path="/causas-recorte-tablero" element={<CausasRecorteTablero />} />
-          <Route path="/existencia-teorica-tablero" element={<ExistenciaTeoricaTablero />} />
+          <Route path="/" element={<Navigate to={home ?? '/sin-acceso'} replace />} />
+          <Route path="/sin-acceso" element={
+            <div style={{ padding: 40, color: 'var(--text-3)', fontSize: 13 }}>
+              Tu usuario no tiene acceso a ninguna página. Contacta a un administrador.
+            </div>
+          } />
+          <Route path="/cupos" element={<Guarded path="/cupos" rol={rol}><CatalogoCupos /></Guarded>} />
+          <Route path="/remisiones" element={<Guarded path="/remisiones" rol={rol}><Remisiones /></Guarded>} />
+          <Route path="/productos" element={<Guarded path="/productos" rol={rol}><Productos /></Guarded>} />
+          <Route path="/subir" element={<Guarded path="/subir" rol={rol}><SubirArchivo /></Guarded>} />
+          <Route path="/pedido-ceve-planta" element={<Guarded path="/pedido-ceve-planta" rol={rol}><PedidoCevePlanta /></Guarded>} />
+          <Route path="/fill-rate" element={<Guarded path="/fill-rate" rol={rol}><FillRate /></Guarded>} />
+          <Route path="/pedido-oracle" element={<Guarded path="/pedido-oracle" rol={rol}><PedidoOracle /></Guarded>} />
+          <Route path="/catalogos/ceves" element={<Guarded path="/catalogos/ceves" rol={rol}><CatalogoCeves /></Guarded>} />
+          <Route path="/catalogos/productos" element={<Guarded path="/catalogos/productos" rol={rol}><CatalogoProductos /></Guarded>} />
+          <Route path="/catalogos/metas" element={<Guarded path="/catalogos/metas" rol={rol}><CatalogoMetas /></Guarded>} />
+          <Route path="/catalogos/calendario" element={<Guarded path="/catalogos/calendario" rol={rol}><CatalogoCalendario /></Guarded>} />
+          <Route path="/catalogos/oracle-ceves" element={<Guarded path="/catalogos/oracle-ceves" rol={rol}><CatalogoOracleCeves /></Guarded>} />
+          <Route path="/catalogos/plantas" element={<Guarded path="/catalogos/plantas" rol={rol}><CatalogoPlantas /></Guarded>} />
+          <Route path="/pedido-vendedor-promedios" element={<Guarded path="/pedido-vendedor-promedios" rol={rol}><PedidoVendedorPromedios /></Guarded>} />
+          <Route path="/participacion-tipo-movimiento" element={<Guarded path="/participacion-tipo-movimiento" rol={rol}><ParticipacionTipoMovimiento /></Guarded>} />
+          <Route path="/existencia-ceve-manual" element={<Guarded path="/existencia-ceve-manual" rol={rol}><ExistenciaCeveManual /></Guarded>} />
+          <Route path="/pedido-vs-cargo-real" element={<Guarded path="/pedido-vs-cargo-real" rol={rol}><PedidoVsCargoReal /></Guarded>} />
+          <Route path="/existencia-teorica" element={<Guarded path="/existencia-teorica" rol={rol}><ExistenciaTeorica /></Guarded>} />
+          <Route path="/post-mortem" element={<Guarded path="/post-mortem" rol={rol}><PostMortem /></Guarded>} />
+          <Route path="/inv-opt" element={<Guarded path="/inv-opt" rol={rol}><InvOpt /></Guarded>} />
+          <Route path="/causas-recorte" element={<Guarded path="/causas-recorte" rol={rol}><CausasRecorte /></Guarded>} />
+          <Route path="/causas-recorte-tablero" element={<Guarded path="/causas-recorte-tablero" rol={rol}><CausasRecorteTablero /></Guarded>} />
+          <Route path="/existencia-teorica-tablero" element={<Guarded path="/existencia-teorica-tablero" rol={rol}><ExistenciaTeoricaTablero /></Guarded>} />
+          <Route path="/admin/usuarios" element={<Guarded path="/admin/usuarios" rol={rol}><Administracion /></Guarded>} />
         </Routes>
       </main>
     </div>
