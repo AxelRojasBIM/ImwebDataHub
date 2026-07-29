@@ -446,8 +446,12 @@ export default function CausasRecorteTablero() {
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
     { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
     { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 160, align: 'right' },
+    // Depende de data.groupBy (lo que en verdad respondió el servidor), no de los
+    // checkboxes en vivo — si dependiera de `groupBy`, el memo podía quedar cacheado
+    // con activeGroupFields vacío (calculado en un render donde data.groupBy aún no
+    // había llegado) y nunca refrescar, aunque groupBy ya no cambiara después.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [groupBy.join(',')])
+  ], [(data.groupBy ?? []).join(',')])
 
   const topNColumnsBase = useMemo(() => [
     { key: 'rank', label: '#', width: 36, align: 'right' },
