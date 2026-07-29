@@ -254,7 +254,7 @@ export default function CausasRecorteTablero() {
   const [canal, setCanal]             = useState('')
   const [causa, setCausa]             = useState('')
   const [categoria, setCategoria]     = useState('')
-  const [groupBy, setGroupBy]         = useState([])
+  const [groupBy, setGroupBy]         = useState(['fecha', 'ceve', 'item', 'categoria'])
   const [page, setPage]               = useState(1)
   const [sortBy, setSortBy]           = useState(null)
   const [sortDir, setSortDir]         = useState('desc')
