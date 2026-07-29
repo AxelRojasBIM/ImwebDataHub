@@ -24,11 +24,14 @@ import CausasRecorteTablero from './pages/CausasRecorteTablero'
 import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
 import Login from './pages/Login'
 import Administracion from './pages/admin/Administracion'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from './AuthContext'
 import { hasMenuAccess, firstAllowedPath } from './permissions'
 import nav from './navConfig'
 import './App.css'
+
+const SIDEBAR_COLLAPSED_KEY = 'imwebdatahub_sidebar_collapsed'
 
 const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.net'
 export { API }
@@ -75,29 +78,43 @@ function AppShell({ usuario, logout }) {
     .filter(group => group.items.length > 0)
   const home = firstAllowedPath(nav, rol)
 
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
+  function toggleCollapsed() {
+    setCollapsed(c => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, c ? '0' : '1')
+      return !c
+    })
+  }
+
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <aside className={'sidebar' + (collapsed ? ' collapsed' : '')}>
         <div className="sidebar-logo">
-          <div>
-            <div className="logo-title"><span className="logo-title-accent">CeVe</span>Data</div>
-            <div className="logo-sub">Gestión e indicadores</div>
-          </div>
+          {!collapsed && (
+            <div>
+              <div className="logo-title"><span className="logo-title-accent">CeVe</span>Data</div>
+              <div className="logo-sub">Gestión e indicadores</div>
+            </div>
+          )}
+          <button className="sidebar-collapse-btn" onClick={toggleCollapsed} title={collapsed ? 'Expandir menú' : 'Contraer menú'}>
+            {collapsed ? <ChevronRight size={15} strokeWidth={2} /> : <ChevronLeft size={15} strokeWidth={2} />}
+          </button>
         </div>
 
         <nav className="sidebar-nav">
           {navFiltered.map(group => (
             <div key={group.section}>
-              <div className="nav-section">{group.section}</div>
+              {!collapsed && <div className="nav-section">{group.section}</div>}
               {group.items.map(item => (
                 <NavLink
                   key={item.to}
                   to={item.to}
                   end={item.to === '/'}
+                  title={collapsed ? item.label : undefined}
                   className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}
                 >
                   <span className="nav-icon"><item.icon size={17} strokeWidth={1.75} /></span>
-                  <span className="nav-label">{item.label}</span>
+                  {!collapsed && <span className="nav-label">{item.label}</span>}
                 </NavLink>
               ))}
             </div>
@@ -105,8 +122,10 @@ function AppShell({ usuario, logout }) {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="sidebar-footer-name">{usuario.nombreCompleto}</div>
-          <button className="sidebar-footer-logout" onClick={logout}>Cerrar sesión</button>
+          {!collapsed && <div className="sidebar-footer-name">{usuario.nombreCompleto}</div>}
+          <button className="sidebar-footer-logout" onClick={logout} title={collapsed ? 'Cerrar sesión' : undefined}>
+            {collapsed ? '⏻' : 'Cerrar sesión'}
+          </button>
         </div>
       </aside>
 

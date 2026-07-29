@@ -259,7 +259,8 @@ export default function CausasRecorteTablero() {
   const [sortBy, setSortBy]           = useState(null)
   const [sortDir, setSortDir]         = useState('desc')
 
-  const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] })
+  const [data, setData]       = useState({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [], groupBy: [] })
+  const loadRequestIdRef = useRef(0)
   const [loading, setLoading] = useState(false)
   const [hoveredRow, setHoveredRow] = useState(null)
   const [exporting, setExporting] = useState(false)
@@ -290,8 +291,16 @@ export default function CausasRecorteTablero() {
   }, [])
 
   const load = useCallback(async () => {
-    if (!fechasListas) { setData({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [] }); return }
+    if (!fechasListas) { setData({ total: 0, totalRecortePzs: 0, totalRecorteUsd: 0, rows: [], groupBy: [] }); return }
     setLoading(true)
+    // Captura el groupBy de ESTA llamada específica — si el usuario cambia los
+    // checkboxes mientras el fetch sigue en vuelo, la respuesta se etiqueta con
+    // el agrupamiento que de verdad se pidió, no con el estado más reciente de
+    // los checkboxes (evita mezclar filas viejas con columnas nuevas a medio camino).
+    const requestedGroupBy = groupBy
+    // Si dos fetches quedan en vuelo a la vez (toggles rápidos), solo la respuesta
+    // de la petición MÁS RECIENTE debe aplicarse, aunque llegue una anterior después.
+    const requestId = ++loadRequestIdRef.current
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), fechaInicio, fechaFin })
       if (codigoCeve)  params.set('codigoCeve', codigoCeve)
@@ -300,14 +309,17 @@ export default function CausasRecorteTablero() {
       if (categoria)   params.set('categoria', categoria)
       if (sortBy)      { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
-      const endpoint = groupBy.length > 0
-        ? `${API}/api/causas-recorte/tablero-agrupado?groupBy=${groupBy.join(',')}&${params}`
+      const endpoint = requestedGroupBy.length > 0
+        ? `${API}/api/causas-recorte/tablero-agrupado?groupBy=${requestedGroupBy.join(',')}&${params}`
         : `${API}/api/causas-recorte/tablero?${params}`
 
       const r = await fetch(endpoint)
-      if (r.ok) setData(await r.json())
+      if (r.ok) {
+        const body = await r.json()
+        if (requestId === loadRequestIdRef.current) setData({ ...body, groupBy: requestedGroupBy })
+      }
     } catch {}
-    finally { setLoading(false) }
+    finally { if (requestId === loadRequestIdRef.current) setLoading(false) }
   }, [fechasListas, page, fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, groupBy, sortBy, sortDir])
 
   useEffect(() => { if (!topNActive) load() }, [load, topNActive])
@@ -375,8 +387,12 @@ export default function CausasRecorteTablero() {
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE))
   const rangeStart = data.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const rangeEnd   = Math.min(page * PAGE_SIZE, data.total)
-  const agrupado = groupBy.length > 0
-  const activeGroupFields = GROUP_FIELDS.filter(f => groupBy.includes(f.key))
+  // Deriva de data.groupBy (lo que la última respuesta realmente trae), no de los
+  // checkboxes en vivo — mientras un fetch está en vuelo, groupBy (checkboxes) ya
+  // pudo cambiar antes de que lleguen filas con esa forma, y renderizar columnas
+  // nuevas sobre filas viejas producía celdas vacías/mezcladas (ver load()).
+  const agrupado = (data.groupBy ?? []).length > 0
+  const activeGroupFields = GROUP_FIELDS.filter(f => (data.groupBy ?? []).includes(f.key))
   const puedeExportar = (topNActive && !!topNData && topNData.rows.length > 0) || data.rows.length > 0
 
   // El detalle día por día solo tiene sentido acotado a un solo día (Desde = Hasta):
@@ -588,8 +604,13 @@ export default function CausasRecorteTablero() {
         if (causa)      params.set('causa', causa)
         if (categoria)  params.set('categoria', categoria)
         if (sortBy)     { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
+        // Usa el groupBy de los datos ya cargados (lo que realmente se ve en pantalla),
+        // no el de los checkboxes en vivo — si el usuario los tocó después de la última
+        // carga sin esperar el refresh, exportar con el live state desalinearía los
+        // campos pedidos aquí de las columnas que arma `layout` (data-derived) abajo.
+        const exportGroupBy = data.groupBy ?? []
         const endpoint = agrupado
-          ? `${API}/api/causas-recorte/tablero-agrupado?groupBy=${groupBy.join(',')}&${params}`
+          ? `${API}/api/causas-recorte/tablero-agrupado?groupBy=${exportGroupBy.join(',')}&${params}`
           : `${API}/api/causas-recorte/tablero?${params}`
         const r = await fetch(endpoint)
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
