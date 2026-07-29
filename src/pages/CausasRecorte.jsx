@@ -179,6 +179,7 @@ export default function CausasRecorte() {
               {historial.map((row, i) => {
                 const dt = row.ejecutadoEl ? new Date(row.ejecutadoEl) : null
                 const enCurso = row.estado === 'ejecutando'
+                const reemplazada = row.estado === 'Reemplazada'
                 const eliminando = deletingId === row.ejecucionId
                 return (
                   <tr key={row.ejecucionId ?? i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
@@ -190,8 +191,8 @@ export default function CausasRecorte() {
                     <td style={{ padding: '9px 14px' }} title={row.detalle ?? ''}>
                       <span style={{
                         display: 'inline-block', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-                        background: row.estado === 'OK' ? '#dcfce7' : enCurso ? '#dbeafe' : '#fef2f2',
-                        color:      row.estado === 'OK' ? '#166534' : enCurso ? '#1d4ed8' : '#991b1b',
+                        background: row.estado === 'OK' ? '#dcfce7' : enCurso ? '#dbeafe' : reemplazada ? '#f3f4f6' : '#fef2f2',
+                        color:      row.estado === 'OK' ? '#166534' : enCurso ? '#1d4ed8' : reemplazada ? '#4b5563' : '#991b1b',
                       }}>{row.estado}</span>
                     </td>
                     <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
