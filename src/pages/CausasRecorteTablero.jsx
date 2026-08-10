@@ -15,6 +15,7 @@ const GROUP_FIELDS = [
   { key: 'item',      label: 'Item',      width: 220 },
   { key: 'categoria', label: 'Categoría', width: 130 },
   { key: 'canal',     label: 'Canal',     width: 115 },
+  { key: 'marca',     label: 'Marca',     width: 130 },
 ]
 
 const HEADER_H = 32
@@ -247,13 +248,14 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
 }
 
 export default function CausasRecorteTablero() {
-  const [filtros, setFiltros] = useState({ ceves: [], canales: [], categorias: [] })
+  const [filtros, setFiltros] = useState({ ceves: [], canales: [], categorias: [], marcas: [] })
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin]       = useState('')
   const [codigoCeve, setCodigoCeve]   = useState('')
   const [canal, setCanal]             = useState('')
   const [causa, setCausa]             = useState('')
   const [categoria, setCategoria]     = useState('')
+  const [marca, setMarca]             = useState('')
   const [groupBy, setGroupBy]         = useState(['fecha', 'ceve', 'item', 'categoria'])
   const [page, setPage]               = useState(1)
   const [sortBy, setSortBy]           = useState(null)
@@ -286,7 +288,7 @@ export default function CausasRecorteTablero() {
   useEffect(() => {
     fetch(`${API}/api/causas-recorte/filtros`)
       .then(r => r.ok ? r.json() : {})
-      .then(d => setFiltros({ ceves: [], canales: [], categorias: [], ...d }))
+      .then(d => setFiltros({ ceves: [], canales: [], categorias: [], marcas: [], ...d }))
       .catch(() => {})
   }, [])
 
@@ -307,6 +309,7 @@ export default function CausasRecorteTablero() {
       if (canal)       params.set('canal', canal)
       if (causa)       params.set('causa', causa)
       if (categoria)   params.set('categoria', categoria)
+      if (marca)       params.set('marca', marca)
       if (sortBy)      { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
       const endpoint = requestedGroupBy.length > 0
@@ -320,7 +323,7 @@ export default function CausasRecorteTablero() {
       }
     } catch {}
     finally { if (requestId === loadRequestIdRef.current) setLoading(false) }
-  }, [fechasListas, page, fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, groupBy, sortBy, sortDir])
+  }, [fechasListas, page, fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, marca, groupBy, sortBy, sortDir])
 
   useEffect(() => { if (!topNActive) load() }, [load, topNActive])
 
@@ -335,9 +338,10 @@ export default function CausasRecorteTablero() {
   const updateCanal       = updateFilter(setCanal)
   const updateCausa       = updateFilter(setCausa)
   const updateCategoria   = updateFilter(setCategoria)
+  const updateMarca       = updateFilter(setMarca)
 
   function handleLimpiar() {
-    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setCategoria('')
+    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setCategoria(''); setMarca('')
     setGroupBy([]); setSortBy(null); setSortDir('desc'); setPage(1); setTopNActive(false)
   }
   function toggleGroup(key) {
@@ -368,6 +372,7 @@ export default function CausasRecorteTablero() {
       if (fechaFin)    params.set('fechaFin', fechaFin)
       if (canal)        params.set('canal', canal)
       if (causa)        params.set('causa', causa)
+      if (marca)        params.set('marca', marca)
       const r = await fetch(`${API}/api/causas-recorte/top-n?${params}`)
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
@@ -607,6 +612,7 @@ export default function CausasRecorteTablero() {
         if (canal)      params.set('canal', canal)
         if (causa)      params.set('causa', causa)
         if (categoria)  params.set('categoria', categoria)
+        if (marca)      params.set('marca', marca)
         if (sortBy)     { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
         // Usa el groupBy de los datos ya cargados (lo que realmente se ve en pantalla),
         // no el de los checkboxes en vivo — si el usuario los tocó después de la última
@@ -711,6 +717,14 @@ export default function CausasRecorteTablero() {
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
               <option value="">Todas</option>
               {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+            Marca
+            <select value={marca} onChange={e => updateMarca(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
+              <option value="">Todas</option>
+              {filtros.marcas.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
