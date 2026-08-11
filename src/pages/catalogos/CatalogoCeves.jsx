@@ -336,6 +336,14 @@ function TabCarga({ onSaved }) {
 
 // ── Tab: CeVes cargados (catálogo actual) ──────────────────────────────────
 const TURNOS = ['Matutino', 'Vespertino', 'Nocturno', 'Mixto']
+const CEVES_PAGE_SIZE = 30
+
+async function saveCeveCampo(id, campo, valor) {
+  await fetch(`${API}/api/ceves/${id}/campo`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ campo, valor: valor || null }),
+  })
+}
 
 function TurnoLaboralCell({ row, onSaved }) {
   const [editing, setEditing] = useState(false)
@@ -350,11 +358,8 @@ function TurnoLaboralCell({ row, onSaved }) {
     if ((v || '') === (row.turno_laboral ?? '')) return
     setSaving(true)
     try {
-      await fetch(`${API}/api/ceves/${row.id}/turno-laboral`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ turnoLaboral: v || null }),
-      })
-      onSaved(row.id, v)
+      await saveCeveCampo(row.id, 'turnoLaboral', v)
+      onSaved(row.id, 'turno_laboral', v)
     } catch { /* deja el valor visible como estaba; el usuario puede reintentar */ }
     finally { setSaving(false) }
   }
@@ -391,10 +396,60 @@ function TurnoLaboralCell({ row, onSaved }) {
   )
 }
 
+// Celda de texto libre editable — usada para Nombre CeVe, Región, Gerente,
+// Subgerente y Coordinador. Clic para editar, Enter/blur guarda, Esc cancela.
+function EditableTextCell({ row, campo, field, value, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value ?? '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { setVal(value ?? '') }, [value])
+
+  async function save() {
+    setEditing(false)
+    if ((val || '') === (value ?? '')) return
+    setSaving(true)
+    try {
+      await saveCeveCampo(row.id, campo, val)
+      onSaved(row.id, field, val)
+    } catch { setVal(value ?? '') }
+    finally { setSaving(false) }
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={val}
+        disabled={saving}
+        onChange={e => setVal(e.target.value)}
+        onBlur={save}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') { setVal(value ?? ''); setEditing(false) }
+        }}
+        style={{ width: '100%', padding: '4px 7px', borderRadius: 6, border: '1px solid #93b4fd', fontSize: 13, background: '#fff' }}
+      />
+    )
+  }
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      title="Clic para editar"
+      style={{ cursor: 'pointer', display: 'block', padding: '3px 5px', borderRadius: 5, opacity: saving ? 0.5 : 1, color: value ? 'inherit' : '#9ca3af' }}
+      onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
+      {value || '— editar —'}
+    </span>
+  )
+}
+
 function TabActual({ reloadKey }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -407,14 +462,19 @@ function TabActual({ reloadKey }) {
 
   useEffect(() => { load() }, [load, reloadKey])
 
-  function handleSavedTurno(id, turnoLaboral) {
-    setRows(rs => rs.map(r => r.id === id ? { ...r, turno_laboral: turnoLaboral } : r))
+  function handleSavedCampo(id, field, value) {
+    setRows(rs => rs.map(r => r.id === id ? { ...r, [field]: value } : r))
   }
 
   const q = search.trim().toLowerCase()
   const filtered = q
     ? rows.filter(r => (r.cod_ceve || '').toLowerCase().includes(q) || (r.nombre_indicadores_almacenes_ceve || '').toLowerCase().includes(q))
     : rows
+
+  useEffect(() => { setPage(1) }, [search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / CEVES_PAGE_SIZE))
+  const pageRows = filtered.slice((page - 1) * CEVES_PAGE_SIZE, page * CEVES_PAGE_SIZE)
 
   return (
     <div>
@@ -445,21 +505,28 @@ function TabActual({ reloadKey }) {
               <tr><td colSpan={7} className="loading">Cargando...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={7} className="empty">{rows.length === 0 ? 'Aún no hay CEVEs cargados.' : 'Sin resultados para ese filtro.'}</td></tr>
-            ) : filtered.slice(0, 500).map(r => (
+            ) : pageRows.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight: 600 }}>{r.cod_ceve}</td>
-                <td>{r.nombre_indicadores_almacenes_ceve}</td>
-                <td>{r.region}</td>
-                <td>{r.gerente}</td>
-                <td>{r.subgerente}</td>
-                <td>{r.coordinador}</td>
-                <td><TurnoLaboralCell row={r} onSaved={handleSavedTurno} /></td>
+                <td><EditableTextCell row={r} campo="nombre" field="nombre_indicadores_almacenes_ceve" value={r.nombre_indicadores_almacenes_ceve} onSaved={handleSavedCampo} /></td>
+                <td><EditableTextCell row={r} campo="region" field="region" value={r.region} onSaved={handleSavedCampo} /></td>
+                <td><EditableTextCell row={r} campo="gerente" field="gerente" value={r.gerente} onSaved={handleSavedCampo} /></td>
+                <td><EditableTextCell row={r} campo="subgerente" field="subgerente" value={r.subgerente} onSaved={handleSavedCampo} /></td>
+                <td><EditableTextCell row={r} campo="coordinador" field="coordinador" value={r.coordinador} onSaved={handleSavedCampo} /></td>
+                <td><TurnoLaboralCell row={r} onSaved={handleSavedCampo} /></td>
               </tr>
             ))}
           </tbody>
         </table>
-        {filtered.length > 500 && <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-3)', borderTop: '1px solid var(--border)' }}>Mostrando 500 de {filtered.length.toLocaleString()}. Usa el filtro para acotar.</div>}
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <button className="btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹ Anterior</button>
+          <span style={{ fontSize: 13, color: '#6b7280' }}>Pág {page} / {totalPages}</span>
+          <button className="btn" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Siguiente ›</button>
+        </div>
+      )}
     </div>
   )
 }
