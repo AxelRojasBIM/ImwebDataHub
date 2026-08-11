@@ -57,6 +57,18 @@ function downloadTemplate() {
 
 function fmtDT(val) { return val ? String(val).slice(0, 16).replace('T', ' ') : '—' }
 
+// Excel en Windows exporta "CSV" en ANSI/Windows-1252 por defecto, no UTF-8 —
+// forzar UTF-8 vuelve cada acento (é, ñ, ó...) un carácter de reemplazo (�)
+// irrecuperable. U+FFFD solo aparece cuando los bytes NO son UTF-8 real, así
+// que si aparece reinterpretamos el mismo buffer como Windows-1252.
+function decodeCsvBuffer(buffer) {
+  const utf8 = new TextDecoder('utf-8', { fatal: false }).decode(buffer)
+  if (utf8.includes('�')) {
+    try { return new TextDecoder('windows-1252').decode(buffer) } catch { return utf8 }
+  }
+  return utf8
+}
+
 const PREVIEW_COLS = ['Cod_ceve','Nombre_Indicadores_Almacenes_CeVe','Region','Organizacion','Area_Negocio','Gerente']
 
 // ── Tab: Carga ───────────────────────────────────────────────────────────────
@@ -90,11 +102,12 @@ function TabCarga({ onSaved }) {
     setFile(f)
     const reader = new FileReader()
     reader.onload = e => {
-      const { rows: parsed, error } = parseCSV(e.target.result)
+      const text = decodeCsvBuffer(e.target.result)
+      const { rows: parsed, error } = parseCSV(text)
       setParseError(error)
       setRows(parsed)
     }
-    reader.readAsText(f, 'UTF-8')
+    reader.readAsArrayBuffer(f)
   }
 
   const handleSave = async () => {
