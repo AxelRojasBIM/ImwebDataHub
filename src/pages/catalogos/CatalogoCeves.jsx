@@ -6,13 +6,13 @@ const API = 'https://imweb-api-gwd3fgesgherh0b2.canadacentral-01.azurewebsites.n
 const COLS = [
   'Cod_ceve','Nombre_Indicadores_Almacenes_CeVe','Region','Organizacion',
   'Area_Negocio','Gerente','Correo_Gerente','Subgerente','Correo_Subgerente',
-  'Coordinador','Correo_Coordinador','Direccion','Latitud','Longitud','CeVe_Sinergia'
+  'Coordinador','Correo_Coordinador','Direccion','Latitud','Longitud','CeVe_Sinergia','Turno_Laboral'
 ]
 
-const COL_ALIASES = { 'Organización': 'Organizacion', 'Área_Negocio': 'Area_Negocio' }
+const COL_ALIASES = { 'Organización': 'Organizacion', 'Área_Negocio': 'Area_Negocio', 'Turno Laboral': 'Turno_Laboral' }
 
-const TEMPLATE = `Cod_ceve,Nombre_Indicadores_Almacenes_CeVe,Region,Organizacion,Area_Negocio,Gerente,Correo_Gerente,Subgerente,Correo_Subgerente,Coordinador,Correo_Coordinador,Direccion,Latitud,Longitud,CeVe_Sinergia
-12858,Texmelucan,Sur,Barcel,2001,Oscar Arnulfo Esquivel,oscar.esquivel@grupobimbo.com,Rosario Julieta Zafra,rosario.j.zafra@grupobimbo.com,Axel Fernando Rojas,axel.rojas@grupobimbo.com,Av. Centenario,19.296,-98.474,12405
+const TEMPLATE = `Cod_ceve,Nombre_Indicadores_Almacenes_CeVe,Region,Organizacion,Area_Negocio,Gerente,Correo_Gerente,Subgerente,Correo_Subgerente,Coordinador,Correo_Coordinador,Direccion,Latitud,Longitud,CeVe_Sinergia,Turno_Laboral
+12858,Texmelucan,Sur,Barcel,2001,Oscar Arnulfo Esquivel,oscar.esquivel@grupobimbo.com,Rosario Julieta Zafra,rosario.j.zafra@grupobimbo.com,Axel Fernando Rojas,axel.rojas@grupobimbo.com,Av. Centenario,19.296,-98.474,12405,Matutino
 `
 
 function splitCSVLine(line) {
@@ -59,7 +59,8 @@ function fmtDT(val) { return val ? String(val).slice(0, 16).replace('T', ' ') : 
 
 const PREVIEW_COLS = ['Cod_ceve','Nombre_Indicadores_Almacenes_CeVe','Region','Organizacion','Area_Negocio','Gerente']
 
-export default function CatalogoCeves() {
+// ── Tab: Carga ───────────────────────────────────────────────────────────────
+function TabCarga({ onSaved }) {
   const [file, setFile]             = useState(null)
   const [rows, setRows]             = useState([])
   const [parseError, setParseError] = useState(null)
@@ -117,6 +118,7 @@ export default function CatalogoCeves() {
       latitud:                           parseFloat(r.Latitud) || null,
       longitud:                          parseFloat(r.Longitud) || null,
       ceve_sinergia:                     r.CeVe_Sinergia,
+      turno_laboral:                     r.Turno_Laboral,
     }))
     const CHUNK = 5_000
     let saved = 0
@@ -139,6 +141,7 @@ export default function CatalogoCeves() {
       setSaveResult({ ok: true, msg: `✓ ${saved.toLocaleString()} CEVEs guardados.` })
       setFile(null); setRows([])
       await loadBatches()
+      onSaved?.()
     } catch (e) {
       setSaveResult({ ok: false, msg: 'No se pudo conectar con la API. Intenta de nuevo en unos segundos.' })
     } finally {
@@ -161,6 +164,7 @@ export default function CatalogoCeves() {
     await fetch(`${API}/api/ceves/batches/${batchId}`, { method: 'DELETE' })
     setBatches(b => b.filter(x => x.batchId !== batchId))
     if (viewBatch?.batchId === batchId) setViewBatch(null)
+    onSaved?.()
   }
 
   const handleDownload = async (batch) => {
@@ -177,156 +181,325 @@ export default function CatalogoCeves() {
   }
 
   return (
-    <>
-      <div className="topbar">
-        <div>
-          <div className="topbar-title">Catálogo de CEVEs</div>
-          <div className="topbar-sub">Carga masiva de CEVEs con información de contacto y ubicación</div>
-        </div>
-        <div className="topbar-actions">
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: '#6b7280' }}>{COLS.length} columnas requeridas · descarga el template para ver el formato</div>
+        <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn" onClick={downloadTemplate}>⬇ Template CSV</button>
           <button className="btn primary" onClick={() => inputRef.current.click()}>↑ Cargar CSV</button>
           <input ref={inputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
         </div>
       </div>
 
-      <div className="content">
+      {saveResult && (
+        <div style={{ padding: '10px 14px', borderRadius: 'var(--radius)', fontSize: 13, marginBottom: 14,
+          background: saveResult.ok ? '#ecfdf5' : '#fef2f2',
+          color:      saveResult.ok ? '#065f46'  : '#991b1b',
+          border:     `1px solid ${saveResult.ok ? '#6ee7b7' : '#fca5a5'}` }}>
+          {saveResult.msg}
+        </div>
+      )}
+      {parseError && (
+        <div className="error-msg">{parseError}
+          <button className="btn" style={{ marginLeft: 10 }} onClick={() => { setFile(null); setRows([]); setParseError(null) }}>Reintentar</button>
+        </div>
+      )}
 
-        {saveResult && (
-          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius)', fontSize: 13, marginBottom: 14,
-            background: saveResult.ok ? '#ecfdf5' : '#fef2f2',
-            color:      saveResult.ok ? '#065f46'  : '#991b1b',
-            border:     `1px solid ${saveResult.ok ? '#6ee7b7' : '#fca5a5'}` }}>
-            {saveResult.msg}
-          </div>
-        )}
-        {parseError && (
-          <div className="error-msg">{parseError}
-            <button className="btn" style={{ marginLeft: 10 }} onClick={() => { setFile(null); setRows([]); setParseError(null) }}>Reintentar</button>
-          </div>
-        )}
-
-        {/* Preview */}
-        {file && !parseError && rows.length > 0 && (
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div>
-                <span style={{ fontWeight: 600 }}>{file.name}</span>
-                <span style={{ marginLeft: 10, fontSize: 12, color: '#6b7280' }}>{rows.length.toLocaleString()} CEVEs</span>
-              </div>
-              <button className="btn" onClick={() => { setFile(null); setRows([]) }}>✕ Cancelar</button>
+      {/* Preview */}
+      {file && !parseError && rows.length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div>
+              <span style={{ fontWeight: 600 }}>{file.name}</span>
+              <span style={{ marginLeft: 10, fontSize: 12, color: '#6b7280' }}>{rows.length.toLocaleString()} CEVEs</span>
             </div>
-            <div className="table-wrap" style={{ maxHeight: 220, overflowY: 'auto', marginBottom: 12 }}>
+            <button className="btn" onClick={() => { setFile(null); setRows([]) }}>✕ Cancelar</button>
+          </div>
+          <div className="table-wrap" style={{ maxHeight: 220, overflowY: 'auto', marginBottom: 12 }}>
+            <table>
+              <thead><tr>{PREVIEW_COLS.map(c => <th key={c}>{c}</th>)}<th>...</th></tr></thead>
+              <tbody>
+                {rows.slice(0, 50).map((r, i) => (
+                  <tr key={i}>
+                    {PREVIEW_COLS.map(c => <td key={c}>{r[c]}</td>)}
+                    <td style={{ color: '#9ca3af', fontSize: 11 }}>+{COLS.length - PREVIEW_COLS.length} cols</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {rows.length > 50 && <div style={{ padding: '6px 12px', fontSize: 12, color: '#9ca3af', borderTop: '1px solid var(--border)' }}>Mostrando 50 de {rows.length.toLocaleString()}</div>}
+          </div>
+          <button className="btn primary" style={{ width: '100%', justifyContent: 'center', padding: '9px 0' }} onClick={handleSave} disabled={saving}>
+            {saving ? 'Guardando...' : `☁ Guardar ${rows.length.toLocaleString()} CEVEs en la base de datos`}
+          </button>
+        </div>
+      )}
+
+      {/* Drop zone */}
+      {!file && !saveResult && (
+        <div
+          onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
+          onDragOver={e => e.preventDefault()}
+          onClick={() => inputRef.current.click()}
+          style={{ border: '2px dashed #93b4fd', borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', background: '#f0f4ff', marginBottom: 20 }}
+        >
+          <div style={{ fontSize: 28, marginBottom: 8, color: '#1a56db' }}>◈</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>Arrastra el CSV aquí o haz clic para seleccionarlo</div>
+          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 5 }}>{COLS.length} columnas requeridas · descarga el template para ver el formato</div>
+        </div>
+      )}
+
+      {/* Historial */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>Historial de cargas</span>
+          <span style={{ fontSize: 12, color: '#6b7280', background: '#f3f4f6', padding: '2px 8px', borderRadius: 10, fontWeight: 500 }}>{batches.length} cargas</span>
+        </div>
+        <button className="btn" onClick={loadBatches}>↻ Actualizar</button>
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Batch ID</th>
+              <th style={{ textAlign: 'right' }}>CEVEs</th>
+              <th>Cargado</th>
+              <th style={{ textAlign: 'right' }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loadingBatches ? (
+              <tr><td colSpan={4} className="loading">Cargando...</td></tr>
+            ) : batches.length === 0 ? (
+              <tr><td colSpan={4} className="empty">Sin cargas. Sube tu primer CSV arriba.</td></tr>
+            ) : batches.map((b, i) => (
+              <tr key={b.batchId}>
+                <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#4b5563' }}>
+                  {b.batchId}
+                  {i === 0 && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#047857', background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 99, padding: '1px 8px' }}>ACTUAL</span>}
+                </td>
+                <td style={{ textAlign: 'right', fontWeight: 600 }}>{Number(b.filas).toLocaleString()}</td>
+                <td style={{ fontSize: 12, color: '#6b7280' }}>{fmtDT(b.cargadoEn)}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <button className="btn" style={{ fontSize: 12, padding: '4px 12px', fontWeight: 500 }} onClick={() => handleView(b)}>Ver</button>
+                    <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#1a56db', borderColor: '#93b4fd', background: '#eff4ff', fontWeight: 600 }} onClick={() => handleDownload(b)}>↓ CSV</button>
+                    <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#991b1b', borderColor: '#fca5a5', background: '#fef2f2', fontWeight: 600 }} onClick={() => handleDelete(b.batchId)}>Eliminar</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Detalle batch */}
+      {viewBatch && (
+        <div style={{ marginTop: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Detalle — </span>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#9ca3af' }}>{viewBatch.batchId}</span>
+            </div>
+            <button className="btn" onClick={() => setViewBatch(null)}>✕ Cerrar</button>
+          </div>
+          {loadingView ? <div className="loading">Cargando...</div> : (
+            <div style={{ maxHeight: 360, overflowY: 'auto', overflowX: 'auto' }}>
               <table>
-                <thead><tr>{PREVIEW_COLS.map(c => <th key={c}>{c}</th>)}<th>...</th></tr></thead>
+                <thead><tr>{PREVIEW_COLS.map(c => <th key={c}>{c}</th>)}<th>Latitud</th><th>Longitud</th><th>CeVe_Sinergia</th><th>Turno_Laboral</th></tr></thead>
                 <tbody>
-                  {rows.slice(0, 50).map((r, i) => (
+                  {viewRows.slice(0, 200).map((r, i) => (
                     <tr key={i}>
-                      {PREVIEW_COLS.map(c => <td key={c}>{r[c]}</td>)}
-                      <td style={{ color: '#9ca3af', fontSize: 11 }}>+{COLS.length - PREVIEW_COLS.length} cols</td>
+                      <td>{r.cod_ceve}</td>
+                      <td>{r.nombre_indicadores_almacenes_ceve}</td>
+                      <td>{r.region}</td>
+                      <td>{r.organizacion}</td>
+                      <td>{r.area_negocio}</td>
+                      <td>{r.gerente}</td>
+                      <td style={{ textAlign: 'right' }}>{r.latitud}</td>
+                      <td style={{ textAlign: 'right' }}>{r.longitud}</td>
+                      <td>{r.ceve_sinergia}</td>
+                      <td>{r.turno_laboral}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {rows.length > 50 && <div style={{ padding: '6px 12px', fontSize: 12, color: '#9ca3af', borderTop: '1px solid var(--border)' }}>Mostrando 50 de {rows.length.toLocaleString()}</div>}
+              {viewRows.length > 200 && <div style={{ padding: '6px 12px', fontSize: 12, color: '#9ca3af', borderTop: '1px solid var(--border)' }}>Mostrando 200 de {viewRows.length.toLocaleString()}</div>}
             </div>
-            <button className="btn primary" style={{ width: '100%', justifyContent: 'center', padding: '9px 0' }} onClick={handleSave} disabled={saving}>
-              {saving ? 'Guardando...' : `☁ Guardar ${rows.length.toLocaleString()} CEVEs en la base de datos`}
-            </button>
-          </div>
-        )}
-
-        {/* Drop zone */}
-        {!file && !saveResult && (
-          <div
-            onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
-            onDragOver={e => e.preventDefault()}
-            onClick={() => inputRef.current.click()}
-            style={{ border: '2px dashed #93b4fd', borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', background: '#f0f4ff', marginBottom: 20 }}
-          >
-            <div style={{ fontSize: 28, marginBottom: 8, color: '#1a56db' }}>◈</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>Arrastra el CSV aquí o haz clic para seleccionarlo</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 5 }}>{COLS.length} columnas requeridas · descarga el template para ver el formato</div>
-          </div>
-        )}
-
-        {/* Historial */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>Historial de cargas</span>
-            <span style={{ fontSize: 12, color: '#6b7280', background: '#f3f4f6', padding: '2px 8px', borderRadius: 10, fontWeight: 500 }}>{batches.length} cargas</span>
-          </div>
-          <button className="btn" onClick={loadBatches}>↻ Actualizar</button>
+          )}
         </div>
+      )}
+    </div>
+  )
+}
 
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Batch ID</th>
-                <th style={{ textAlign: 'right' }}>CEVEs</th>
-                <th>Cargado</th>
-                <th style={{ textAlign: 'right' }}>Acciones</th>
+// ── Tab: CeVes cargados (catálogo actual) ──────────────────────────────────
+const TURNOS = ['Matutino', 'Vespertino', 'Nocturno', 'Mixto']
+
+function TurnoLaboralCell({ row, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(row.turno_laboral ?? '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { setValue(row.turno_laboral ?? '') }, [row.turno_laboral])
+
+  async function save(nextValue) {
+    const v = nextValue ?? value
+    setEditing(false)
+    if ((v || '') === (row.turno_laboral ?? '')) return
+    setSaving(true)
+    try {
+      await fetch(`${API}/api/ceves/${row.id}/turno-laboral`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turnoLaboral: v || null }),
+      })
+      onSaved(row.id, v)
+    } catch { /* deja el valor visible como estaba; el usuario puede reintentar */ }
+    finally { setSaving(false) }
+  }
+
+  if (editing) {
+    return (
+      <select
+        autoFocus
+        value={value}
+        disabled={saving}
+        onChange={e => { setValue(e.target.value); save(e.target.value) }}
+        onBlur={() => setEditing(false)}
+        style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff' }}
+      >
+        <option value="">— sin asignar —</option>
+        {TURNOS.map(t => <option key={t} value={t}>{t}</option>)}
+      </select>
+    )
+  }
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      title="Clic para editar"
+      style={{
+        cursor: 'pointer', padding: '3px 9px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+        opacity: saving ? 0.5 : 1,
+        background: row.turno_laboral ? '#eff4ff' : '#f3f4f6',
+        border: `1px solid ${row.turno_laboral ? '#93b4fd' : '#e5e7eb'}`,
+        color: row.turno_laboral ? '#1e3a8a' : '#9ca3af',
+      }}
+    >
+      {row.turno_laboral || '— asignar —'}
+    </span>
+  )
+}
+
+function TabActual({ reloadKey }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch(`${API}/api/ceves/actuales`)
+      setRows(r.ok ? await r.json() : [])
+    } catch { setRows([]) }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load() }, [load, reloadKey])
+
+  function handleSavedTurno(id, turnoLaboral) {
+    setRows(rs => rs.map(r => r.id === id ? { ...r, turno_laboral: turnoLaboral } : r))
+  }
+
+  const q = search.trim().toLowerCase()
+  const filtered = q
+    ? rows.filter(r => (r.cod_ceve || '').toLowerCase().includes(q) || (r.nombre_indicadores_almacenes_ceve || '').toLowerCase().includes(q))
+    : rows
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar CeVe o nombre..."
+          style={{ flex: '0 1 280px', padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, outline: 'none' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, color: '#6b7280' }}>{filtered.length.toLocaleString()} CEVEs · de la carga más reciente</span>
+          <button className="btn" onClick={load}>↻ Actualizar</button>
+        </div>
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>CeVe</th>
+              <th>Nombre CeVe</th>
+              <th>Región</th>
+              <th>Gerente</th>
+              <th>Subgerente</th>
+              <th>Coordinador</th>
+              <th>Turno Laboral</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={7} className="loading">Cargando...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={7} className="empty">{rows.length === 0 ? 'Aún no hay CEVEs cargados.' : 'Sin resultados para ese filtro.'}</td></tr>
+            ) : filtered.slice(0, 500).map(r => (
+              <tr key={r.id}>
+                <td style={{ fontWeight: 600 }}>{r.cod_ceve}</td>
+                <td>{r.nombre_indicadores_almacenes_ceve}</td>
+                <td>{r.region}</td>
+                <td>{r.gerente}</td>
+                <td>{r.subgerente}</td>
+                <td>{r.coordinador}</td>
+                <td><TurnoLaboralCell row={r} onSaved={handleSavedTurno} /></td>
               </tr>
-            </thead>
-            <tbody>
-              {loadingBatches ? (
-                <tr><td colSpan={4} className="loading">Cargando...</td></tr>
-              ) : batches.length === 0 ? (
-                <tr><td colSpan={4} className="empty">Sin cargas. Sube tu primer CSV arriba.</td></tr>
-              ) : batches.map(b => (
-                <tr key={b.batchId}>
-                  <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#4b5563' }}>{b.batchId}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{Number(b.filas).toLocaleString()}</td>
-                  <td style={{ fontSize: 12, color: '#6b7280' }}>{fmtDT(b.cargadoEn)}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button className="btn" style={{ fontSize: 12, padding: '4px 12px', fontWeight: 500 }} onClick={() => handleView(b)}>Ver</button>
-                      <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#1a56db', borderColor: '#93b4fd', background: '#eff4ff', fontWeight: 600 }} onClick={() => handleDownload(b)}>↓ CSV</button>
-                      <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#991b1b', borderColor: '#fca5a5', background: '#fef2f2', fontWeight: 600 }} onClick={() => handleDelete(b.batchId)}>Eliminar</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            ))}
+          </tbody>
+        </table>
+        {filtered.length > 500 && <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-3)', borderTop: '1px solid var(--border)' }}>Mostrando 500 de {filtered.length.toLocaleString()}. Usa el filtro para acotar.</div>}
+      </div>
+    </div>
+  )
+}
+
+// ── Página principal ─────────────────────────────────────────────────────────
+const TABS = [
+  { key: 'carga',  label: 'Carga',         sub: 'Historial de cargas',  icon: '⬆' },
+  { key: 'actual', label: 'CeVes cargados', sub: 'Catálogo actual',     icon: '📍' },
+]
+
+export default function CatalogoCeves() {
+  const [tab, setTab] = useState('carga')
+  const [reloadKey, setReloadKey] = useState(0)
+
+  return (
+    <>
+      <div className="topbar">
+        <div>
+          <div className="topbar-title">Catálogo de CEVEs</div>
+          <div className="topbar-sub">Carga masiva de CEVEs con información de contacto y ubicación</div>
+        </div>
+      </div>
+
+      <div className="content">
+        <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--border)', marginBottom: 20 }}>
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
+              borderBottom: tab === t.key ? '2px solid #1a56db' : '2px solid transparent',
+              marginBottom: -2, background: 'transparent',
+              color: tab === t.key ? '#1a56db' : '#6b7280', transition: 'color 0.15s',
+            }}>
+              <span style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
+              <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9ca3af', marginTop: 1 }}>{t.sub}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Detalle batch */}
-        {viewBatch && (
-          <div style={{ marginTop: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: 13 }}>Detalle — </span>
-                <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#9ca3af' }}>{viewBatch.batchId}</span>
-              </div>
-              <button className="btn" onClick={() => setViewBatch(null)}>✕ Cerrar</button>
-            </div>
-            {loadingView ? <div className="loading">Cargando...</div> : (
-              <div style={{ maxHeight: 360, overflowY: 'auto', overflowX: 'auto' }}>
-                <table>
-                  <thead><tr>{PREVIEW_COLS.map(c => <th key={c}>{c}</th>)}<th>Latitud</th><th>Longitud</th><th>CeVe_Sinergia</th></tr></thead>
-                  <tbody>
-                    {viewRows.slice(0, 200).map((r, i) => (
-                      <tr key={i}>
-                        <td>{r.cod_ceve}</td>
-                        <td>{r.nombre_indicadores_almacenes_ceve}</td>
-                        <td>{r.region}</td>
-                        <td>{r.organizacion}</td>
-                        <td>{r.area_negocio}</td>
-                        <td>{r.gerente}</td>
-                        <td style={{ textAlign: 'right' }}>{r.latitud}</td>
-                        <td style={{ textAlign: 'right' }}>{r.longitud}</td>
-                        <td>{r.ceve_sinergia}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {viewRows.length > 200 && <div style={{ padding: '6px 12px', fontSize: 12, color: '#9ca3af', borderTop: '1px solid var(--border)' }}>Mostrando 200 de {viewRows.length.toLocaleString()}</div>}
-              </div>
-            )}
-          </div>
-        )}
+        {tab === 'carga'  && <TabCarga onSaved={() => setReloadKey(k => k + 1)} />}
+        {tab === 'actual' && <TabActual reloadKey={reloadKey} />}
       </div>
     </>
   )
