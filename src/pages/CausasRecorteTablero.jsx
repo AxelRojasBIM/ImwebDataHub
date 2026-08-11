@@ -443,6 +443,9 @@ export default function CausasRecorteTablero() {
 
   const groupedColumnsBase = useMemo(() => [
     ...activeGroupFields.map(f => ({ key: f.key, label: f.label, width: f.width, align: 'left' })),
+    // Columna aparte (no parte de "Agrupar por") que el backend agrega solo cuando
+    // se agrupa por CeVe — la región es 1:1 con el CeVe, no un campo agrupable propio.
+    ...(activeGroupFields.some(f => f.key === 'ceve') ? [{ key: 'region', label: 'Región', width: 110, align: 'left' }] : []),
     { key: 'filas', label: 'Filas', width: 75, align: 'right' },
     { key: 'recortePzs', label: 'Recorte Pzs', width: 100, align: 'right' },
     { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
@@ -495,6 +498,7 @@ export default function CausasRecorteTablero() {
     switch (key) {
       case 'fecha': return row.fechaVenta
       case 'ceve': return <span title={row.ceve || row.codigoCeve}>{row.ceve || row.codigoCeve}</span>
+      case 'region': return row.region || '—'
       case 'item': return row.item
       case 'producto': return <span title={row.descripcion}>{row.descripcion || '—'}</span>
       case 'canal': return row.canal || '—'
@@ -537,6 +541,7 @@ export default function CausasRecorteTablero() {
     switch (key) {
       case 'fecha': return row.fechaVenta ?? ''
       case 'ceve': return row.ceve || row.codigoCeve || ''
+      case 'region': return row.region ?? ''
       case 'item': return row.item ?? ''
       case 'producto': return row.descripcion ?? ''
       case 'canal': return row.canal ?? ''
