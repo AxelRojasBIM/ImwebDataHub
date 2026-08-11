@@ -436,9 +436,8 @@ function EditableTextCell({ row, campo, field, value, onSaved }) {
     <span
       onClick={() => setEditing(true)}
       title="Clic para editar"
-      style={{ cursor: 'pointer', display: 'block', padding: '3px 5px', borderRadius: 5, opacity: saving ? 0.5 : 1, color: value ? 'inherit' : '#9ca3af' }}
-      onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
-      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      className={'editable-cell' + (value ? '' : ' empty')}
+      style={{ opacity: saving ? 0.5 : 1 }}
     >
       {value || '— editar —'}
     </span>
@@ -482,12 +481,12 @@ function TabActual({ reloadKey }) {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar CeVe o nombre..."
           style={{ flex: '0 1 280px', padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, outline: 'none' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 12, color: '#6b7280' }}>{filtered.length.toLocaleString()} CEVEs · de la carga más reciente</span>
+          <span style={{ fontSize: 12, color: '#6b7280' }}>{filtered.length.toLocaleString()} CEVEs · versión más reciente de cada uno</span>
           <button className="btn" onClick={load}>↻ Actualizar</button>
         </div>
       </div>
 
-      <div className="table-wrap">
+      <div className="table-wrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
         <table>
           <thead>
             <tr>

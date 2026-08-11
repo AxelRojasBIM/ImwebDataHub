@@ -119,6 +119,15 @@
   overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
+/* Celda de texto editable inline (ver CatalogoCeves) — mismo lenguaje visual
+   que un badge, para que se note que es interactiva y no texto plano. */
+.editable-cell {
+  cursor: pointer; display: inline-block; padding: 3px 9px; border-radius: 6px;
+  border: 1px solid transparent; transition: background 0.12s, border-color 0.12s;
+}
+.editable-cell:hover { background: var(--accent-bg); border-color: #93b4fd; }
+.editable-cell.empty { color: var(--text-3); font-style: italic; }
+
 /* ── Filter bar ── */
 .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
 .filter-bar input, .filter-bar select {
