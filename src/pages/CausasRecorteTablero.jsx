@@ -467,6 +467,7 @@ export default function CausasRecorteTablero() {
     { key: 'itemTotalPzs', label: 'Total Producto Pzs', width: 120, align: 'right' },
     { key: 'itemTotalUsd', label: 'Total Producto $', width: 120, align: 'right' },
     { key: 'ceve', label: 'CeVe', width: 180, align: 'left' },
+    { key: 'region', label: 'Región', width: 110, align: 'left' },
     { key: 'recortePzs', label: 'Recorte Pzs', width: 100, align: 'right' },
     { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
@@ -522,6 +523,7 @@ export default function CausasRecorteTablero() {
       case 'itemTotalPzs': return isNewItem ? fmtNum(row.itemTotalPzs) : ''
       case 'itemTotalUsd': return isNewItem ? fmtMoney(row.itemTotalUsd) : ''
       case 'ceve': return <span title={`${row.codigoCeve ?? ''} - ${row.ceve ?? ''}`}>{row.codigoCeve}{row.ceve ? ` - ${row.ceve}` : ''}</span>
+      case 'region': return row.region || '—'
       case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
       case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
@@ -563,6 +565,7 @@ export default function CausasRecorteTablero() {
       case 'itemTotalPzs': return row.itemTotalPzs ?? ''
       case 'itemTotalUsd': return row.itemTotalUsd ?? ''
       case 'ceve': return row.codigoCeve ? `${row.codigoCeve}${row.ceve ? ' - ' + row.ceve : ''}` : ''
+      case 'region': return row.region ?? ''
       case 'recortePzs': return row.recortePzs ?? ''
       case 'recorteUsd': return row.recorteUsd ?? ''
       case 'causaPredominante': return row.causaPredominante ?? ''
