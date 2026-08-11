@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { API } from '../App'
+import { fetchWithRetry } from '../apiUtils'
 
 function fmtDur(ms) {
   if (ms == null) return '—'
@@ -48,7 +49,11 @@ export default function CausasRecorte() {
       const fd = new FormData()
       fd.append('file', file)
       fd.append('usuario', 'axel.rojas')
-      const r = await fetch(`${API}/api/causas-recorte/ejecutar`, { method: 'POST', body: fd })
+      const r = await fetchWithRetry(
+        `${API}/api/causas-recorte/ejecutar`,
+        { method: 'POST', body: fd },
+        { onWaking: () => setResult({ ok: true, msg: '⏳ La API está despertando, reintentando en 4 segundos…' }) }
+      )
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
       setResult({ ok: true, d })
