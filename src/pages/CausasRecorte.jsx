@@ -13,11 +13,22 @@ function fmtDur(ms) {
 export default function CausasRecorte() {
   const [file, setFile]           = useState(null)
   const [running, setRunning]     = useState(false)
+  const [elapsedMs, setElapsedMs] = useState(0)
   const [result, setResult]       = useState(null)
   const [historial, setHistorial] = useState([])
   const [loadingH, setLoadingH]   = useState(true)
   const [deletingId, setDeletingId] = useState(null)
   const inputRef = useRef()
+
+  // Cronómetro visible mientras corre — el cálculo puede tardar varios
+  // minutos y sin esto no hay forma de saber si sigue avanzando o se colgó.
+  useEffect(() => {
+    if (!running) return
+    const startedAt = Date.now()
+    setElapsedMs(0)
+    const id = setInterval(() => setElapsedMs(Date.now() - startedAt), 1000)
+    return () => clearInterval(id)
+  }, [running])
 
   async function loadHistorial() {
     setLoadingH(true)
@@ -141,6 +152,7 @@ export default function CausasRecorte() {
         {running && (
           <div style={{ marginTop: 16, fontSize: 13, color: '#1d4ed8' }}>
             ⏳ Agrupando, cruzando contra Post-Mortem/Fill Rate/Promedios y guardando… puede tardar varios minutos si el archivo cubre un rango amplio de fechas.
+            <span style={{ marginLeft: 10, fontWeight: 700 }}>Tiempo transcurrido: {fmtDur(elapsedMs)}</span>
           </div>
         )}
 
