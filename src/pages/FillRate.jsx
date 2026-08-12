@@ -497,8 +497,11 @@ function TabRemisiones() {
           background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8',
         }}>
           <span style={{ marginRight: 10 }}>⏳</span>
-          Ejecutando la consulta sobre RemisionesProductosCEQ, esto puede tardar varios minutos…
-          <span style={{ marginLeft: 10, opacity: 0.6 }}>Estado: {estado?.estado ?? 'iniciando'}</span>
+          {estado?.fase === 'borrando' && 'Borrando el catálogo anterior…'}
+          {estado?.fase === 'leyendo' && `Leyendo RemisionesProductosCEQ… ${(estado.filas ?? 0).toLocaleString()} filas procesadas`}
+          {estado?.fase === 'guardando' && `Guardando catálogo… ${(estado.filas ?? 0).toLocaleString()} filas`}
+          {(!estado?.fase || estado.fase === 'iniciando') && 'Iniciando…'}
+          <span style={{ marginLeft: 10, opacity: 0.6 }}>puede tardar varios minutos</span>
         </div>
       )}
 
