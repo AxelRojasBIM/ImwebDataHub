@@ -4,6 +4,7 @@ import { API } from '../App'
 const CAUSA_STYLES = {
   'Recorte Fabrica':                  { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b' },
   'Consumo arriba del promedio':      { bg: '#fffbeb', border: '#fde68a', text: '#92400e' },
+  'Existencia CeVe':                  { bg: '#ecfdf5', border: '#6ee7b7', text: '#065f46' },
   'Sin causa identificada':           { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' },
   'Sin Pedido CeVe Ult Semana':       { bg: '#f5f3ff', border: '#ddd6fe', text: '#5b21b6' },
 }
