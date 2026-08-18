@@ -10,6 +10,13 @@ const CAUSA_STYLES = {
 }
 const CAUSA_OPTS = Object.keys(CAUSA_STYLES)
 
+// Solo para mostrar — el valor real que se filtra/guarda en BD sigue siendo
+// 'Consumo arriba del promedio' (no requiere re-ejecutar históricos).
+const CAUSA_LABELS = {
+  'Consumo arriba del promedio': 'Consumo de Inventario',
+}
+const causaLabel = (causa) => CAUSA_LABELS[causa] || causa
+
 const GROUP_FIELDS = [
   { key: 'fecha',     label: 'Fecha',     width: 90 },
   { key: 'ceve',      label: 'CeVe',      width: 180 },
@@ -31,7 +38,7 @@ function CausaBadge({ causa, small }) {
       fontSize: small ? 10.5 : 11.5, fontWeight: 600,
       background: s.bg, border: `1px solid ${s.border}`, color: s.text,
       whiteSpace: 'nowrap',
-    }}>{causa}</span>
+    }}>{causaLabel(causa)}</span>
   )
 }
 
@@ -555,9 +562,9 @@ export default function CausasRecorteTablero() {
       case 'filas': return row.filas ?? ''
       case 'recortePzs': return row.recortePzs ?? ''
       case 'recorteUsd': return row.recorteUsd ?? ''
-      case 'causaPrincipal': return row.causaPrincipal ?? ''
-      case 'causaPredominante': return row.causaPredominante ?? ''
-      case 'causaSecundaria': return row.causaSecundaria ?? ''
+      case 'causaPrincipal': return causaLabel(row.causaPrincipal) ?? ''
+      case 'causaPredominante': return causaLabel(row.causaPredominante) ?? ''
+      case 'causaSecundaria': return causaLabel(row.causaSecundaria) ?? ''
       case 'resumen': return row.resumen ?? ''
       case 'envsPlanta': return row.envsPlanta ?? ''
       case 'envsConsumo': return row.envsConsumo ?? ''
@@ -573,7 +580,7 @@ export default function CausasRecorteTablero() {
       case 'region': return row.region ?? ''
       case 'recortePzs': return row.recortePzs ?? ''
       case 'recorteUsd': return row.recorteUsd ?? ''
-      case 'causaPredominante': return row.causaPredominante ?? ''
+      case 'causaPredominante': return causaLabel(row.causaPredominante) ?? ''
       case 'resumen': return row.resumen ?? ''
       case 'envsPlanta': return row.envsPlanta ?? ''
       case 'envsConsumo': return row.envsConsumo ?? ''
@@ -754,7 +761,7 @@ export default function CausasRecorteTablero() {
             <select value={causa} onChange={e => updateCausa(e.target.value)}
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 220 }}>
               <option value="">Todas</option>
-              {CAUSA_OPTS.map(c => <option key={c} value={c}>{c}</option>)}
+              {CAUSA_OPTS.map(c => <option key={c} value={c}>{causaLabel(c)}</option>)}
             </select>
           </label>
           <button onClick={handleLimpiar}

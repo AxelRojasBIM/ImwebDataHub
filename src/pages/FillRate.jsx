@@ -404,8 +404,13 @@ function TabRemisiones() {
   const [page, setPage]           = useState(1)
   const [search, setSearch]       = useState('')
   const [searchInp, setSearchInp] = useState('')
+  const [completedInfo, setCompletedInfo] = useState(null)
   const pollRef = useRef(null)
   const PAGE_SIZE = 100
+
+  const percent = (estado?.total > 0)
+    ? Math.min(100, Math.round((estado.filas / estado.total) * 100))
+    : null
 
   async function loadDatos(p = 1, s = '') {
     try {
@@ -423,7 +428,10 @@ function TabRemisiones() {
       if (d.estado === 'completado' || d.estado === 'error') {
         clearInterval(pollRef.current)
         setGenerating(false)
-        if (d.estado === 'completado') loadDatos(1, search)
+        if (d.estado === 'completado') {
+          setCompletedInfo(d.resultado)
+          loadDatos(1, search)
+        }
       }
     } catch {}
   }
@@ -437,6 +445,7 @@ function TabRemisiones() {
   async function handleGenerar() {
     if (!confirm('¿Generar Catálogo de Remisiones? Esto reemplaza el catálogo existente.')) return
     setGenerating(true)
+    setCompletedInfo(null)
     try {
       await fetch(`${API}/api/catalogo-remisiones/generar`, { method: 'POST' })
       pollRef.current = setInterval(checkEstado, 4000)
@@ -496,12 +505,34 @@ function TabRemisiones() {
           marginBottom: 18, padding: '12px 16px', borderRadius: 10, fontSize: 13,
           background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8',
         }}>
-          <span style={{ marginRight: 10 }}>⏳</span>
-          {estado?.fase === 'borrando' && 'Borrando el catálogo anterior…'}
-          {estado?.fase === 'leyendo' && `Leyendo RemisionesProductosCEQ… ${(estado.filas ?? 0).toLocaleString()} filas procesadas`}
-          {estado?.fase === 'guardando' && `Guardando catálogo… ${(estado.filas ?? 0).toLocaleString()} filas`}
-          {(!estado?.fase || estado.fase === 'iniciando') && 'Iniciando…'}
-          <span style={{ marginLeft: 10, opacity: 0.6 }}>puede tardar varios minutos</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>⏳</span>
+            <span style={{ flex: 1 }}>
+              {estado?.fase === 'borrando' && 'Borrando el catálogo anterior…'}
+              {estado?.fase === 'leyendo' && `Leyendo RemisionesProductosCEQ… ${(estado.filas ?? 0).toLocaleString()} de ${(estado.total ?? 0).toLocaleString()} filas`}
+              {estado?.fase === 'guardando' && `Guardando catálogo… ${(estado.filas ?? 0).toLocaleString()} de ${(estado.total ?? 0).toLocaleString()} filas`}
+              {(!estado?.fase || estado.fase === 'iniciando') && 'Iniciando…'}
+            </span>
+            {percent != null && <span style={{ fontWeight: 700 }}>{percent}%</span>}
+          </div>
+          {percent != null && (
+            <div style={{ marginTop: 8, height: 6, borderRadius: 99, background: '#dbeafe', overflow: 'hidden' }}>
+              <div style={{
+                width: `${percent}%`, height: '100%', borderRadius: 99,
+                background: '#1d4ed8', transition: 'width 0.3s ease',
+              }} />
+            </div>
+          )}
+          <div style={{ marginTop: 6, opacity: 0.6 }}>puede tardar varios minutos</div>
+        </div>
+      )}
+
+      {!generating && completedInfo && (
+        <div style={{
+          marginBottom: 18, padding: '10px 14px', borderRadius: 8, fontSize: 13,
+          background: '#ecfdf5', color: '#065f46', border: '1px solid #6ee7b7',
+        }}>
+          ✓ Catálogo generado correctamente — {(completedInfo.totalFilas ?? 0).toLocaleString()} registros en {fmtDur(completedInfo.duracionMs)}
         </div>
       )}
 
