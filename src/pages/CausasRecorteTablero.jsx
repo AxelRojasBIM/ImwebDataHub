@@ -249,7 +249,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
 }
 
 export default function CausasRecorteTablero() {
-  const [filtros, setFiltros] = useState({ ceves: [], canales: [], categorias: [], marcas: [] })
+  const [filtros, setFiltros] = useState({ ceves: [], canales: [], categorias: [], marcas: [], regiones: [] })
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin]       = useState('')
   const [codigoCeve, setCodigoCeve]   = useState('')
@@ -257,6 +257,7 @@ export default function CausasRecorteTablero() {
   const [causa, setCausa]             = useState('')
   const [categoria, setCategoria]     = useState('')
   const [marca, setMarca]             = useState('')
+  const [region, setRegion]           = useState('')
   const [groupBy, setGroupBy]         = useState(['fecha', 'ceve', 'item', 'categoria'])
   const [page, setPage]               = useState(1)
   const [sortBy, setSortBy]           = useState(null)
@@ -289,7 +290,7 @@ export default function CausasRecorteTablero() {
   useEffect(() => {
     fetch(`${API}/api/causas-recorte/filtros`)
       .then(r => r.ok ? r.json() : {})
-      .then(d => setFiltros({ ceves: [], canales: [], categorias: [], marcas: [], ...d }))
+      .then(d => setFiltros({ ceves: [], canales: [], categorias: [], marcas: [], regiones: [], ...d }))
       .catch(() => {})
   }, [])
 
@@ -311,6 +312,7 @@ export default function CausasRecorteTablero() {
       if (causa)       params.set('causa', causa)
       if (categoria)   params.set('categoria', categoria)
       if (marca)       params.set('marca', marca)
+      if (region)      params.set('region', region)
       if (sortBy)      { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
       const endpoint = requestedGroupBy.length > 0
@@ -324,7 +326,7 @@ export default function CausasRecorteTablero() {
       }
     } catch {}
     finally { if (requestId === loadRequestIdRef.current) setLoading(false) }
-  }, [fechasListas, page, fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, marca, groupBy, sortBy, sortDir])
+  }, [fechasListas, page, fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, marca, region, groupBy, sortBy, sortDir])
 
   useEffect(() => { if (!topNActive) load() }, [load, topNActive])
 
@@ -340,9 +342,10 @@ export default function CausasRecorteTablero() {
   const updateCausa       = updateFilter(setCausa)
   const updateCategoria   = updateFilter(setCategoria)
   const updateMarca       = updateFilter(setMarca)
+  const updateRegion      = updateFilter(setRegion)
 
   function handleLimpiar() {
-    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setCategoria(''); setMarca('')
+    setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setCategoria(''); setMarca(''); setRegion('')
     setGroupBy([]); setSortBy(null); setSortDir('desc'); setPage(1); setTopNActive(false)
   }
   function toggleGroup(key) {
@@ -374,6 +377,7 @@ export default function CausasRecorteTablero() {
       if (canal)        params.set('canal', canal)
       if (causa)        params.set('causa', causa)
       if (marca)        params.set('marca', marca)
+      if (region)       params.set('region', region)
       const r = await fetch(`${API}/api/causas-recorte/top-n?${params}`)
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
@@ -622,6 +626,7 @@ export default function CausasRecorteTablero() {
         if (causa)      params.set('causa', causa)
         if (categoria)  params.set('categoria', categoria)
         if (marca)      params.set('marca', marca)
+        if (region)     params.set('region', region)
         if (sortBy)     { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
         // Usa el groupBy de los datos ya cargados (lo que realmente se ve en pantalla),
         // no el de los checkboxes en vivo — si el usuario los tocó después de la última
@@ -734,6 +739,14 @@ export default function CausasRecorteTablero() {
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
               <option value="">Todas</option>
               {filtros.marcas.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+            Región
+            <select value={region} onChange={e => updateRegion(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 140 }}>
+              <option value="">Todas</option>
+              {filtros.regiones.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
