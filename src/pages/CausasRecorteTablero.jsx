@@ -265,6 +265,8 @@ export default function CausasRecorteTablero() {
   const [categoria, setCategoria]     = useState('')
   const [marca, setMarca]             = useState('')
   const [region, setRegion]           = useState('')
+  const [itemInp, setItemInp]         = useState('')
+  const [item, setItem]               = useState('')
   const [groupBy, setGroupBy]         = useState(['fecha', 'ceve', 'item', 'categoria'])
   const [page, setPage]               = useState(1)
   const [sortBy, setSortBy]           = useState(null)
@@ -320,6 +322,7 @@ export default function CausasRecorteTablero() {
       if (categoria)   params.set('categoria', categoria)
       if (marca)       params.set('marca', marca)
       if (region)      params.set('region', region)
+      if (item)        params.set('item', item)
       if (sortBy)      { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
       const endpoint = requestedGroupBy.length > 0
@@ -333,9 +336,17 @@ export default function CausasRecorteTablero() {
       }
     } catch {}
     finally { if (requestId === loadRequestIdRef.current) setLoading(false) }
-  }, [fechasListas, page, fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, marca, region, groupBy, sortBy, sortDir])
+  }, [fechasListas, page, fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, marca, region, item, groupBy, sortBy, sortDir])
 
   useEffect(() => { if (!topNActive) load() }, [load, topNActive])
+
+  // Búsqueda por item con debounce — evita una petición por cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (itemInp !== item) { setTopNActive(false); setPage(1); setItem(itemInp) }
+    }, 350)
+    return () => clearTimeout(t)
+  }, [itemInp])
 
   // Todos los filtros aplican de inmediato (reactivo) — cambiar cualquiera
   // resetea la página y sale del modo Top N (que quedó calculado con filtros viejos).
@@ -353,6 +364,7 @@ export default function CausasRecorteTablero() {
 
   function handleLimpiar() {
     setFechaInicio(''); setFechaFin(''); setCodigoCeve(''); setCanal(''); setCausa(''); setCategoria(''); setMarca(''); setRegion('')
+    setItemInp(''); setItem('')
     setGroupBy([]); setSortBy(null); setSortDir('desc'); setPage(1); setTopNActive(false)
   }
   function toggleGroup(key) {
@@ -789,6 +801,27 @@ export default function CausasRecorteTablero() {
               {f.label}
             </label>
           ))}
+        </div>
+
+        {/* Buscar por Item */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', paddingTop: 12, borderTop: '1px solid #dbe4fb' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Buscar Item:</span>
+          <input
+            value={itemInp}
+            onChange={e => setItemInp(e.target.value)}
+            placeholder="Código o descripción del producto…"
+            style={{
+              flex: 1, maxWidth: 360, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)',
+              fontSize: 13, background: '#fff', outline: 'none',
+            }}
+          />
+          {itemInp && (
+            <button onClick={() => setItemInp('')}
+              style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                color: '#6b7280', cursor: 'pointer', padding: '5px 12px', fontSize: 12 }}>
+              Limpiar
+            </button>
+          )}
         </div>
       </div>
 
