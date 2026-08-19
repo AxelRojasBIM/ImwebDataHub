@@ -1180,8 +1180,12 @@ export default function CausasRecorteTablero() {
                     )
                   })}
                   {showDetalleDia && (
-                    <td colSpan={recorteColCount + consumoColCount} style={{
-                      position: 'sticky', top: detalleHeaderH, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
+                    <>
+                      <td colSpan={recorteColCount} style={{
+                        position: 'sticky', top: detalleHeaderH, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
+                      <td colSpan={consumoColCount} style={{
+                        position: 'sticky', top: detalleHeaderH, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
+                    </>
                   )}
                 </tr>
               </thead>
