@@ -452,6 +452,18 @@ export default function CausasRecorteTablero() {
   const recorteColCount = recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1
   const consumoColCount = consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1
   const detalleHeaderH = TITLE_H + DATE_H + METRIC_H
+  // El rowSpan de las columnas base debe coincidir EXACTO con la cantidad de filas
+  // reales del thead — las filas de fecha/métrica solo se renderizan si alguna
+  // sección está expandida. Un rowSpan que excede las filas reales del thead rompe
+  // el cálculo de anchos de columna bajo table-layout:fixed (columnas colapsan a 0
+  // y el contenido de la fila TOTAL se desborda encimándose con otras celdas).
+  const anySubExpanded = recorteExpanded || consumoExpanded
+  const baseHeaderRowSpan = anySubExpanded ? 3 : 1
+  const baseHeaderHeight  = anySubExpanded ? detalleHeaderH : HEADER_H
+  const recorteTitleRowSpan = recorteExpanded ? 1 : (consumoExpanded ? 3 : 1)
+  const recorteTitleHeight  = recorteExpanded ? TITLE_H : (consumoExpanded ? detalleHeaderH : HEADER_H)
+  const consumoTitleRowSpan = consumoExpanded ? 1 : (recorteExpanded ? 3 : 1)
+  const consumoTitleHeight  = consumoExpanded ? TITLE_H : (recorteExpanded ? detalleHeaderH : HEADER_H)
 
   const detailColumnsBase = useMemo(() => [
     { key: 'fecha', label: 'Fecha', width: 85, align: 'left' },
@@ -917,29 +929,29 @@ export default function CausasRecorteTablero() {
                   const key = col.key ?? col.label
                   return (
                     <HeaderCell key={col.key} col={col} width={topNLayout.widths[col.key] ?? col.width} layout={topNLayout}
-                      rowSpan={showDetalleDiaTopN ? 3 : 1} height={showDetalleDiaTopN ? detalleHeaderH : HEADER_H}
+                      rowSpan={showDetalleDiaTopN ? baseHeaderRowSpan : 1} height={showDetalleDiaTopN ? baseHeaderHeight : HEADER_H}
                       stickyLeft={topNStickyLeft[key]} isLastSticky={key === STICKY_UPTO_KEY} />
                   )
                 })}
                 {showDetalleDiaTopN && (
                   <>
-                    <th colSpan={recorteColCount} rowSpan={recorteExpanded ? 1 : 3}
+                    <th colSpan={recorteColCount} rowSpan={recorteTitleRowSpan}
                       onClick={() => setRecorteExpanded(v => !v)}
                       title="Clic para expandir/contraer"
                       style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: 'pointer',
                         fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
                         padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
-                        height: recorteExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box',
+                        height: recorteTitleHeight, boxSizing: 'border-box',
                         borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
                       Recorte Fabrica {recorteExpanded ? '▲' : '▼'}
                     </th>
-                    <th colSpan={consumoColCount} rowSpan={consumoExpanded ? 1 : 3}
+                    <th colSpan={consumoColCount} rowSpan={consumoTitleRowSpan}
                       onClick={() => setConsumoExpanded(v => !v)}
                       title="Clic para expandir/contraer"
                       style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: 'pointer',
                         fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
                         padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
-                        height: consumoExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box' }}>
+                        height: consumoTitleHeight, boxSizing: 'border-box' }}>
                       Consumo Inventario {consumoExpanded ? '▲' : '▼'}
                     </th>
                   </>
@@ -1090,31 +1102,31 @@ export default function CausasRecorteTablero() {
                     const key = col.key ?? col.label
                     return (
                       <HeaderCell key={col.key} col={col} width={layout.widths[col.key] ?? col.width}
-                        active={sortBy === col.key} sortDir={sortDir} rowSpan={showDetalleDia ? 3 : 1}
-                        height={showDetalleDia ? detalleHeaderH : HEADER_H}
+                        active={sortBy === col.key} sortDir={sortDir} rowSpan={showDetalleDia ? baseHeaderRowSpan : 1}
+                        height={showDetalleDia ? baseHeaderHeight : HEADER_H}
                         onSort={col.sortable === false ? null : handleSort} layout={layout}
                         stickyLeft={stickyLeft[key]} isLastSticky={key === STICKY_UPTO_KEY} />
                     )
                   })}
                   {showDetalleDia && (
                     <>
-                      <th colSpan={recorteColCount} rowSpan={recorteExpanded ? 1 : 3}
+                      <th colSpan={recorteColCount} rowSpan={recorteTitleRowSpan}
                         onClick={() => setRecorteExpanded(v => !v)}
                         title="Clic para expandir/contraer"
                         style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: 'pointer',
                           fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
                           padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
-                          height: recorteExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box',
+                          height: recorteTitleHeight, boxSizing: 'border-box',
                           borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
                         Recorte Fabrica {recorteExpanded ? '▲' : '▼'}
                       </th>
-                      <th colSpan={consumoColCount} rowSpan={consumoExpanded ? 1 : 3}
+                      <th colSpan={consumoColCount} rowSpan={consumoTitleRowSpan}
                         onClick={() => setConsumoExpanded(v => !v)}
                         title="Clic para expandir/contraer"
                         style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: 'pointer',
                           fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
                           padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
-                          height: consumoExpanded ? TITLE_H : detalleHeaderH, boxSizing: 'border-box' }}>
+                          height: consumoTitleHeight, boxSizing: 'border-box' }}>
                         Consumo Inventario {consumoExpanded ? '▲' : '▼'}
                       </th>
                     </>
@@ -1173,7 +1185,7 @@ export default function CausasRecorteTablero() {
                     return (
                       <td key={col.key} style={{ padding: '6px 10px', textAlign: col.align, fontWeight: 700,
                         color: '#1e3a8a', fontSize: 11.5, whiteSpace: 'nowrap', borderBottom: '2px solid #c7d7fd',
-                        position: 'sticky', top: showDetalleDia ? detalleHeaderH : HEADER_H,
+                        position: 'sticky', top: showDetalleDia ? baseHeaderHeight : HEADER_H,
                         left: isSticky ? stickyLeft[key] : undefined,
                         background: '#eef2ff', zIndex: isSticky ? 2 : 1,
                         boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.1)' : undefined }}>{content}</td>
@@ -1182,9 +1194,9 @@ export default function CausasRecorteTablero() {
                   {showDetalleDia && (
                     <>
                       <td colSpan={recorteColCount} style={{
-                        position: 'sticky', top: detalleHeaderH, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
+                        position: 'sticky', top: baseHeaderHeight, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
                       <td colSpan={consumoColCount} style={{
-                        position: 'sticky', top: detalleHeaderH, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
+                        position: 'sticky', top: baseHeaderHeight, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
                     </>
                   )}
                 </tr>
