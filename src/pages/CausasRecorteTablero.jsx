@@ -429,7 +429,10 @@ export default function CausasRecorteTablero() {
   // valores (Pedido, Entregado, etc.) sigan siendo distintos por fila. Aplica
   // tanto a la vista normal como a Top N (cada una con su propio interruptor).
   const singleDay = !!fechaInicio && fechaInicio === fechaFin
-  const showDetalleDia = !agrupado && !topNActive && singleDay
+  // Agrupado: el backend solo manda el desglose día por día cuando el agrupamiento
+  // es exactamente CeVe+Item (ahí sí hay un único set de Fecha_Transito por fila).
+  const detalleDiaCeveItem = (data.groupBy ?? []).includes('ceve') && (data.groupBy ?? []).includes('item')
+  const showDetalleDia = !topNActive && singleDay && (!agrupado || detalleDiaCeveItem)
   const showDetalleDiaTopN = topNActive && singleDay
   const activeRowsForDias = topNActive ? (topNData?.rows ?? []) : data.rows
   const sampleRow = activeRowsForDias.find(r => r.fechaTransito && r.fechaTransito.some(d => d))
