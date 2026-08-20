@@ -282,6 +282,10 @@ export default function CausasRecorteTablero() {
   const [recorteExpanded, setRecorteExpanded] = useState(false)
   const [consumoExpanded, setConsumoExpanded] = useState(false)
 
+  // Popover "Pedido Tránsito" (columna junto a Causa Secundaria) — se abre por fila,
+  // no por columna completa, para no alterar la altura fija de las filas de la tabla.
+  const [pedidoTransitoRow, setPedidoTransitoRow] = useState(null)
+
   // Top N
   const [topNOpen, setTopNOpen]     = useState(false)
   const [topNActive, setTopNActive] = useState(false)
@@ -475,6 +479,7 @@ export default function CausasRecorteTablero() {
     { key: 'recorteUsd', label: 'Recorte $', width: 95, align: 'right' },
     { key: 'causaPrincipal', label: 'Causa Principal', width: 150, align: 'left' },
     { key: 'causaSecundaria', label: 'Causa Secundaria', width: 150, align: 'left' },
+    { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
     { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
     { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 160, align: 'right' },
@@ -490,6 +495,7 @@ export default function CausasRecorteTablero() {
     { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
     { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
+    { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
     { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
     { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 160, align: 'right' },
@@ -530,7 +536,48 @@ export default function CausasRecorteTablero() {
     [topNLayout.orderedColumns, topNLayout.widths]
   )
 
-  function renderMainCell(col, row) {
+  // Popover de "Pedido Tránsito" — solo tiene datos cuando el mismo desglose día a
+  // día de Recorte Fábrica/Consumo Inventario está disponible (rango de un solo día
+  // agrupado por CeVe+Item), porque reutiliza esos mismos campos por fila
+  // (row.pedidoFabrica[]/row.fechaTransito[]) en vez de pedir algo nuevo al backend.
+  function renderPedidoTransitoCell(row, rowKey, disponible) {
+    if (!disponible) return <span style={{ color: '#9ca3af' }}>—</span>
+    const isOpen = pedidoTransitoRow === rowKey
+    return (
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setPedidoTransitoRow(prev => prev === rowKey ? null : rowKey) }}
+          title="Clic para expandir/contraer"
+          style={{
+            padding: '2px 8px', fontSize: 10.5, fontWeight: 600, borderRadius: 6, cursor: 'pointer',
+            background: isOpen ? '#4338ca' : '#eef2ff', color: isOpen ? '#fff' : '#4338ca',
+            border: '1px solid #c7d2fe', whiteSpace: 'nowrap',
+          }}>
+          Pedido Tránsito {isOpen ? '▲' : '▼'}
+        </button>
+        {isOpen && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 10,
+            background: '#fff', border: '1px solid #c7d2fe', borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(15,23,42,0.18)', padding: '8px 10px', minWidth: 200,
+          }}>
+            {recorteDayCols.map(dayIdx => {
+              const v = recorteFabricaValue(row, dayIdx, 'Pedido CeVe')
+              return (
+                <div key={dayIdx} style={{ display: 'flex', justifyContent: 'space-between', gap: 12,
+                  fontSize: 11.5, padding: '2px 0', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: '#6b7280' }}>Tránsito vta {dayLabel(dayIdx)}</span>
+                  <span style={{ fontWeight: 700, color: '#4338ca' }}>Pedido CeVe: {fmtNum(v)}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderMainCell(col, row, rowKey) {
     const key = col.key
     if (agrupado && activeGroupFields.some(f => f.key === key)) {
       return <span title={row[key]}>{row[key] ?? '—'}</span>
@@ -548,6 +595,7 @@ export default function CausasRecorteTablero() {
       case 'causaPrincipal': return <CausaBadge causa={row.causaPrincipal} />
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
       case 'causaSecundaria': return <CausaBadge causa={row.causaSecundaria} small />
+      case 'pedidoTransito': return renderPedidoTransitoCell(row, rowKey, showDetalleDia)
       case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
       case 'envsPlanta': return <span style={{ color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</span>
       case 'envsConsumo': return <span style={{ color: '#92400e' }}>{fmtNum(row.envsConsumo)}</span>
@@ -1219,11 +1267,14 @@ export default function CausasRecorteTablero() {
                         const isSticky = stickyLeft[colKey] !== undefined
                         return (
                           <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
+                            // "Pedido Tránsito" abre un popover que se saldría de la celda —
+                            // overflow:hidden (heredado de cellStyle) lo recortaría.
+                            ...(colKey === 'pedidoTransito' ? { overflow: 'visible' } : {}),
                             ...(isSticky ? {
                               position: 'sticky', left: stickyLeft[colKey], zIndex: 1, background: rowBg,
                               boxShadow: colKey === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.08)' : undefined,
                             } : {}) }}>
-                            {renderMainCell(col, row)}
+                            {renderMainCell(col, row, key)}
                           </td>
                         )
                       })}
