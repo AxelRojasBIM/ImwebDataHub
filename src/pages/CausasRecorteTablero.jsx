@@ -474,11 +474,15 @@ export default function CausasRecorteTablero() {
     { key: 'ceve', label: 'CeVe', width: 120, align: 'left' },
     { key: 'item', label: 'Item', width: 75, align: 'left' },
     { key: 'producto', label: 'Producto', width: 170, align: 'left' },
+    { key: 'cupo', label: 'Cupo', width: 70, align: 'right' },
     { key: 'canal', label: 'Canal', width: 95, align: 'left' },
     { key: 'recortePzs', label: 'Recorte Total Pzs', width: 110, align: 'right' },
     { key: 'recorteEnv', label: 'Recorte Env', width: 95, align: 'right' },
     { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 130, align: 'right' },
     { key: 'recorteUsd', label: 'Recorte $', width: 95, align: 'right' },
+    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'right' },
+    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
+    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
     { key: 'causaPrincipal', label: 'Causa Principal', width: 150, align: 'left' },
     { key: 'causaSecundaria', label: 'Causa Secundaria', width: 150, align: 'left' },
     { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
@@ -492,11 +496,15 @@ export default function CausasRecorteTablero() {
     // Columna aparte (no parte de "Agrupar por") que el backend agrega solo cuando
     // se agrupa por CeVe — la región es 1:1 con el CeVe, no un campo agrupable propio.
     ...(activeGroupFields.some(f => f.key === 'ceve') ? [{ key: 'region', label: 'Región', width: 110, align: 'left' }] : []),
+    ...(activeGroupFields.some(f => f.key === 'item') ? [{ key: 'cupo', label: 'Cupo', width: 70, align: 'right' }] : []),
     { key: 'filas', label: 'Filas', width: 75, align: 'right' },
     { key: 'recortePzs', label: 'Recorte Total Pzs', width: 120, align: 'right' },
     { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'right' },
     { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'right' },
     { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
+    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'right' },
+    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
+    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
     { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
     { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
@@ -513,6 +521,7 @@ export default function CausasRecorteTablero() {
   const topNColumnsBase = useMemo(() => [
     { key: 'rank', label: '#', width: 36, align: 'right' },
     { key: 'producto', label: 'Producto', width: 220, align: 'left' },
+    { key: 'cupo', label: 'Cupo', width: 70, align: 'right' },
     { key: 'itemTotalPzs', label: 'Total Producto Pzs', width: 120, align: 'right' },
     { key: 'itemTotalUsd', label: 'Total Producto $', width: 120, align: 'right' },
     { key: 'ceve', label: 'CeVe', width: 180, align: 'left' },
@@ -521,6 +530,9 @@ export default function CausasRecorteTablero() {
     { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'right' },
     { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'right' },
     { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
+    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'right' },
+    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
+    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
     { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left' },
@@ -608,12 +620,16 @@ export default function CausasRecorteTablero() {
       case 'region': return row.region || '—'
       case 'item': return row.item
       case 'producto': return <span title={row.descripcion}>{row.descripcion || '—'}</span>
+      case 'cupo': return row.cupo ?? '—'
       case 'canal': return row.canal || '—'
       case 'filas': return row.filas?.toLocaleString()
       case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
       case 'recorteEnv': return <span style={{ color: '#1e3a8a' }}>{fmtNum(row.recorteEnv)}</span>
       case 'recorteResiduo': return <span style={{ color: '#6b7280' }}>{fmtNum(row.recorteResiduo)}</span>
       case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
+      case 'existenciaPzs': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaPzs)}</span>
+      case 'existenciaEnv': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaEnv)}</span>
+      case 'existenciaUsd': return <span style={{ color: '#065f46' }}>{fmtMoney(row.existenciaUsd)}</span>
       case 'causaPrincipal': return <CausaBadge causa={row.causaPrincipal} />
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
       case 'causaSecundaria': return <CausaBadge causa={row.causaSecundaria} small />
@@ -629,6 +645,7 @@ export default function CausasRecorteTablero() {
     switch (col.key) {
       case 'rank': return isNewItem ? rank : ''
       case 'producto': return isNewItem ? <span title={row.descripcion}>{`${row.item} - ${row.descripcion || ''}`}</span> : ''
+      case 'cupo': return row.cupo ?? '—'
       case 'itemTotalPzs': return isNewItem ? fmtNum(row.itemTotalPzs) : ''
       case 'itemTotalUsd': return isNewItem ? fmtMoney(row.itemTotalUsd) : ''
       case 'ceve': return <span title={`${row.codigoCeve ?? ''} - ${row.ceve ?? ''}`}>{row.codigoCeve}{row.ceve ? ` - ${row.ceve}` : ''}</span>
@@ -637,6 +654,9 @@ export default function CausasRecorteTablero() {
       case 'recorteEnv': return <span style={{ color: '#1e3a8a' }}>{fmtNum(row.recorteEnv)}</span>
       case 'recorteResiduo': return <span style={{ color: '#6b7280' }}>{fmtNum(row.recorteResiduo)}</span>
       case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
+      case 'existenciaPzs': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaPzs)}</span>
+      case 'existenciaEnv': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaEnv)}</span>
+      case 'existenciaUsd': return <span style={{ color: '#065f46' }}>{fmtMoney(row.existenciaUsd)}</span>
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
       case 'pedidoTransito': return renderPedidoTransitoCell(row, rowKey, showDetalleDiaTopN)
       case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
@@ -658,12 +678,16 @@ export default function CausasRecorteTablero() {
       case 'region': return row.region ?? ''
       case 'item': return row.item ?? ''
       case 'producto': return row.descripcion ?? ''
+      case 'cupo': return row.cupo ?? ''
       case 'canal': return row.canal ?? ''
       case 'filas': return row.filas ?? ''
       case 'recortePzs': return row.recortePzs ?? ''
       case 'recorteEnv': return row.recorteEnv ?? ''
       case 'recorteResiduo': return row.recorteResiduo ?? ''
       case 'recorteUsd': return row.recorteUsd ?? ''
+      case 'existenciaPzs': return row.existenciaPzs ?? ''
+      case 'existenciaEnv': return row.existenciaEnv ?? ''
+      case 'existenciaUsd': return row.existenciaUsd ?? ''
       case 'causaPrincipal': return causaLabel(row.causaPrincipal) ?? ''
       case 'causaPredominante': return causaLabel(row.causaPredominante) ?? ''
       case 'causaSecundaria': return causaLabel(row.causaSecundaria) ?? ''
@@ -676,6 +700,7 @@ export default function CausasRecorteTablero() {
   function getExportValueTopN(col, row) {
     switch (col.key) {
       case 'producto': return row.item ? `${row.item} - ${row.descripcion || ''}` : ''
+      case 'cupo': return row.cupo ?? ''
       case 'itemTotalPzs': return row.itemTotalPzs ?? ''
       case 'itemTotalUsd': return row.itemTotalUsd ?? ''
       case 'ceve': return row.codigoCeve ? `${row.codigoCeve}${row.ceve ? ' - ' + row.ceve : ''}` : ''
@@ -684,6 +709,9 @@ export default function CausasRecorteTablero() {
       case 'recorteEnv': return row.recorteEnv ?? ''
       case 'recorteResiduo': return row.recorteResiduo ?? ''
       case 'recorteUsd': return row.recorteUsd ?? ''
+      case 'existenciaPzs': return row.existenciaPzs ?? ''
+      case 'existenciaEnv': return row.existenciaEnv ?? ''
+      case 'existenciaUsd': return row.existenciaUsd ?? ''
       case 'causaPredominante': return causaLabel(row.causaPredominante) ?? ''
       case 'resumen': return row.resumen ?? ''
       case 'envsPlanta': return row.envsPlanta ?? ''
