@@ -211,6 +211,7 @@ export default function ExistenciaTeoricaTablero() {
 
   const [data, setData] = useState({ total: 0, ejecucionId: null, rows: [], totals: null })
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [hoveredRow, setHoveredRow] = useState(null)
   // La tabla no se carga sola al tocar los filtros — solo al pulsar "Analizar".
   // Cambiar cualquier filtro la vuelve a ocultar hasta el próximo clic.
@@ -285,6 +286,79 @@ export default function ExistenciaTeoricaTablero() {
     if (sortBy === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortBy(key); setSortDir('desc') }
     setPage(1)
+  }
+
+  function csvEscape(v) {
+    if (v == null) return ''
+    const s = String(v)
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+  }
+  function downloadCsv(filename, headerRows, dataRows) {
+    const lines = [...headerRows, ...dataRows].map(r => r.map(csvEscape).join(','))
+    const csv = '﻿' + lines.join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  // Exporta TODAS las filas del filtro activo (no solo la página visible) con el
+  // desglose día por día completo, sin importar si algún día está colapsado en
+  // pantalla — colapsar es solo para ahorrar espacio visual, no oculta el dato.
+  async function handleExportar() {
+    setExporting(true)
+    try {
+      const params = new URLSearchParams({ page: '1', pageSize: String(Math.max(data.total, 1)), fechaVenta })
+      if (organizacion) params.set('organizacion', organizacion)
+      if (codigoCeve)   params.set('codigoCeve', codigoCeve)
+      if (categoria)    params.set('categoria', categoria)
+      if (search)       params.set('search', search)
+      if (sortBy)       { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
+      const r = await fetch(`${API}/api/existencia-teorica/tablero?${params}`)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const sourceRows = (await r.json()).rows
+
+      const headers = layout.orderedColumns.map(c => c.label)
+      diaCols.forEach(dayIdx => DIA_METRICS.forEach(metric => {
+        headers.push(`${fmtDiaCompleto(diaDates[dayIdx]) || `Día ${dayIdx + 1}`} ${metric}`)
+      }))
+      PEDIDO_COLS.forEach(col => headers.push(col.label))
+
+      function rawValue(col, row) {
+        switch (col.key) {
+          case 'fecha': return row.fechaVenta ?? ''
+          case 'ceve': return ceveLabel(row.codigoCeve, row.ceve)
+          case 'producto': return row.item ? `${row.item}${row.longName ? ' - ' + row.longName : ''}` : ''
+          case 'frecuencia': return row.frecuencia ?? ''
+          case 'existenciaAut': return row.existenciaAut ?? ''
+          case 'existenciaMan': return row.existenciaMan ?? ''
+          case 'diferencia': return row.diferencia ?? ''
+          default: return ''
+        }
+      }
+
+      const rows = sourceRows.map(row => {
+        const vals = layout.orderedColumns.map(col => rawValue(col, row))
+        diaCols.forEach(dayIdx => {
+          vals.push(row.pedidoFabrica?.[dayIdx] ?? '')
+          vals.push(row.cargaProm?.[dayIdx] ?? '')
+          vals.push(row.existenciaTeorica?.[dayIdx] ?? '')
+        })
+        PEDIDO_COLS.forEach(col => vals.push(row[col.key] ?? ''))
+        return vals
+      })
+
+      downloadCsv(`existencia_teorica_${fechaVenta || 'sf'}.csv`, [headers], rows)
+    } catch (e) {
+      alert('No se pudo exportar: ' + e.message)
+    } finally {
+      setExporting(false)
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE))
@@ -406,6 +480,14 @@ export default function ExistenciaTeoricaTablero() {
             style={{ padding: '8px 16px', height: 36, fontSize: 13, borderRadius: 8, background: '#fff',
               border: '1px solid var(--border)', color: '#6b7280', cursor: 'pointer' }}>
             Limpiar
+          </button>
+          <button onClick={handleExportar} disabled={!hasAnalyzed || data.rows.length === 0 || exporting}
+            style={{ padding: '8px 16px', height: 36, fontSize: 13, fontWeight: 600, borderRadius: 8,
+              background: (hasAnalyzed && data.rows.length > 0) ? '#ecfdf5' : '#fff',
+              border: `1px solid ${(hasAnalyzed && data.rows.length > 0) ? '#6ee7b7' : 'var(--border)'}`,
+              color: (hasAnalyzed && data.rows.length > 0) ? '#047857' : '#9ca3af',
+              cursor: (hasAnalyzed && data.rows.length > 0 && !exporting) ? 'pointer' : 'default' }}>
+            {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
           </button>
         </div>
       </div>
