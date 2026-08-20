@@ -475,7 +475,9 @@ export default function CausasRecorteTablero() {
     { key: 'item', label: 'Item', width: 75, align: 'left' },
     { key: 'producto', label: 'Producto', width: 170, align: 'left' },
     { key: 'canal', label: 'Canal', width: 95, align: 'left' },
-    { key: 'recortePzs', label: 'Recorte Pzs', width: 95, align: 'right' },
+    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 110, align: 'right' },
+    { key: 'recorteEnv', label: 'Recorte Env', width: 95, align: 'right' },
+    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 130, align: 'right' },
     { key: 'recorteUsd', label: 'Recorte $', width: 95, align: 'right' },
     { key: 'causaPrincipal', label: 'Causa Principal', width: 150, align: 'left' },
     { key: 'causaSecundaria', label: 'Causa Secundaria', width: 150, align: 'left' },
@@ -491,7 +493,9 @@ export default function CausasRecorteTablero() {
     // se agrupa por CeVe — la región es 1:1 con el CeVe, no un campo agrupable propio.
     ...(activeGroupFields.some(f => f.key === 'ceve') ? [{ key: 'region', label: 'Región', width: 110, align: 'left' }] : []),
     { key: 'filas', label: 'Filas', width: 75, align: 'right' },
-    { key: 'recortePzs', label: 'Recorte Pzs', width: 100, align: 'right' },
+    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 120, align: 'right' },
+    { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'right' },
+    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'right' },
     { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
     { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
@@ -591,6 +595,8 @@ export default function CausasRecorteTablero() {
       case 'canal': return row.canal || '—'
       case 'filas': return row.filas?.toLocaleString()
       case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
+      case 'recorteEnv': return <span style={{ color: '#1e3a8a' }}>{fmtNum(row.recorteEnv)}</span>
+      case 'recorteResiduo': return <span style={{ color: '#6b7280' }}>{fmtNum(row.recorteResiduo)}</span>
       case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
       case 'causaPrincipal': return <CausaBadge causa={row.causaPrincipal} />
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
@@ -636,6 +642,8 @@ export default function CausasRecorteTablero() {
       case 'canal': return row.canal ?? ''
       case 'filas': return row.filas ?? ''
       case 'recortePzs': return row.recortePzs ?? ''
+      case 'recorteEnv': return row.recorteEnv ?? ''
+      case 'recorteResiduo': return row.recorteResiduo ?? ''
       case 'recorteUsd': return row.recorteUsd ?? ''
       case 'causaPrincipal': return causaLabel(row.causaPrincipal) ?? ''
       case 'causaPredominante': return causaLabel(row.causaPredominante) ?? ''
