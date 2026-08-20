@@ -575,6 +575,19 @@ export default function CausasRecorteTablero() {
                 </div>
               )
             })}
+            {Array.isArray(row.fechaFuturo) && row.fechaFuturo.length > 0 && (
+              <div style={{ borderTop: '1px dashed #c7d2fe', margin: '4px 0 2px' }} />
+            )}
+            {(row.fechaFuturo ?? []).map((f, i) => {
+              const v = row.pedidoFuturo?.[i]
+              return (
+                <div key={`fut-${f}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12,
+                  fontSize: 11.5, padding: '2px 0', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: '#6b7280' }}>Pedido vta {fmtDateShort(f)}</span>
+                  <span style={{ fontWeight: 700, color: '#0f766e' }}>Pedido CeVe: {fmtNum(v)}</span>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
