@@ -517,9 +517,12 @@ export default function CausasRecorteTablero() {
     { key: 'itemTotalUsd', label: 'Total Producto $', width: 120, align: 'right' },
     { key: 'ceve', label: 'CeVe', width: 180, align: 'left' },
     { key: 'region', label: 'Región', width: 110, align: 'left' },
-    { key: 'recortePzs', label: 'Recorte Pzs', width: 100, align: 'right' },
+    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 120, align: 'right' },
+    { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'right' },
+    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'right' },
     { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
+    { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left' },
     { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
     { key: 'envsConsumo', label: 'Recorte Consumo (Envs)', width: 160, align: 'right' },
@@ -622,7 +625,7 @@ export default function CausasRecorteTablero() {
     }
   }
 
-  function renderTopNCell(col, row, isNewItem, rank) {
+  function renderTopNCell(col, row, isNewItem, rank, rowKey) {
     switch (col.key) {
       case 'rank': return isNewItem ? rank : ''
       case 'producto': return isNewItem ? <span title={row.descripcion}>{`${row.item} - ${row.descripcion || ''}`}</span> : ''
@@ -631,8 +634,11 @@ export default function CausasRecorteTablero() {
       case 'ceve': return <span title={`${row.codigoCeve ?? ''} - ${row.ceve ?? ''}`}>{row.codigoCeve}{row.ceve ? ` - ${row.ceve}` : ''}</span>
       case 'region': return row.region || '—'
       case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
+      case 'recorteEnv': return <span style={{ color: '#1e3a8a' }}>{fmtNum(row.recorteEnv)}</span>
+      case 'recorteResiduo': return <span style={{ color: '#6b7280' }}>{fmtNum(row.recorteResiduo)}</span>
       case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
+      case 'pedidoTransito': return renderPedidoTransitoCell(row, rowKey, showDetalleDiaTopN)
       case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
       case 'envsPlanta': return <span style={{ color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</span>
       case 'envsConsumo': return <span style={{ color: '#92400e' }}>{fmtNum(row.envsConsumo)}</span>
@@ -675,6 +681,8 @@ export default function CausasRecorteTablero() {
       case 'ceve': return row.codigoCeve ? `${row.codigoCeve}${row.ceve ? ' - ' + row.ceve : ''}` : ''
       case 'region': return row.region ?? ''
       case 'recortePzs': return row.recortePzs ?? ''
+      case 'recorteEnv': return row.recorteEnv ?? ''
+      case 'recorteResiduo': return row.recorteResiduo ?? ''
       case 'recorteUsd': return row.recorteUsd ?? ''
       case 'causaPredominante': return causaLabel(row.causaPredominante) ?? ''
       case 'resumen': return row.resumen ?? ''
@@ -1075,8 +1083,9 @@ export default function CausasRecorteTablero() {
                   if (isNewItem) { rank++; lastItem = row.item }
                   const cellStyle = { padding: '5px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 30 }
                   const rowBg = rank % 2 === 0 ? '#fff' : '#fafafa'
+                  const rowKey = `${row.item}-${row.codigoCeve}-${i}`
                   return (
-                    <tr key={`${row.item}-${row.codigoCeve}-${i}`} style={{
+                    <tr key={rowKey} style={{
                       borderBottom: '1px solid var(--border)',
                       borderTop: isNewItem && i > 0 ? '2px solid #c7d7fd' : undefined,
                       background: rowBg }}>
@@ -1086,11 +1095,12 @@ export default function CausasRecorteTablero() {
                         return (
                           <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
                             color: (col.key === 'itemTotalPzs' || col.key === 'itemTotalUsd' || col.key === 'rank') && !isNewItem ? '#d1d5db' : undefined,
+                            ...(key === 'pedidoTransito' ? { overflow: 'visible' } : {}),
                             ...(isSticky ? {
                               position: 'sticky', left: topNStickyLeft[key], zIndex: 1, background: rowBg,
                               boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.08)' : undefined,
                             } : {}) }}>
-                            {renderTopNCell(col, row, isNewItem, rank)}
+                            {renderTopNCell(col, row, isNewItem, rank, rowKey)}
                           </td>
                         )
                       })}
