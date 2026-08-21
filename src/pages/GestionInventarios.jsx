@@ -372,7 +372,8 @@ function ExtractoInventarioCard() {
   )
 }
 
-export default function GestionInventarios() {
+// ── Tab Carga Inventario ─────────────────────────────────────────────────────
+function TabCargaInventario() {
   const [batches, setBatches] = useState([])
   const [loadingB, setLoadingB] = useState(true)
   const [deleting, setDeleting] = useState(null)
@@ -421,14 +422,7 @@ export default function GestionInventarios() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text)' }}>Gestión de Inventarios</h1>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
-          Carga existencias de Integral Vending y Wms — ambas se guardan en la misma tabla de inventario (inventario_resumen).
-        </p>
-      </div>
-
+    <>
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
         <UploadCard
           title="Integral Vending"
@@ -449,8 +443,6 @@ export default function GestionInventarios() {
           onUploaded={loadBatches}
         />
       </div>
-
-      <ExtractoInventarioCard />
 
       <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 12 }}>
         Historial de lotes
@@ -507,6 +499,46 @@ export default function GestionInventarios() {
           </table>
         </div>
       )}
-    </div>
+    </>
+  )
+}
+
+// ── Página principal (pestañas, mismo patrón que Frecuencias Producto CeVes) ──
+const TABS = [
+  { key: 'carga',    label: 'Carga Inventario',    sub: 'Integral Vending · Wms', icon: '📥' },
+  { key: 'extracto', label: 'Extracto Inventario', sub: 'inventario_resumen',     icon: '📤' },
+]
+
+export default function GestionInventarios() {
+  const [tab, setTab] = useState('carga')
+
+  return (
+    <>
+      <div className="topbar">
+        <div>
+          <div className="topbar-title">Gestión de Inventarios</div>
+          <div className="topbar-sub">Carga existencias de Integral Vending y Wms, y extrae el inventario consolidado.</div>
+        </div>
+      </div>
+
+      <div className="content">
+        <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--border)', marginBottom: 20 }}>
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
+              borderBottom: tab === t.key ? '2px solid #1a56db' : '2px solid transparent',
+              marginBottom: -2, background: 'transparent',
+              color: tab === t.key ? '#1a56db' : '#6b7280', transition: 'color 0.15s',
+            }}>
+              <span style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
+              <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9ca3af', marginTop: 1 }}>{t.sub}</span>
+            </button>
+          ))}
+        </div>
+
+        {tab === 'carga'    && <TabCargaInventario />}
+        {tab === 'extracto' && <ExtractoInventarioCard />}
+      </div>
+    </>
   )
 }
