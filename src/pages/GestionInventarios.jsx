@@ -1,0 +1,372 @@
+import { useState, useEffect, useRef } from 'react'
+import * as XLSX from 'xlsx'
+import { API } from '../App'
+
+function fmtDur(ms) {
+  if (ms == null) return '—'
+  if (ms < 1000) return `${ms}ms`
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s`
+  return `${Math.floor(s / 60)}m ${s % 60}s`
+}
+function fmtNum(n) { return n == null ? '—' : n.toLocaleString('es-MX') }
+
+function csvEscape(v) {
+  const s = String(v ?? '')
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+}
+
+// Acepta "19/08/2026", "2026-08-19" o una fecha real de Excel (cellDates:true) y
+// siempre devuelve yyyy-MM-dd, el mismo formato de texto que ya usa fecha_captura
+// en inventario_resumen.
+function normalizeDate(v) {
+  if (v instanceof Date && !isNaN(v)) {
+    const y = v.getFullYear(), m = String(v.getMonth() + 1).padStart(2, '0'), d = String(v.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  const s = String(v ?? '').trim()
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+  return s
+}
+
+// Integral Vending: .xlsx con columnas nombradas — solo se usan Cod. Agencia,
+// Id Prod., Fecha y Exis. pzas; el resto del archivo se ignora.
+async function parseIntegralVending(file) {
+  const buf = await file.arrayBuffer()
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true })
+  const sheet = wb.Sheets[wb.SheetNames[0]]
+  if (!sheet) throw new Error('El archivo no tiene ninguna hoja con datos.')
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+  if (rows.length === 0) throw new Error('El archivo no tiene filas de datos.')
+  const sample = rows[0]
+  if (!('Cod. Agencia' in sample) || !('Id Prod.' in sample) || !('Fecha' in sample) || !('Exis. pzas' in sample)) {
+    throw new Error('No se encontraron las columnas esperadas (Cod. Agencia / Id Prod. / Fecha / Exis. pzas). Revisa el encabezado del archivo.')
+  }
+  const lines = ['ceve_nombre,sku_codigo,fecha_captura,cantidad_total']
+  for (const r of rows) {
+    const ceve = String(r['Cod. Agencia'] ?? '').trim()
+    const sku = String(r['Id Prod.'] ?? '').trim()
+    if (!ceve || !sku) continue
+    const fecha = normalizeDate(r['Fecha'])
+    const cant = String(r['Exis. pzas'] ?? '0').trim()
+    lines.push(`${csvEscape(ceve)},${csvEscape(sku)},${csvEscape(fecha)},${csvEscape(cant)}`)
+  }
+  if (lines.length === 1) throw new Error('Ninguna fila tenía Cod. Agencia e Id Prod. — no hay nada que subir.')
+  return new Blob([lines.join('\n') + '\n'], { type: 'text/csv' })
+}
+
+// Wms: el CeVe y la fecha NO vienen en columnas, van codificados en el nombre del
+// archivo: Existencia_<CeVe>_<AAMMDD>_<hora>.csv (ej. Existencia_012821_260820_084036
+// -> CeVe 12821, fecha 2026-08-20).
+function parseWmsFilename(filename) {
+  const m = filename.match(/Existencia_(\d+)_(\d{2})(\d{2})(\d{2})_/)
+  if (!m) throw new Error('El nombre del archivo no tiene el formato esperado: Existencia_<CeVe>_<AAMMDD>_<hora>.csv')
+  const ceve = String(parseInt(m[1], 10))
+  const [, , yy, mm, dd] = m
+  return { ceve, fecha: `20${yy}-${mm}-${dd}` }
+}
+
+async function parseWms(file) {
+  const { ceve, fecha } = parseWmsFilename(file.name)
+  const text = await file.text()
+  const rawLines = text.split(/\r?\n/).filter(l => l.trim().length > 0)
+  if (rawLines.length === 0) throw new Error('El archivo está vacío.')
+  const delim = rawLines[0].includes('\t') ? '\t' : ','
+  const header = rawLines[0].split(delim).map(h => h.trim().toLowerCase())
+  const idxCodigo = header.indexOf('codigo de producto')
+  const idxDisp = header.indexOf('disponible')
+  if (idxCodigo === -1 || idxDisp === -1) {
+    throw new Error('No se encontraron las columnas "Codigo de Producto" / "Disponible" en el archivo.')
+  }
+  const lines = ['ceve_nombre,sku_codigo,fecha_captura,cantidad_total']
+  for (let i = 1; i < rawLines.length; i++) {
+    const cols = rawLines[i].split(delim)
+    const sku = (cols[idxCodigo] ?? '').trim()
+    if (!sku) continue
+    const cant = (cols[idxDisp] ?? '0').trim()
+    lines.push(`${csvEscape(ceve)},${csvEscape(sku)},${csvEscape(fecha)},${csvEscape(cant)}`)
+  }
+  if (lines.length === 1) throw new Error('Ninguna fila tenía Codigo de Producto — no hay nada que subir.')
+  return new Blob([lines.join('\n') + '\n'], { type: 'text/csv' })
+}
+
+const CHUNK_SIZE = 32 * 1024 * 1024
+const MAX_RETRIES = 4
+
+async function fetchWithRetry(url, opts) {
+  let lastErr
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try { return await fetch(url, opts) }
+    catch (e) { lastErr = e; if (attempt < MAX_RETRIES) await new Promise(res => setTimeout(res, 1000 * attempt)) }
+  }
+  throw lastErr
+}
+
+async function uploadNormalizedCsv(blob, originalFileName, origen, onProgress) {
+  const initR = await fetchWithRetry(
+    `${API}/api/gestion-inventarios/upload/init?fileName=${encodeURIComponent(originalFileName)}&origen=${encodeURIComponent(origen)}`,
+    { method: 'POST' })
+  if (!initR.ok) throw new Error(`HTTP ${initR.status} al iniciar la subida`)
+  const { uploadId } = await initR.json()
+
+  for (let offset = 0; offset < blob.size; offset += CHUNK_SIZE) {
+    const chunk = blob.slice(offset, offset + CHUNK_SIZE)
+    const r = await fetchWithRetry(
+      `${API}/api/gestion-inventarios/upload/chunk?uploadId=${uploadId}&expectedOffset=${offset}`,
+      { method: 'POST', body: chunk })
+    if (!r.ok) throw new Error(`HTTP ${r.status} al subir el archivo (byte ${offset})`)
+    onProgress(Math.round(Math.min(offset + CHUNK_SIZE, blob.size) / blob.size * 100))
+  }
+
+  const compR = await fetchWithRetry(`${API}/api/gestion-inventarios/upload/complete?uploadId=${uploadId}`, { method: 'POST' })
+  const text = await compR.text()
+  const d = text ? JSON.parse(text) : {}
+  if (!compR.ok) throw new Error(d.detail || d.error || `HTTP ${compR.status}`)
+  return d
+}
+
+function UploadCard({ title, hint, accept, badges, parseFn, origen, onUploaded }) {
+  const [file, setFile] = useState(null)
+  const [dragging, setDragging] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [pct, setPct] = useState(null)
+  const [result, setResult] = useState(null)
+  const inputRef = useRef(null)
+
+  function acceptsFile(f) {
+    return accept.some(ext => f.name.toLowerCase().endsWith(ext))
+  }
+
+  function onDrop(e) {
+    e.preventDefault(); setDragging(false)
+    const f = e.dataTransfer.files[0]
+    if (f && acceptsFile(f)) setFile(f)
+    else alert(`Solo se aceptan archivos ${accept.join(' / ')}`)
+  }
+
+  async function handleUpload() {
+    if (!file) return
+    if (!confirm(`¿Cargar "${file.name}" como ${origen}?`)) return
+    setUploading(true); setResult(null); setPct(0)
+    try {
+      const blob = await parseFn(file)
+      const d = await uploadNormalizedCsv(blob, file.name, origen, setPct)
+      setFile(null)
+      setPct(null)
+      setResult({ ok: true, saved: d.totalFilas })
+      onUploaded?.()
+    } catch (e) {
+      setPct(null)
+      setResult({ ok: false, msg: e.message })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+      padding: '20px 22px', flex: '1 1 360px', minWidth: 320,
+    }}>
+      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>{hint}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+        {badges.map((c, i) => (
+          <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99,
+            background: '#e0e7ff', color: '#3730a3', fontFamily: 'monospace' }}>{c}</span>
+        ))}
+      </div>
+
+      <div
+        onDragOver={e => { e.preventDefault(); setDragging(true) }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        onClick={() => !file && inputRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragging ? '#3b82f6' : file ? '#22c55e' : '#93c5fd'}`,
+          borderRadius: 10, padding: '20px 16px', textAlign: 'center',
+          cursor: file ? 'default' : 'pointer',
+          background: dragging ? '#eff6ff' : file ? '#f0fdf4' : 'transparent',
+          transition: 'all .15s', marginBottom: 12,
+        }}
+      >
+        <input ref={inputRef} type="file" accept={accept.join(',')} style={{ display: 'none' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = '' }} />
+        {file ? (
+          <div>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>📄</div>
+            <div style={{ fontWeight: 700, color: '#15803d', fontSize: 13 }}>{file.name}</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>{(file.size / 1024 / 1024).toFixed(1)} MB</div>
+            <button onClick={e => { e.stopPropagation(); setFile(null) }}
+              style={{ marginTop: 8, fontSize: 12, padding: '3px 10px', borderRadius: 6,
+                border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
+              ✕ Quitar
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>☁</div>
+            <div style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>
+              Arrastra el archivo o <span style={{ color: '#2563eb' }}>haz clic</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>{accept.join(' / ')}</div>
+          </div>
+        )}
+      </div>
+
+      <button className="btn primary" onClick={handleUpload} disabled={!file || uploading}
+        style={{ padding: '8px 22px', fontWeight: 700, fontSize: 13 }}>
+        {uploading ? (pct != null ? `⏳ Subiendo… ${pct}%` : '⏳ Procesando…') : '↑ Cargar archivo'}
+      </button>
+
+      {result && !uploading && (
+        <div style={{ marginTop: 12, padding: '9px 14px', borderRadius: 8, fontSize: 13,
+          background: result.ok ? '#ecfdf5' : '#fef2f2',
+          color: result.ok ? '#065f46' : '#991b1b',
+          border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}` }}>
+          {result.ok ? `✓ ${fmtNum(result.saved)} registros cargados.` : `✕ ${result.msg}`}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function GestionInventarios() {
+  const [batches, setBatches] = useState([])
+  const [loadingB, setLoadingB] = useState(true)
+  const [deleting, setDeleting] = useState(null)
+  const pollRef = useRef(null)
+  const deletePollRef = useRef(null)
+
+  async function loadBatches() {
+    try {
+      const r = await fetch(`${API}/api/gestion-inventarios/batches`)
+      if (r.ok) setBatches(await r.json())
+    } catch {}
+  }
+
+  function pollUntilDone() {
+    clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      await loadBatches()
+    }, 3000)
+  }
+
+  useEffect(() => {
+    loadBatches().finally(() => setLoadingB(false))
+    return () => { clearInterval(pollRef.current); clearInterval(deletePollRef.current) }
+  }, [])
+
+  useEffect(() => {
+    const enCurso = batches.some(b => b.estado === 'ejecutando')
+    const eliminando = batches.some(b => b.estado === 'eliminando')
+    if (enCurso || eliminando) pollUntilDone()
+    else clearInterval(pollRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batches])
+
+  async function handleDelete(batchId, label) {
+    if (!confirm(`¿Eliminar el lote "${label}"? Esto borra sus filas de inventario_resumen. Si el lote es grande puede tardar varios minutos.`)) return
+    setDeleting(batchId)
+    try {
+      const r = await fetch(`${API}/api/gestion-inventarios/batches/${batchId}`, { method: 'DELETE' })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      await loadBatches()
+    } catch (e) {
+      alert(`No se pudo iniciar la eliminación: ${e.message}`)
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px' }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text)' }}>Gestión de Inventarios</h1>
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
+          Carga existencias de Integral Vending y Wms — ambas se guardan en la misma tabla de inventario (inventario_resumen).
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
+        <UploadCard
+          title="Integral Vending"
+          hint="Archivo .xlsx — se usan Cod. Agencia, Id Prod., Fecha y Exis. pzas; el resto de columnas se ignora."
+          accept={['.xlsx']}
+          badges={['Cod. Agencia', 'Id Prod.', 'Fecha', 'Exis. pzas']}
+          parseFn={parseIntegralVending}
+          origen="Integral vending"
+          onUploaded={loadBatches}
+        />
+        <UploadCard
+          title="Wms"
+          hint='Archivo .csv — el CeVe y la fecha se toman del nombre del archivo (Existencia_<CeVe>_<AAMMDD>_<hora>), no de columnas.'
+          accept={['.csv']}
+          badges={['Codigo de Producto', 'Disponible', 'nombre: Existencia_012821_260820_084036']}
+          parseFn={parseWms}
+          origen="Wms"
+          onUploaded={loadBatches}
+        />
+      </div>
+
+      <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 12 }}>
+        Historial de lotes
+      </div>
+      {loadingB ? (
+        <div style={{ color: '#9ca3af', fontSize: 13 }}>Cargando…</div>
+      ) : batches.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '32px 0', color: '#9ca3af', fontSize: 13,
+          border: '1px dashed var(--border)', borderRadius: 12 }}>
+          Sin lotes registrados aún.
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#f9fafb' }}>
+                {['Origen', 'Archivo', 'Registros', 'Duración', 'Cargado el', 'Estado', ''].map(h => (
+                  <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600,
+                    color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {batches.map((b, i) => {
+                const enCurso = b.estado === 'ejecutando'
+                const eliminando = b.estado === 'eliminando'
+                return (
+                  <tr key={b.batchId} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <td style={{ padding: '8px 14px', fontWeight: 600 }}>{b.origen}</td>
+                    <td style={{ padding: '8px 14px' }}>{b.nombreArchivo ?? '—'}</td>
+                    <td style={{ padding: '8px 14px', fontWeight: 600 }}>
+                      {eliminando ? `${fmtNum(b.filasProcesadas)} borradas…` : enCurso ? `${fmtNum(b.filasProcesadas)}…` : fmtNum(b.totalFilas)}
+                    </td>
+                    <td style={{ padding: '8px 14px' }}>{fmtDur(b.duracionMs)}</td>
+                    <td style={{ padding: '8px 14px' }}>{new Date(b.cargadoEn).toLocaleString('es-MX')}</td>
+                    <td style={{ padding: '8px 14px' }}>
+                      <span style={{
+                        display: 'inline-block', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+                        background: b.estado === 'OK' ? '#dcfce7' : (enCurso || eliminando) ? '#dbeafe' : '#fef2f2',
+                        color:      b.estado === 'OK' ? '#166534' : (enCurso || eliminando) ? '#1d4ed8' : '#991b1b',
+                      }} title={b.detalle ?? ''}>{b.estado}</span>
+                    </td>
+                    <td style={{ padding: '8px 14px', textAlign: 'right' }}>
+                      <button className="btn" onClick={() => handleDelete(b.batchId, b.nombreArchivo ?? b.origen)}
+                        disabled={deleting === b.batchId || enCurso || eliminando}
+                        style={{ fontSize: 12, padding: '3px 10px', color: '#dc2626', borderColor: '#fca5a5' }}>
+                        {(deleting === b.batchId || eliminando) ? '⏳ Eliminando…' : '🗑 Eliminar'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}

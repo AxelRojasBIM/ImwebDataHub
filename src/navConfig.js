@@ -1,5 +1,5 @@
 import {
-  Stethoscope, Ruler, BarChart3, Search, Calculator, Upload,
+  Stethoscope, Ruler, BarChart3, Search, Calculator, Warehouse,
   LayoutGrid, Database, TrendingUp, PieChart, Package, Truck,
   MapPin, Boxes, Target, Calendar, Factory, Users,
 } from 'lucide-react'
@@ -23,9 +23,9 @@ const nav = [
     ]
   },
   {
-    section: 'Carga manual',
+    section: 'Gestión de Inventarios',
     items: [
-      { to: '/subir', label: 'Subir Excel / CSV', icon: Upload },
+      { to: '/gestion-inventarios', label: 'Gestión de Inventarios', icon: Warehouse },
     ]
   },
   {

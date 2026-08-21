@@ -2,7 +2,7 @@ import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import CatalogoCupos from './pages/CatalogoCupos'
 import Remisiones from './pages/Remisiones'
 import Productos from './pages/Productos'
-import SubirArchivo from './pages/SubirArchivo'
+import GestionInventarios from './pages/GestionInventarios'
 import PedidoCevePlanta from './pages/PedidoCevePlanta'
 import FillRate from './pages/FillRate'
 import PedidoOracle from './pages/PedidoOracle'
@@ -140,7 +140,7 @@ function AppShell({ usuario, logout }) {
           <Route path="/cupos" element={<Guarded path="/cupos" rol={rol}><CatalogoCupos /></Guarded>} />
           <Route path="/remisiones" element={<Guarded path="/remisiones" rol={rol}><Remisiones /></Guarded>} />
           <Route path="/productos" element={<Guarded path="/productos" rol={rol}><Productos /></Guarded>} />
-          <Route path="/subir" element={<Guarded path="/subir" rol={rol}><SubirArchivo /></Guarded>} />
+          <Route path="/gestion-inventarios" element={<Guarded path="/gestion-inventarios" rol={rol}><GestionInventarios /></Guarded>} />
           <Route path="/pedido-ceve-planta" element={<Guarded path="/pedido-ceve-planta" rol={rol}><PedidoCevePlanta /></Guarded>} />
           <Route path="/fill-rate" element={<Guarded path="/fill-rate" rol={rol}><FillRate /></Guarded>} />
           <Route path="/pedido-oracle" element={<Guarded path="/pedido-oracle" rol={rol}><PedidoOracle /></Guarded>} />
