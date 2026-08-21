@@ -304,32 +304,63 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// Punto de estado: verde con palomita si esa fuente ya trajo datos de ese CeVe
+// en la fecha consultada, gris apagado si no.
+function EstadoPunto({ ok }) {
+  return (
+    <span title={ok ? 'Con datos' : 'Sin datos'} style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 20, height: 20, borderRadius: '50%', fontSize: 11, fontWeight: 700,
+      background: ok ? '#22c55e' : '#e5e7eb', color: ok ? '#fff' : '#9ca3af',
+    }}>{ok ? '✓' : '·'}</span>
+  )
+}
+
 function ExtractoInventarioCard() {
   const [fecha, setFecha] = useState(todayIso())
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
+  const [consultando, setConsultando] = useState(false)
+  const [cobertura, setCobertura] = useState(null)
+  const [error, setError] = useState(null)
+  const [exportando, setExportando] = useState(false)
+  const [exportResult, setExportResult] = useState(null)
 
-  async function handleExtraer() {
+  async function handleConsultar() {
     if (!fecha) return
-    setLoading(true); setResult(null)
+    setConsultando(true); setError(null); setCobertura(null); setExportResult(null)
+    try {
+      const r = await fetch(`${API}/api/gestion-inventarios/cobertura?fecha=${fecha}`)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      setCobertura(await r.json())
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setConsultando(false)
+    }
+  }
+
+  async function handleExportar() {
+    if (!fecha) return
+    setExportando(true); setExportResult(null)
     try {
       const r = await fetch(`${API}/api/gestion-inventarios/extracto?fecha=${fecha}`)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const rows = await r.json()
       if (rows.length === 0) {
-        setResult({ ok: true, count: 0 })
+        setExportResult({ ok: true, count: 0 })
         return
       }
       const header = ['Origen', 'Fecha', 'CeVe', 'Nombre CeVe', 'Región', 'Organización', 'Item', 'Cantidad Total']
       const body = rows.map(r => [r.origen, r.fechaCaptura, r.ceveNombre, r.nombreCeve, r.region, r.organizacion, r.skuCodigo, r.cantidadTotal])
       downloadCsv(`extracto_inventario_${fecha}.csv`, [header, ...body])
-      setResult({ ok: true, count: rows.length })
+      setExportResult({ ok: true, count: rows.length })
     } catch (e) {
-      setResult({ ok: false, msg: e.message })
+      setExportResult({ ok: false, msg: e.message })
     } finally {
-      setLoading(false)
+      setExportando(false)
     }
   }
+
+  const totalConDatos = cobertura?.filter(c => c.ivy || c.ivyPioneros || c.integralVending || c.wms).length ?? 0
 
   return (
     <div style={{
@@ -338,34 +369,85 @@ function ExtractoInventarioCard() {
     }}>
       <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>Extracto Inventario</div>
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>
-        Agrupa inventario_resumen por Origen, CeVe e Item para una fecha — combina Ivy automático y tus cargas manuales bajo el mismo código de CeVe/Item.
+        Consulta qué CeVes ya tienen inventario cargado por cada fuente para una fecha, antes de exportar.
       </div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
           Fecha
-          <input type="date" value={fecha} onChange={e => { setFecha(e.target.value); setResult(null) }}
+          <input type="date" value={fecha} onChange={e => { setFecha(e.target.value); setCobertura(null); setError(null); setExportResult(null) }}
             style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
         </label>
-        <button className="btn primary" onClick={handleExtraer} disabled={!fecha || loading}
+        <button className="btn primary" onClick={handleConsultar} disabled={!fecha || consultando}
           style={{ padding: '8px 22px', fontWeight: 700, fontSize: 13, height: 36 }}>
-          {loading ? '⏳ Generando…' : '⬇ Extraer inventario'}
+          {consultando ? '⏳ Consultando…' : '🔍 Consultar'}
         </button>
       </div>
 
-      {result && !loading && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, marginTop: 12,
-          color: !result.ok ? '#b91c1c' : result.count === 0 ? '#9ca3af' : '#15803d',
-        }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-            background: !result.ok ? '#ef4444' : result.count === 0 ? '#d1d5db' : '#22c55e',
-          }} />
-          {!result.ok
-            ? result.msg
-            : result.count === 0
-              ? `Sin datos para ${fecha}.`
-              : <span><strong>{result.count.toLocaleString('es-MX')}</strong> filas exportadas a CSV</span>}
+      {error && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, marginTop: 12, color: '#b91c1c' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+          {error}
+        </div>
+      )}
+
+      {cobertura && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+            <div style={{ fontSize: 12.5, color: '#374151' }}>
+              <strong>{totalConDatos.toLocaleString('es-MX')}</strong> de <strong>{cobertura.length.toLocaleString('es-MX')}</strong> CeVes con inventario cargado el {fecha}
+            </div>
+            <button className="btn primary" onClick={handleExportar} disabled={exportando}
+              style={{ padding: '7px 18px', fontWeight: 700, fontSize: 12.5 }}>
+              {exportando ? '⏳ Exportando…' : '⬇ Exportar'}
+            </button>
+          </div>
+
+          {exportResult && !exportando && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, marginBottom: 12,
+              color: !exportResult.ok ? '#b91c1c' : exportResult.count === 0 ? '#9ca3af' : '#15803d',
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                background: !exportResult.ok ? '#ef4444' : exportResult.count === 0 ? '#d1d5db' : '#22c55e',
+              }} />
+              {!exportResult.ok
+                ? exportResult.msg
+                : exportResult.count === 0
+                  ? `Sin datos para ${fecha}.`
+                  : <span><strong>{exportResult.count.toLocaleString('es-MX')}</strong> filas exportadas a CSV</span>}
+            </div>
+          )}
+
+          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 480, borderRadius: 12, border: '1px solid var(--border)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ background: '#f9fafb' }}>
+                  {['CeVe', 'Nombre', 'Región', 'Organización', 'IVY', 'IVY Pioneros', 'IV', 'WMS'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '9px 14px', textAlign: i >= 4 ? 'center' : 'left', fontWeight: 600,
+                      color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+                      position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1,
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {cobertura.map((c, i) => (
+                  <tr key={c.codigoCeve} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <td style={{ padding: '6px 14px', fontWeight: 600, whiteSpace: 'nowrap' }}>{c.codigoCeve}</td>
+                    <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.nombreCeve ?? '—'}</td>
+                    <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.region ?? '—'}</td>
+                    <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.organizacion ?? '—'}</td>
+                    <td style={{ padding: '6px 14px', textAlign: 'center' }}><EstadoPunto ok={c.ivy} /></td>
+                    <td style={{ padding: '6px 14px', textAlign: 'center' }}><EstadoPunto ok={c.ivyPioneros} /></td>
+                    <td style={{ padding: '6px 14px', textAlign: 'center' }}><EstadoPunto ok={c.integralVending} /></td>
+                    <td style={{ padding: '6px 14px', textAlign: 'center' }}><EstadoPunto ok={c.wms} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
