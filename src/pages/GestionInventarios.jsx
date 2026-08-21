@@ -362,6 +362,33 @@ function ExtractoInventarioCard() {
 
   const totalConDatos = cobertura?.filter(c => c.ivy || c.ivyPioneros || c.integralVending || c.wms).length ?? 0
 
+  // Resumen por Organización (una tarjeta por cada una, ej. Bimbo / Barcel), con
+  // desglose de CeVes con datos / total por Región dentro de cada tarjeta.
+  const resumenPorOrg = []
+  if (cobertura) {
+    const orgMap = new Map()
+    for (const c of cobertura) {
+      const conDatos = c.ivy || c.ivyPioneros || c.integralVending || c.wms
+      const org = c.organizacion ?? 'Sin organización'
+      const region = c.region ?? 'Sin región'
+      if (!orgMap.has(org)) orgMap.set(org, { total: 0, conDatos: 0, regiones: new Map() })
+      const o = orgMap.get(org)
+      o.total++; if (conDatos) o.conDatos++
+      if (!o.regiones.has(region)) o.regiones.set(region, { total: 0, conDatos: 0 })
+      const r = o.regiones.get(region)
+      r.total++; if (conDatos) r.conDatos++
+    }
+    for (const [org, o] of orgMap) {
+      resumenPorOrg.push({
+        org, total: o.total, conDatos: o.conDatos,
+        regiones: [...o.regiones.entries()]
+          .map(([region, r]) => ({ region, ...r }))
+          .sort((a, b) => a.region.localeCompare(b.region)),
+      })
+    }
+    resumenPorOrg.sort((a, b) => b.total - a.total)
+  }
+
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
@@ -392,6 +419,48 @@ function ExtractoInventarioCard() {
 
       {cobertura && (
         <div style={{ marginTop: 20 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
+            {resumenPorOrg.map(o => {
+              const pct = o.total > 0 ? Math.round(o.conDatos / o.total * 100) : 0
+              return (
+                <div key={o.org} style={{
+                  flex: '1 1 260px', minWidth: 240, border: '1px solid var(--border)', borderRadius: 12,
+                  padding: '16px 18px', background: '#fff',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{o.org}</div>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 99,
+                      background: pct === 100 ? '#dcfce7' : pct === 0 ? '#f3f4f6' : '#fef9c3',
+                      color:      pct === 100 ? '#166534' : pct === 0 ? '#9ca3af' : '#854d0e',
+                    }}>{pct}%</span>
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
+                    {o.conDatos.toLocaleString('es-MX')}
+                    <span style={{ fontSize: 13, fontWeight: 400, color: '#9ca3af' }}> / {o.total.toLocaleString('es-MX')} CeVes</span>
+                  </div>
+                  <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, display: 'grid', gap: 6 }}>
+                    {o.regiones.map(r => {
+                      const rPct = r.total > 0 ? r.conDatos / r.total * 100 : 0
+                      return (
+                        <div key={r.region} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                          <span style={{ width: 74, flexShrink: 0, color: '#374151' }}>{r.region}</span>
+                          <span style={{ flex: 1, height: 6, borderRadius: 99, background: '#f1f5f9', overflow: 'hidden' }}>
+                            <span style={{ display: 'block', height: '100%', width: `${rPct}%`, borderRadius: 99,
+                              background: rPct === 100 ? '#22c55e' : '#facc15', transition: 'width .2s' }} />
+                          </span>
+                          <span style={{ width: 46, textAlign: 'right', color: '#6b7280', flexShrink: 0 }}>
+                            {r.conDatos}/{r.total}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
             <div style={{ fontSize: 12.5, color: '#374151' }}>
               <strong>{totalConDatos.toLocaleString('es-MX')}</strong> de <strong>{cobertura.length.toLocaleString('es-MX')}</strong> CeVes con inventario cargado el {fecha}
