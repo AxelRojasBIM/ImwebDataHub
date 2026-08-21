@@ -46,6 +46,7 @@ async function parseIntegralVending(file) {
     throw new Error('No se encontraron las columnas esperadas (Cod. Agencia / Id Prod. / Fecha / Exis. pzas). Revisa el encabezado del archivo.')
   }
   const lines = ['ceve_nombre,sku_codigo,fecha_captura,cantidad_total']
+  const ceves = new Set(), fechas = new Set()
   for (const r of rows) {
     const ceve = String(r['Cod. Agencia'] ?? '').trim()
     const sku = String(r['Id Prod.'] ?? '').trim()
@@ -53,9 +54,13 @@ async function parseIntegralVending(file) {
     const fecha = normalizeDate(r['Fecha'])
     const cant = String(r['Exis. pzas'] ?? '0').trim()
     lines.push(`${csvEscape(ceve)},${csvEscape(sku)},${csvEscape(fecha)},${csvEscape(cant)}`)
+    ceves.add(ceve); fechas.add(fecha)
   }
   if (lines.length === 1) throw new Error('Ninguna fila tenía Cod. Agencia e Id Prod. — no hay nada que subir.')
-  return new Blob([lines.join('\n') + '\n'], { type: 'text/csv' })
+  return {
+    blob: new Blob([lines.join('\n') + '\n'], { type: 'text/csv' }),
+    count: lines.length - 1, ceveCount: ceves.size, fechas: [...fechas].sort(),
+  }
 }
 
 // Wms: el CeVe y la fecha NO vienen en columnas, van codificados en el nombre del
@@ -90,7 +95,10 @@ async function parseWms(file) {
     lines.push(`${csvEscape(ceve)},${csvEscape(sku)},${csvEscape(fecha)},${csvEscape(cant)}`)
   }
   if (lines.length === 1) throw new Error('Ninguna fila tenía Codigo de Producto — no hay nada que subir.')
-  return new Blob([lines.join('\n') + '\n'], { type: 'text/csv' })
+  return {
+    blob: new Blob([lines.join('\n') + '\n'], { type: 'text/csv' }),
+    count: lines.length - 1, ceveCount: 1, fechas: [fecha],
+  }
 }
 
 const CHUNK_SIZE = 32 * 1024 * 1024
@@ -134,27 +142,53 @@ function UploadCard({ title, hint, accept, badges, parseFn, origen, onUploaded }
   const [uploading, setUploading] = useState(false)
   const [pct, setPct] = useState(null)
   const [result, setResult] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [preview, setPreview] = useState(null) // { count, ceveCount, fechas }
+  const [previewError, setPreviewError] = useState(null)
   const inputRef = useRef(null)
+  // Guarda el archivo ya parseado (mismo parseFn que usa la subida) para no leerlo
+  // dos veces — la vista previa de registros y la carga real usan el mismo resultado.
+  const parsedRef = useRef(null)
 
   function acceptsFile(f) {
     return accept.some(ext => f.name.toLowerCase().endsWith(ext))
   }
 
+  function selectFile(f) {
+    setFile(f)
+    setResult(null)
+    setPreview(null)
+    setPreviewError(null)
+    parsedRef.current = null
+    setPreviewLoading(true)
+    parseFn(f)
+      .then(({ blob, count, ceveCount, fechas }) => {
+        parsedRef.current = { file: f, blob, count }
+        setPreview({ count, ceveCount, fechas })
+      })
+      .catch(e => setPreviewError(e.message))
+      .finally(() => setPreviewLoading(false))
+  }
+
+  function clearFile() {
+    setFile(null); setResult(null); setPreview(null); setPreviewError(null); parsedRef.current = null
+  }
+
   function onDrop(e) {
     e.preventDefault(); setDragging(false)
     const f = e.dataTransfer.files[0]
-    if (f && acceptsFile(f)) setFile(f)
+    if (f && acceptsFile(f)) selectFile(f)
     else alert(`Solo se aceptan archivos ${accept.join(' / ')}`)
   }
 
   async function handleUpload() {
-    if (!file) return
-    if (!confirm(`¿Cargar "${file.name}" como ${origen}?`)) return
+    const cached = parsedRef.current
+    if (!file || !cached || cached.file !== file) return
+    if (!confirm(`¿Cargar "${file.name}" (${cached.count.toLocaleString('es-MX')} registros) como ${origen}?`)) return
     setUploading(true); setResult(null); setPct(0)
     try {
-      const blob = await parseFn(file)
-      const d = await uploadNormalizedCsv(blob, file.name, origen, setPct)
-      setFile(null)
+      const d = await uploadNormalizedCsv(cached.blob, file.name, origen, setPct)
+      clearFile()
       setPct(null)
       setResult({ ok: true, saved: d.totalFilas })
       onUploaded?.()
@@ -194,13 +228,13 @@ function UploadCard({ title, hint, accept, badges, parseFn, origen, onUploaded }
         }}
       >
         <input ref={inputRef} type="file" accept={accept.join(',')} style={{ display: 'none' }}
-          onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = '' }} />
+          onChange={e => { const f = e.target.files?.[0]; if (f) selectFile(f); e.target.value = '' }} />
         {file ? (
           <div>
             <div style={{ fontSize: 20, marginBottom: 4 }}>📄</div>
             <div style={{ fontWeight: 700, color: '#15803d', fontSize: 13 }}>{file.name}</div>
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>{(file.size / 1024 / 1024).toFixed(1)} MB</div>
-            <button onClick={e => { e.stopPropagation(); setFile(null) }}
+            <button onClick={e => { e.stopPropagation(); clearFile() }}
               style={{ marginTop: 8, fontSize: 12, padding: '3px 10px', borderRadius: 6,
                 border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
               ✕ Quitar
@@ -217,7 +251,28 @@ function UploadCard({ title, hint, accept, badges, parseFn, origen, onUploaded }
         )}
       </div>
 
-      <button className="btn primary" onClick={handleUpload} disabled={!file || uploading}
+      {!uploading && (previewLoading || preview || previewError) && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12.5,
+          marginBottom: 12, color: previewError ? '#b91c1c' : previewLoading ? '#9ca3af' : '#15803d',
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', flexShrink: 0, marginTop: 5,
+            background: previewError ? '#ef4444' : previewLoading ? '#d1d5db' : '#22c55e',
+          }} />
+          {previewLoading ? 'Leyendo archivo…' : previewError ? previewError : (
+            <span>
+              <strong>{preview.count.toLocaleString('es-MX')}</strong> registros listos para cargar
+              <span style={{ color: '#6b7280' }}>
+                {' · '}{preview.ceveCount.toLocaleString('es-MX')} {preview.ceveCount === 1 ? 'CeVe' : 'CeVes'} únicos
+                {' · '}fecha {preview.fechas.length === 1 ? preview.fechas[0] : `${preview.fechas.length} fechas distintas`}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+
+      <button className="btn primary" onClick={handleUpload} disabled={!file || uploading || previewLoading || !!previewError}
         style={{ padding: '8px 22px', fontWeight: 700, fontSize: 13 }}>
         {uploading ? (pct != null ? `⏳ Subiendo… ${pct}%` : '⏳ Procesando…') : '↑ Cargar archivo'}
       </button>
