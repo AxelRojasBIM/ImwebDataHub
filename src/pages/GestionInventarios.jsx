@@ -289,6 +289,89 @@ function UploadCard({ title, hint, accept, badges, parseFn, origen, onUploaded }
   )
 }
 
+function downloadCsv(filename, rows) {
+  const content = rows.map(r => r.map(csvEscape).join(',')).join('\n') + '\n'
+  const blob = new Blob(['﻿' + content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click(); a.remove()
+  URL.revokeObjectURL(url)
+}
+
+function todayIso() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function ExtractoInventarioCard() {
+  const [fecha, setFecha] = useState(todayIso())
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+
+  async function handleExtraer() {
+    if (!fecha) return
+    setLoading(true); setResult(null)
+    try {
+      const r = await fetch(`${API}/api/gestion-inventarios/extracto?fecha=${fecha}`)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const rows = await r.json()
+      if (rows.length === 0) {
+        setResult({ ok: true, count: 0 })
+        return
+      }
+      const header = ['Origen', 'Fecha', 'CeVe', 'Item', 'Cantidad Total']
+      const body = rows.map(r => [r.origen, r.fechaCaptura, r.ceveNombre, r.skuCodigo, r.cantidadTotal])
+      downloadCsv(`extracto_inventario_${fecha}.csv`, [header, ...body])
+      setResult({ ok: true, count: rows.length })
+    } catch (e) {
+      setResult({ ok: false, msg: e.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+      padding: '20px 22px', marginBottom: 24,
+    }}>
+      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>Extracto Inventario</div>
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>
+        Agrupa inventario_resumen por Origen, CeVe e Item para una fecha — combina Ivy automático y tus cargas manuales bajo el mismo código de CeVe/Item.
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          Fecha
+          <input type="date" value={fecha} onChange={e => { setFecha(e.target.value); setResult(null) }}
+            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
+        </label>
+        <button className="btn primary" onClick={handleExtraer} disabled={!fecha || loading}
+          style={{ padding: '8px 22px', fontWeight: 700, fontSize: 13, height: 36 }}>
+          {loading ? '⏳ Generando…' : '⬇ Extraer inventario'}
+        </button>
+      </div>
+
+      {result && !loading && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, marginTop: 12,
+          color: !result.ok ? '#b91c1c' : result.count === 0 ? '#9ca3af' : '#15803d',
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+            background: !result.ok ? '#ef4444' : result.count === 0 ? '#d1d5db' : '#22c55e',
+          }} />
+          {!result.ok
+            ? result.msg
+            : result.count === 0
+              ? `Sin datos para ${fecha}.`
+              : <span><strong>{result.count.toLocaleString('es-MX')}</strong> filas exportadas a CSV</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function GestionInventarios() {
   const [batches, setBatches] = useState([])
   const [loadingB, setLoadingB] = useState(true)
@@ -366,6 +449,8 @@ export default function GestionInventarios() {
           onUploaded={loadBatches}
         />
       </div>
+
+      <ExtractoInventarioCard />
 
       <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 12 }}>
         Historial de lotes
