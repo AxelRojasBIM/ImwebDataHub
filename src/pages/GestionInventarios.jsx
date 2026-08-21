@@ -361,6 +361,19 @@ function ExtractoInventarioCard() {
   }
 
   const totalConDatos = cobertura?.filter(c => c.ivy || c.ivyPioneros || c.integralVending || c.wms).length ?? 0
+  const fueraCatalogo = cobertura?.filter(c => !c.enCatalogo) ?? []
+  const totalesPorFuente = cobertura ? {
+    ivy: cobertura.filter(c => c.ivy).length,
+    ivyPioneros: cobertura.filter(c => c.ivyPioneros).length,
+    integralVending: cobertura.filter(c => c.integralVending).length,
+    wms: cobertura.filter(c => c.wms).length,
+  } : null
+
+  function handleDescargarFueraCatalogo() {
+    const header = ['CeVe', 'IVY', 'IVY Pioneros', 'IV', 'WMS']
+    const body = fueraCatalogo.map(c => [c.codigoCeve, c.ivy ? 'Sí' : '', c.ivyPioneros ? 'Sí' : '', c.integralVending ? 'Sí' : '', c.wms ? 'Sí' : ''])
+    downloadCsv(`ceves_fuera_de_catalogo_${fecha}.csv`, [header, ...body])
+  }
 
   // Resumen por Organización (una tarjeta por cada una, ej. Bimbo / Barcel), con
   // desglose de CeVes con datos / total por Región dentro de cada tarjeta.
@@ -461,7 +474,7 @@ function ExtractoInventarioCard() {
             })}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 6 }}>
             <div style={{ fontSize: 12.5, color: '#374151' }}>
               <strong>{totalConDatos.toLocaleString('es-MX')}</strong> de <strong>{cobertura.length.toLocaleString('es-MX')}</strong> CeVes con inventario cargado el {fecha}
             </div>
@@ -470,6 +483,17 @@ function ExtractoInventarioCard() {
               {exportando ? '⏳ Exportando…' : '⬇ Exportar'}
             </button>
           </div>
+
+          {fueraCatalogo.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <button onClick={handleDescargarFueraCatalogo} style={{
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                fontSize: 11.5, color: '#9ca3af', textDecoration: 'underline', textUnderlineOffset: 2,
+              }}>
+                ⬇ {fueraCatalogo.length} código{fueraCatalogo.length === 1 ? '' : 's'} de CeVe con existencia pero fuera del catálogo
+              </button>
+            </div>
+          )}
 
           {exportResult && !exportando && (
             <div style={{
@@ -494,10 +518,26 @@ function ExtractoInventarioCard() {
                 <tr style={{ background: '#f9fafb' }}>
                   {['CeVe', 'Nombre', 'Región', 'Organización', 'IVY', 'IVY Pioneros', 'IV', 'WMS'].map((h, i) => (
                     <th key={h} style={{
-                      padding: '9px 14px', textAlign: i >= 4 ? 'center' : 'left', fontWeight: 600,
+                      padding: '9px 14px', height: 34, boxSizing: 'border-box', textAlign: i >= 4 ? 'center' : 'left', fontWeight: 600,
                       color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
-                      position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1,
+                      position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2,
                     }}>{h}</th>
+                  ))}
+                </tr>
+                {/* Fila de totales fija: no se mueve al hacer scroll de la tabla, para
+                    comparar cuántos CeVes trajo cada sistema sin perder de vista el conteo. */}
+                <tr style={{ background: '#eef2ff' }}>
+                  <th colSpan={4} style={{
+                    padding: '6px 14px', height: 30, boxSizing: 'border-box', textAlign: 'left', fontWeight: 700,
+                    color: '#3730a3', fontSize: 11.5, borderBottom: '2px solid #c7d2fe',
+                    position: 'sticky', top: 34, background: '#eef2ff', zIndex: 2,
+                  }}>Total CeVes por sistema</th>
+                  {['ivy', 'ivyPioneros', 'integralVending', 'wms'].map(k => (
+                    <th key={k} style={{
+                      padding: '6px 14px', height: 30, boxSizing: 'border-box', textAlign: 'center', fontWeight: 700,
+                      color: '#3730a3', fontSize: 12.5, borderBottom: '2px solid #c7d2fe',
+                      position: 'sticky', top: 34, background: '#eef2ff', zIndex: 2,
+                    }}>{totalesPorFuente[k].toLocaleString('es-MX')}</th>
                   ))}
                 </tr>
               </thead>
@@ -505,9 +545,17 @@ function ExtractoInventarioCard() {
                 {cobertura.map((c, i) => (
                   <tr key={c.codigoCeve} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '6px 14px', fontWeight: 600, whiteSpace: 'nowrap' }}>{c.codigoCeve}</td>
-                    <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.nombreCeve ?? '—'}</td>
-                    <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.region ?? '—'}</td>
-                    <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.organizacion ?? '—'}</td>
+                    {c.enCatalogo ? (
+                      <>
+                        <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.nombreCeve ?? '—'}</td>
+                        <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.region ?? '—'}</td>
+                        <td style={{ padding: '6px 14px', whiteSpace: 'nowrap' }}>{c.organizacion ?? '—'}</td>
+                      </>
+                    ) : (
+                      <td colSpan={3} style={{ padding: '6px 14px', whiteSpace: 'nowrap', fontStyle: 'italic', color: '#b45309' }}>
+                        Fuera del catálogo
+                      </td>
+                    )}
                     <td style={{ padding: '6px 14px', textAlign: 'center' }}><EstadoPunto ok={c.ivy} /></td>
                     <td style={{ padding: '6px 14px', textAlign: 'center' }}><EstadoPunto ok={c.ivyPioneros} /></td>
                     <td style={{ padding: '6px 14px', textAlign: 'center' }}><EstadoPunto ok={c.integralVending} /></td>
