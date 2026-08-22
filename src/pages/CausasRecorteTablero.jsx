@@ -834,64 +834,64 @@ export default function CausasRecorteTablero() {
 
       {/* Filtros */}
       <div style={{
-        background: '#f8faff', border: '1px solid #c7d7fd', borderRadius: 14,
+        background: '#fff', border: '1px solid var(--border)', borderRadius: 14,
         padding: '18px 22px', marginBottom: 16, flexShrink: 0,
       }}>
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 14 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Desde *
             <input type="date" value={fechaInicio} onChange={e => updateFechaInicio(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400 }} />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Hasta *
             <input type="date" value={fechaFin} onChange={e => updateFechaFin(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400 }} />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             CeVe
             <select value={codigoCeve} onChange={e => updateCodigoCeve(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 160 }}>
               <option value="">Todos</option>
               {filtros.ceves.map(c => <option key={c.codigoCeve} value={c.codigoCeve}>{c.ceve}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Canal
             <select value={canal} onChange={e => updateCanal(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 140 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 140 }}>
               <option value="">Todos</option>
               {filtros.canales.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Categoría
             <select value={categoria} onChange={e => updateCategoria(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 160 }}>
               <option value="">Todas</option>
               {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Marca
             <select value={marca} onChange={e => updateMarca(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 160 }}>
               <option value="">Todas</option>
               {filtros.marcas.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Región
             <select value={region} onChange={e => updateRegion(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 140 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 140 }}>
               <option value="">Todas</option>
               {filtros.regiones.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Causa
             <select value={causa} onChange={e => updateCausa(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 220 }}>
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 220 }}>
               <option value="">Todas</option>
               {CAUSA_OPTS.map(c => <option key={c} value={c}>{causaLabel(c)}</option>)}
             </select>
@@ -912,8 +912,8 @@ export default function CausasRecorteTablero() {
         </div>
 
         {/* Agrupar por */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid #dbe4fb' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Agrupar por:</span>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Agrupar por:</span>
           {GROUP_FIELDS.map(f => (
             <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#374151', cursor: 'pointer' }}>
               <input type="checkbox" checked={groupBy.includes(f.key)} onChange={() => toggleGroup(f.key)}
@@ -924,15 +924,15 @@ export default function CausasRecorteTablero() {
         </div>
 
         {/* Buscar por Item */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', paddingTop: 12, borderTop: '1px solid #dbe4fb' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Buscar Item:</span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Buscar Item:</span>
           <input
             value={itemInp}
             onChange={e => setItemInp(e.target.value)}
             placeholder="Código o descripción del producto…"
             style={{
               flex: 1, maxWidth: 360, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)',
-              fontSize: 13, background: '#fff', outline: 'none',
+              fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, outline: 'none',
             }}
           />
           {itemInp && (
@@ -956,36 +956,36 @@ export default function CausasRecorteTablero() {
         </div>
         {topNOpen && (
           <div style={{ padding: '16px 18px', display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Categoría *
               <select value={topNCategoria} onChange={e => setTopNCategoria(e.target.value)}
-                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 180 }}>
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 180 }}>
                 <option value="">Selecciona…</option>
                 {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Top productos
               <input type="number" min={1} max={100} value={topProductos} onChange={e => setTopProductos(Number(e.target.value) || 1)}
                 style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 80 }} />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               CeVes por producto
               <input type="number" min={1} max={50} value={topCeves} onChange={e => setTopCeves(Number(e.target.value) || 1)}
                 style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 80 }} />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Unidad
               <select value={topUnidad} onChange={e => setTopUnidad(e.target.value)}
-                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400 }}>
                 <option value="pzs">Piezas</option>
                 <option value="usd">Pesos ($)</option>
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#374151' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Orden
               <select value={topOrden} onChange={e => setTopOrden(e.target.value)}
-                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400 }}>
                 <option value="desc">Mayor a menor</option>
                 <option value="asc">Menor a mayor</option>
               </select>
@@ -1010,7 +1010,7 @@ export default function CausasRecorteTablero() {
       {topNActive && topNData ? (
         <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
           boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, tableLayout: 'fixed' }}>
             {showDetalleDiaTopN && (
               <colgroup>
                 {topNLayout.orderedColumns.map(col => (
@@ -1109,7 +1109,7 @@ export default function CausasRecorteTablero() {
                 return topNData.rows.map((row, i) => {
                   const isNewItem = row.item !== lastItem
                   if (isNewItem) { rank++; lastItem = row.item }
-                  const cellStyle = { padding: '5px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 30 }
+                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26 }
                   const rowBg = rank % 2 === 0 ? '#fff' : '#fafafa'
                   const rowKey = `${row.item}-${row.codigoCeve}-${i}`
                   return (
@@ -1185,7 +1185,7 @@ export default function CausasRecorteTablero() {
         <>
           <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
             boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, tableLayout: 'fixed' }}>
               {showDetalleDia && (
                 <colgroup>
                   {layout.orderedColumns.map(col => (
@@ -1313,7 +1313,7 @@ export default function CausasRecorteTablero() {
                   const key = agrupado
                     ? activeGroupFields.map(f => row[f.key]).join('|') + '-' + i
                     : `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
-                  const cellStyle = { padding: '5px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 30 }
+                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26 }
                   const baseBg = i % 2 === 0 ? '#fff' : '#fafafa'
                   const rowBg = hoveredRow === key ? '#eef2ff' : baseBg
                   return (
