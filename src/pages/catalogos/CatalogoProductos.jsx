@@ -35,8 +35,11 @@ const RTM_TEMPLATE = `${RTM_COLS.join(',')}
 
 const RTM_PREVIEW_COLS = ['Product_code','Product_Short_Desc','Brand_Name','Category_Name','Piece_Price']
 
+// Company_Code se excluye a propósito: en artículos de empaque/retornables
+// (tinas, charolas, tarimas, canastillas) legítimamente trae una descripción
+// en vez de un código corto, así que no es señal confiable de fila descuadrada.
 const RTM_CODE_COLS = [
-  'Product_Id','Product_code','Product_Global_Code','Company_Code','Brand_Code','Category_Code',
+  'Product_Id','Product_code','Product_Global_Code','Brand_Code','Category_Code',
   'Segment_Code','Line_Code','Base_Uom','PrimarySalesUOM','Product_BarCode','Sequence',
   'IsSalable','IsReturnable','Tray_Code','Clave_Prod','Clave_Unidad','Unit_Measure','MRP','Instance','Active'
 ]
