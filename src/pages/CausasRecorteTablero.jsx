@@ -9,14 +9,20 @@ import { API } from '../App'
 // al resto de la UI en vez del widget crudo del navegador.
 function DateField({ value, onChange, max, min }) {
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-      <Calendar size={14} style={{ position: 'absolute', left: 10, color: '#9ca3af', pointerEvents: 'none', zIndex: 1 }} />
+    <div style={{ position: 'relative', width: 132 }}>
       <input type="date" value={value} max={max} min={min} onChange={onChange}
         style={{
           padding: '7px 10px 7px 30px', borderRadius: 9, border: '1px solid var(--border)',
           fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400,
-          color: value ? 'var(--text)' : '#9ca3af', width: 132, outline: 'none',
+          color: value ? 'var(--text)' : '#9ca3af', width: '100%', outline: 'none', boxSizing: 'border-box',
         }} />
+      {/* Va DESPUES del input en el DOM para pintarse encima sin depender de
+          z-index — el input nativo type=date puede tener su propio orden de
+          pintado que ignoraba el z-index del icono cuando iba antes. */}
+      <Calendar size={14} style={{
+        position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+        color: '#9ca3af', pointerEvents: 'none',
+      }} />
     </div>
   )
 }
