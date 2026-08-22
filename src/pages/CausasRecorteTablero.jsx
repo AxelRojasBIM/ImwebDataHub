@@ -55,6 +55,12 @@ function fmtDateShort(iso) {
   const [, m, d] = iso.split('-')
   return `${d}/${m}`
 }
+// Igual que el resto de la app: "código - nombre" (solo el código si no hay nombre distinto).
+function ceveLabel(codigoCeve, ceve) {
+  if (!ceve || ceve === codigoCeve) return codigoCeve
+  return `${codigoCeve} - ${ceve}`
+}
+const HOY_ISO = new Date().toISOString().slice(0, 10)
 
 const PAGE_SIZE = 100
 const TITLE_H = 26
@@ -835,75 +841,75 @@ export default function CausasRecorteTablero() {
       {/* Filtros */}
       <div style={{
         background: '#fff', border: '1px solid var(--border)', borderRadius: 14,
-        padding: '18px 22px', marginBottom: 16, flexShrink: 0,
+        padding: '14px 18px', marginBottom: 16, flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 14 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 10 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Desde *
-            <input type="date" value={fechaInicio} onChange={e => updateFechaInicio(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400 }} />
+            <input type="date" value={fechaInicio} max={fechaFin || HOY_ISO} onChange={e => updateFechaInicio(e.target.value)}
+              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400 }} />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Hasta *
-            <input type="date" value={fechaFin} onChange={e => updateFechaFin(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400 }} />
+            <input type="date" value={fechaFin} min={fechaInicio || undefined} max={HOY_ISO} onChange={e => updateFechaFin(e.target.value)}
+              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400 }} />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            CeVe
-            <select value={codigoCeve} onChange={e => updateCodigoCeve(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 160 }}>
-              <option value="">Todos</option>
-              {filtros.ceves.map(c => <option key={c.codigoCeve} value={c.codigoCeve}>{c.ceve}</option>)}
-            </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Canal
-            <select value={canal} onChange={e => updateCanal(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 140 }}>
-              <option value="">Todos</option>
-              {filtros.canales.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Categoría
-            <select value={categoria} onChange={e => updateCategoria(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 160 }}>
-              <option value="">Todas</option>
-              {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Marca
-            <select value={marca} onChange={e => updateMarca(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 160 }}>
-              <option value="">Todas</option>
-              {filtros.marcas.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Región
             <select value={region} onChange={e => updateRegion(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 140 }}>
+              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 130 }}>
               <option value="">Todas</option>
               {filtros.regiones.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            CeVe
+            <select value={codigoCeve} onChange={e => updateCodigoCeve(e.target.value)}
+              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 180 }}>
+              <option value="">Todos</option>
+              {filtros.ceves.map(c => <option key={c.codigoCeve} value={c.codigoCeve}>{ceveLabel(c.codigoCeve, c.ceve)}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Canal
+            <select value={canal} onChange={e => updateCanal(e.target.value)}
+              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 120 }}>
+              <option value="">Todos</option>
+              {filtros.canales.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Categoría
+            <select value={categoria} onChange={e => updateCategoria(e.target.value)}
+              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 140 }}>
+              <option value="">Todas</option>
+              {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Marca
+            <select value={marca} onChange={e => updateMarca(e.target.value)}
+              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 140 }}>
+              <option value="">Todas</option>
+              {filtros.marcas.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Causa
             <select value={causa} onChange={e => updateCausa(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 220 }}>
+              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400, minWidth: 190 }}>
               <option value="">Todas</option>
               {CAUSA_OPTS.map(c => <option key={c} value={c}>{causaLabel(c)}</option>)}
             </select>
           </label>
           <button onClick={handleLimpiar}
-            style={{ padding: '8px 16px', height: 36, fontSize: 13, borderRadius: 8, background: '#fff',
+            style={{ padding: '7px 14px', height: 32, fontSize: 12.5, borderRadius: 8, background: '#fff',
               border: '1px solid var(--border)', color: '#6b7280', cursor: 'pointer' }}>
             Limpiar
           </button>
           <button onClick={handleExportar} disabled={!puedeExportar || exporting}
             title="Exporta a CSV (se abre en Excel) exactamente la vista actual — Top N, agrupada o detalle, con el mismo desglose día por día si aplica. Trae todas las filas que cumplen los filtros, no solo la página visible."
-            style={{ padding: '8px 16px', height: 36, fontSize: 13, fontWeight: 600, borderRadius: 8,
+            style={{ padding: '7px 14px', height: 32, fontSize: 12.5, fontWeight: 600, borderRadius: 8,
               background: puedeExportar ? '#ecfdf5' : '#fff', border: `1px solid ${puedeExportar ? '#6ee7b7' : 'var(--border)'}`,
               color: puedeExportar ? '#047857' : '#9ca3af', cursor: (puedeExportar && !exporting) ? 'pointer' : 'default',
               opacity: exporting ? 0.6 : 1 }}>
@@ -911,37 +917,38 @@ export default function CausasRecorteTablero() {
           </button>
         </div>
 
-        {/* Agrupar por */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Agrupar por:</span>
-          {GROUP_FIELDS.map(f => (
-            <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#374151', cursor: 'pointer' }}>
-              <input type="checkbox" checked={groupBy.includes(f.key)} onChange={() => toggleGroup(f.key)}
-                style={{ width: 15, height: 15, cursor: 'pointer' }} />
-              {f.label}
-            </label>
-          ))}
-        </div>
-
-        {/* Buscar por Item */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Buscar Item:</span>
-          <input
-            value={itemInp}
-            onChange={e => setItemInp(e.target.value)}
-            placeholder="Código o descripción del producto…"
-            style={{
-              flex: 1, maxWidth: 360, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)',
-              fontSize: 13, background: '#fff', textTransform: 'none', fontWeight: 400, outline: 'none',
-            }}
-          />
-          {itemInp && (
-            <button onClick={() => setItemInp('')}
-              style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6,
-                color: '#6b7280', cursor: 'pointer', padding: '5px 12px', fontSize: 12 }}>
-              Limpiar
-            </button>
-          )}
+        {/* Buscar por Item (izquierda) + Agrupar por (derecha, discreto) */}
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center', justifyContent: 'space-between',
+          flexWrap: 'wrap', paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1, minWidth: 220 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Buscar Item</span>
+            <input
+              value={itemInp}
+              onChange={e => setItemInp(e.target.value)}
+              placeholder="Código o descripción del producto…"
+              style={{
+                flex: 1, maxWidth: 320, padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)',
+                fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400, outline: 'none',
+              }}
+            />
+            {itemInp && (
+              <button onClick={() => setItemInp('')}
+                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                  color: '#6b7280', cursor: 'pointer', padding: '4px 10px', fontSize: 11.5 }}>
+                Limpiar
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Agrupar por</span>
+            {GROUP_FIELDS.map(f => (
+              <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6b7280', cursor: 'pointer' }}>
+                <input type="checkbox" checked={groupBy.includes(f.key)} onChange={() => toggleGroup(f.key)}
+                  style={{ width: 13, height: 13, cursor: 'pointer' }} />
+                {f.label}
+              </label>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1029,7 +1036,7 @@ export default function CausasRecorteTablero() {
               </colgroup>
             )}
             <thead>
-              <tr style={{ background: '#2563eb' }}>
+              <tr style={{ background: '#1a2e38' }}>
                 {topNLayout.orderedColumns.map(col => {
                   const key = col.key ?? col.label
                   return (
@@ -1063,7 +1070,7 @@ export default function CausasRecorteTablero() {
                 )}
               </tr>
               {showDetalleDiaTopN && (recorteExpanded || consumoExpanded) && (
-                <tr style={{ background: '#2563eb' }}>
+                <tr style={{ background: '#1a2e38' }}>
                   {recorteExpanded && recorteDayCols.map(dayIdx => (
                     <th key={`tn-rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: RECORTE_COLORS.date,
@@ -1083,7 +1090,7 @@ export default function CausasRecorteTablero() {
                 </tr>
               )}
               {showDetalleDiaTopN && (recorteExpanded || consumoExpanded) && (
-                <tr style={{ background: '#2563eb' }}>
+                <tr style={{ background: '#1a2e38' }}>
                   {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                     <th key={`tn-rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: RECORTE_COLORS.metric,
@@ -1174,7 +1181,7 @@ export default function CausasRecorteTablero() {
           border: '1px dashed var(--border)', borderRadius: 12 }}>
           Selecciona un rango de fechas (Desde / Hasta) para ver los datos.
         </div>
-      ) : loading ? (
+      ) : loading && data.rows.length === 0 ? (
         <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0' }}>Cargando…</div>
       ) : data.rows.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '32px 0', color: '#9ca3af', fontSize: 13,
@@ -1184,7 +1191,8 @@ export default function CausasRecorteTablero() {
       ) : (
         <>
           <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
-            boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
+            boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)',
+            opacity: loading ? 0.55 : 1, transition: 'opacity 0.12s' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, tableLayout: 'fixed' }}>
               {showDetalleDia && (
                 <colgroup>
@@ -1204,7 +1212,7 @@ export default function CausasRecorteTablero() {
                 </colgroup>
               )}
               <thead>
-                <tr style={{ background: '#2563eb' }}>
+                <tr style={{ background: '#1a2e38' }}>
                   {layout.orderedColumns.map(col => {
                     const key = col.key ?? col.label
                     return (
@@ -1240,7 +1248,7 @@ export default function CausasRecorteTablero() {
                   )}
                 </tr>
                 {showDetalleDia && (recorteExpanded || consumoExpanded) && (
-                  <tr style={{ background: '#2563eb' }}>
+                  <tr style={{ background: '#1a2e38' }}>
                     {recorteExpanded && recorteDayCols.map(dayIdx => (
                       <th key={`rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: RECORTE_COLORS.date,
@@ -1260,7 +1268,7 @@ export default function CausasRecorteTablero() {
                   </tr>
                 )}
                 {showDetalleDia && (recorteExpanded || consumoExpanded) && (
-                  <tr style={{ background: '#2563eb' }}>
+                  <tr style={{ background: '#1a2e38' }}>
                     {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                       <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: RECORTE_COLORS.metric,
