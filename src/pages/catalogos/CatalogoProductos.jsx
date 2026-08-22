@@ -56,10 +56,15 @@ function parseCSVGeneric(text, cols) {
   const headers = splitCSVLine(lines[0]).map(h => h.trim())
   const missing = cols.filter(c => !headers.includes(c))
   if (missing.length) return { rows: [], error: `Columnas faltantes: ${missing.join(', ')}` }
-  const rows = lines.slice(1).map(line => {
-    const vals = splitCSVLine(line)
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? '']))
-  })
+  const rows = []
+  for (let i = 1; i < lines.length; i++) {
+    const vals = splitCSVLine(lines[i])
+    if (vals.length !== headers.length) {
+      return { rows: [], error: `Fila ${i + 1}: tiene ${vals.length} columnas, se esperaban ${headers.length}. `
+        + `Probablemente hay una coma sin comillas dentro de un texto (ej. en un nombre) que descuadra las columnas siguientes.` }
+    }
+    rows.push(Object.fromEntries(headers.map((h, idx) => [h, vals[idx] ?? ''])))
+  }
   return { rows, error: null }
 }
 
