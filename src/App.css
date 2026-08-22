@@ -3,7 +3,7 @@
 /* ── Sidebar ── */
 .sidebar {
   width: 230px; min-width: 230px;
-  background: #fbfbfd; border-right: 1px solid var(--border);
+  background: #ffffff; border-right: 1px solid var(--border);
   display: flex; flex-direction: column; overflow: hidden;
   transition: width 0.15s ease, min-width 0.15s ease;
 }
