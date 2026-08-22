@@ -211,6 +211,7 @@ export default function ExistenciaTeoricaTablero() {
 
   const [data, setData] = useState({ total: 0, ejecucionId: null, rows: [], totals: null })
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(null)
   const [exporting, setExporting] = useState(false)
   const [hoveredRow, setHoveredRow] = useState(null)
   // La tabla no se carga sola al tocar los filtros — solo al pulsar "Analizar".
@@ -240,6 +241,7 @@ export default function ExistenciaTeoricaTablero() {
   const load = useCallback(async (pageOverride) => {
     if (!fechaVenta) { setData({ total: 0, ejecucionId: null, rows: [], totals: null }); return }
     setLoading(true)
+    setLoadError(null)
     try {
       const p = pageOverride ?? page
       const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE), fechaVenta })
@@ -250,9 +252,15 @@ export default function ExistenciaTeoricaTablero() {
       if (sortBy)     { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
       const r = await fetch(`${API}/api/existencia-teorica/tablero?${params}`)
-      if (r.ok) setData(await r.json())
-    } catch {}
-    finally { setLoading(false) }
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.detail || d.title || `HTTP ${r.status}`)
+      }
+      setData(await r.json())
+    } catch (e) {
+      setLoadError(e.message)
+      setData({ total: 0, ejecucionId: null, rows: [], totals: null })
+    } finally { setLoading(false) }
   }, [fechaVenta, organizacion, codigoCeve, categoria, search, sortBy, sortDir, page])
 
   // Página y orden sí recargan solos, pero solo después de haber analizado al
@@ -505,6 +513,14 @@ export default function ExistenciaTeoricaTablero() {
         </div>
       ) : loading && data.rows.length === 0 ? (
         <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0' }}>Cargando…</div>
+      ) : loadError ? (
+        <div style={{ textAlign: 'center', padding: '32px 0', color: '#991b1b', fontSize: 13,
+          border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 12 }}>
+          No se pudo cargar la información: {loadError}
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => load()} className="btn">↻ Reintentar</button>
+          </div>
+        </div>
       ) : data.rows.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '32px 0', color: '#9ca3af', fontSize: 13,
           border: '1px dashed var(--border)', borderRadius: 12 }}>
