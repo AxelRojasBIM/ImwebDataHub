@@ -25,7 +25,7 @@ import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
 import Login from './pages/Login'
 import Administracion from './pages/admin/Administracion'
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, Boxes, LogOut } from 'lucide-react'
 import { useAuth } from './AuthContext'
 import { hasMenuAccess, firstAllowedPath } from './permissions'
 import nav from './navConfig'
@@ -71,6 +71,12 @@ export default function App() {
   return <AppShell usuario={usuario} logout={logout} />
 }
 
+function initials(nombreCompleto) {
+  const parts = (nombreCompleto ?? '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase()
+}
+
 function AppShell({ usuario, logout }) {
   const rol = usuario.rol
   const navFiltered = nav
@@ -90,15 +96,23 @@ function AppShell({ usuario, logout }) {
     <div className="shell">
       <aside className={'sidebar' + (collapsed ? ' collapsed' : '')}>
         <div className="sidebar-logo">
-          {!collapsed && (
-            <div>
-              <div className="logo-title"><span className="logo-title-accent">CeVe</span>Data</div>
-              <div className="logo-sub">Gestión e indicadores</div>
-            </div>
+          {collapsed ? (
+            <button className="logo-icon-chip" style={{ border: 'none', cursor: 'pointer' }}
+              onClick={toggleCollapsed} title="Expandir menú">
+              <Boxes size={17} strokeWidth={2} />
+            </button>
+          ) : (
+            <>
+              <div className="logo-icon-chip"><Boxes size={17} strokeWidth={2} /></div>
+              <div>
+                <div className="logo-title"><span className="logo-title-accent">CeVe</span>Data</div>
+                <div className="logo-sub">Gestión e indicadores</div>
+              </div>
+              <button className="sidebar-collapse-btn" onClick={toggleCollapsed} title="Contraer menú">
+                <ChevronLeft size={15} strokeWidth={2} />
+              </button>
+            </>
           )}
-          <button className="sidebar-collapse-btn" onClick={toggleCollapsed} title={collapsed ? 'Expandir menú' : 'Contraer menú'}>
-            {collapsed ? <ChevronRight size={15} strokeWidth={2} /> : <ChevronLeft size={15} strokeWidth={2} />}
-          </button>
         </div>
 
         <nav className="sidebar-nav">
@@ -122,10 +136,20 @@ function AppShell({ usuario, logout }) {
         </nav>
 
         <div className="sidebar-footer">
-          {!collapsed && <div className="sidebar-footer-name">{usuario.nombreCompleto}</div>}
-          <button className="sidebar-footer-logout" onClick={logout} title={collapsed ? 'Cerrar sesión' : undefined}>
-            {collapsed ? '⏻' : 'Cerrar sesión'}
-          </button>
+          <div className="sidebar-footer-avatar" title={usuario.nombreCompleto}>{initials(usuario.nombreCompleto)}</div>
+          {!collapsed && (
+            <div className="sidebar-footer-info">
+              <div className="sidebar-footer-name">{usuario.nombreCompleto}</div>
+              <button className="sidebar-footer-logout" onClick={logout}>
+                <LogOut size={11} strokeWidth={2} /> Cerrar sesión
+              </button>
+            </div>
+          )}
+          {collapsed && (
+            <button className="sidebar-footer-logout" onClick={logout} title="Cerrar sesión">
+              <LogOut size={14} strokeWidth={2} />
+            </button>
+          )}
         </div>
       </aside>
 
