@@ -355,8 +355,8 @@ function ExtractoInventarioCard() {
         setExportResult({ ok: true, count: 0 })
         return
       }
-      const header = ['Origen', 'Fecha', 'CeVe', 'Nombre CeVe', 'Región', 'Organización', 'Item', 'Cantidad Total']
-      const body = rows.map(r => [r.origen, r.fechaCaptura, r.ceveNombre, r.nombreCeve, r.region, r.organizacion, r.skuCodigo, r.cantidadTotal])
+      const header = ['Origen', 'Fecha', 'CeVe', 'Nombre CeVe', 'Región', 'Organización', 'Item', 'Descripción', 'Marca', 'Categoría', 'Código Tray', 'Cupo (Tray)', 'Cupo Torre (Container)', 'Precio', 'Cantidad Total']
+      const body = rows.map(r => [r.origen, r.fechaCaptura, r.ceveNombre, r.nombreCeve, r.region, r.organizacion, r.skuCodigo, r.longName, r.brand, r.categoryItem, r.trayCode, r.trayCapacity, r.containerCapacity, r.price, r.cantidadTotal])
       downloadCsv(`extracto_inventario_${fecha}.csv`, [header, ...body])
       setExportResult({ ok: true, count: rows.length })
     } catch (e) {
