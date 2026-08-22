@@ -106,10 +106,10 @@ export default function ExistenciaTeorica() {
 
       {/* Parámetros de ejecución */}
       <div style={{
-        background: '#f8faff', border: '1px solid #c7d7fd', borderRadius: 14,
-        padding: '22px 24px', marginBottom: 28,
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-card)', padding: '22px 24px', marginBottom: 28,
       }}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#1e3a8a', marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>
           Parámetros de ejecución
         </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -161,13 +161,13 @@ export default function ExistenciaTeorica() {
           Sin ejecuciones registradas aún.
         </div>
       ) : (
-        <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
+        <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#f9fafb' }}>
+              <tr style={{ background: 'var(--surface-2)' }}>
                 {['Fecha venta','Fecha proceso','Ejecutado por','Ejecutado el','Duración','Filas','Estado',''].map(h => (
-                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600,
-                    color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                  <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontWeight: 600,
+                    color: 'var(--text-2)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -177,31 +177,31 @@ export default function ExistenciaTeorica() {
                 const enCurso = row.estado === 'ejecutando'
                 const eliminando = deletingId === row.ejecucionId
                 return (
-                  <tr key={row.ejecucionId ?? i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding: '9px 14px' }}>{row.fechaSel}</td>
-                    <td style={{ padding: '9px 14px' }}>{row.fechaProceso}</td>
-                    <td style={{ padding: '9px 14px' }}>{row.usuario ?? '—'}</td>
-                    <td style={{ padding: '9px 14px' }}>{dt ? dt.toLocaleString('es-MX') : '—'}</td>
-                    <td style={{ padding: '9px 14px' }}>{fmtDur(row.duracionMs)}</td>
-                    <td style={{ padding: '9px 14px', fontWeight: 600 }}>{row.totalFilas?.toLocaleString() ?? '—'}</td>
-                    <td style={{ padding: '9px 14px' }} title={row.detalle ?? ''}>
+                  <tr key={row.ejecucionId ?? i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '10px 16px' }}>{row.fechaSel}</td>
+                    <td style={{ padding: '10px 16px' }}>{row.fechaProceso}</td>
+                    <td style={{ padding: '10px 16px' }}>{row.usuario ?? '—'}</td>
+                    <td style={{ padding: '10px 16px' }}>{dt ? dt.toLocaleString('es-MX') : '—'}</td>
+                    <td style={{ padding: '10px 16px' }}>{fmtDur(row.duracionMs)}</td>
+                    <td style={{ padding: '10px 16px', fontWeight: 600 }}>{row.totalFilas?.toLocaleString() ?? '—'}</td>
+                    <td style={{ padding: '10px 16px' }} title={row.detalle ?? ''}>
                       <span style={{
                         display: 'inline-block', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
                         background: row.estado === 'OK' ? '#dcfce7' : enCurso ? '#dbeafe' : '#fef2f2',
                         color:      row.estado === 'OK' ? '#166534' : enCurso ? '#1d4ed8' : '#991b1b',
                       }}>{row.estado}</span>
                     </td>
-                    <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
                       {row.estado === 'OK' && (
                         <button onClick={() => handleExportar(row.ejecucionId)}
-                          style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 6,
-                            color: '#1d4ed8', cursor: 'pointer', padding: '3px 10px', fontSize: 12, marginRight: 6 }}>
+                          style={{ background: 'var(--accent-bg)', border: 'none', borderRadius: 999,
+                            color: 'var(--accent-text)', cursor: 'pointer', padding: '4px 12px', fontSize: 11.5, fontWeight: 600, marginRight: 6 }}>
                           Exportar
                         </button>
                       )}
                       <button onClick={() => handleEliminar(row.ejecucionId)} disabled={eliminando}
-                        style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 6,
-                          color: '#dc2626', cursor: eliminando ? 'default' : 'pointer', padding: '3px 10px', fontSize: 12,
+                        style={{ background: '#fef2f2', border: 'none', borderRadius: 999,
+                          color: '#dc2626', cursor: eliminando ? 'default' : 'pointer', padding: '4px 12px', fontSize: 11.5, fontWeight: 600,
                           opacity: eliminando ? 0.5 : 1 }}>
                         {eliminando ? '…' : 'Eliminar'}
                       </button>
