@@ -15,6 +15,10 @@ OBM,0108,108,BaguePrec280g,Baguette Precocida Cong 1p 280g BOLSA DH,9.88,7501000
 
 const PREVIEW_COLS = ['OrgCode','ItemCode','ShortName','Brand','CategoryItem','Price']
 
+// Columnas que deberían traer un código corto sin espacios; si aparecen con
+// espacios es señal de que esa fila viene descuadrada en el CSV de origen.
+const CODE_COLS = ['OrgCode','ItemCode','MasterCode','Barcode','TrayChecking','TrayCode','ContainerCode']
+
 // ── RTM (M05_ProductMaster) ─────────────────────────────────────────────────
 const RTM_COLS = [
   'Product_Id','Product_code','Product_Global_Code','Product_Full_Desc','Product_Short_Desc',
@@ -30,6 +34,12 @@ const RTM_TEMPLATE = `${RTM_COLS.join(',')}
 `
 
 const RTM_PREVIEW_COLS = ['Product_code','Product_Short_Desc','Brand_Name','Category_Name','Piece_Price']
+
+const RTM_CODE_COLS = [
+  'Product_Id','Product_code','Product_Global_Code','Company_Code','Brand_Code','Category_Code',
+  'Segment_Code','Line_Code','Base_Uom','PrimarySalesUOM','Product_BarCode','Sequence',
+  'IsSalable','IsReturnable','Tray_Code','Clave_Prod','Clave_Unidad','Unit_Measure','MRP','Instance','Active'
+]
 
 // Parser de CSV completo (no línea por línea): respeta comillas incluso si el
 // campo trae saltos de línea adentro (ej. una descripción exportada con \n),
@@ -62,21 +72,53 @@ function parseCSVRows(text) {
   return rows.filter(r => !(r.length === 1 && r[0] === ''))
 }
 
-function parseCSVGeneric(text, cols) {
+// Revisa columnas que deberían traer códigos cortos (sin espacios). Si un valor
+// trae espacios ahí, casi seguro esa fila viene descuadrada en el CSV de origen
+// (por ejemplo, un campo vacío que el exportador omitió en vez de dejarlo en
+// blanco, lo que recorre una posición todas las columnas siguientes de esa fila
+// aunque el total de columnas siga cuadrando). Esto es lo que NO detecta la
+// validación de conteo de columnas, así que se revisa aparte y de una vez sobre
+// todo el archivo, en lugar de ir descubriendo fila por fila con errores del
+// servidor.
+function findCodeAnomalies(allRows, headers, codeCols) {
+  const idxs = codeCols.map(c => headers.indexOf(c)).filter(idx => idx !== -1).map((idx, k) => ({ col: codeCols[k], idx }))
+  const anomalies = []
+  for (let i = 1; i < allRows.length; i++) {
+    const vals = allRows[i]
+    for (const { col, idx } of idxs) {
+      const v = vals[idx] ?? ''
+      if (v.includes(' ')) anomalies.push({ line: i + 1, col, value: v })
+    }
+  }
+  return anomalies
+}
+
+function parseCSVGeneric(text, cols, codeCols = []) {
   const allRows = parseCSVRows(text)
   if (allRows.length < 2) return { rows: [], error: 'El archivo está vacío.' }
   const headers = allRows[0]
   const missing = cols.filter(c => !headers.includes(c))
   if (missing.length) return { rows: [], error: `Columnas faltantes: ${missing.join(', ')}` }
-  const rows = []
   for (let i = 1; i < allRows.length; i++) {
     const vals = allRows[i]
     if (vals.length !== headers.length) {
       return { rows: [], error: `Fila ${i + 1}: tiene ${vals.length} columnas, se esperaban ${headers.length}. `
         + `Probablemente hay una coma sin comillas dentro de un texto (ej. en un nombre) que descuadra las columnas siguientes.` }
     }
-    rows.push(Object.fromEntries(headers.map((h, idx) => [h, vals[idx] ?? ''])))
   }
+  const anomalies = findCodeAnomalies(allRows, headers, codeCols)
+  if (anomalies.length) {
+    const MAX = 25
+    const detalle = anomalies.slice(0, MAX)
+      .map(a => `Fila ${a.line}, columna ${a.col}: "${a.value}"`)
+      .join('\n')
+    const resto = anomalies.length > MAX ? `\n… y ${anomalies.length - MAX} filas más con el mismo problema.` : ''
+    return { rows: [], error:
+      `${anomalies.length} fila(s) parecen venir descuadradas: traen texto largo en una columna que debería ser un código corto `
+      + `(seguramente por un campo vacío que el CSV de origen omitió en vez de dejarlo en blanco).\n\n${detalle}${resto}\n\n`
+      + `Corrige esas filas en el archivo de origen y vuelve a subirlo.` }
+  }
+  const rows = allRows.slice(1).map(vals => Object.fromEntries(headers.map((h, idx) => [h, vals[idx] ?? ''])))
   return { rows, error: null }
 }
 
@@ -169,7 +211,7 @@ function hubRowToCsv(r) {
 }
 
 /** Sección genérica de carga CSV + historial de cargas, reutilizada por HubPedidos y RTM. */
-function CargaCsvSection({ apiPath, cols, template, templateFilename, previewCols, mapRow, rowToCsv, exportFilenamePrefix, dropHint, unitLabel }) {
+function CargaCsvSection({ apiPath, cols, codeCols, template, templateFilename, previewCols, mapRow, rowToCsv, exportFilenamePrefix, dropHint, unitLabel }) {
   const [file, setFile]             = useState(null)
   const [rows, setRows]             = useState([])
   const [parseError, setParseError] = useState(null)
@@ -199,7 +241,7 @@ function CargaCsvSection({ apiPath, cols, template, templateFilename, previewCol
     setFile(f)
     const reader = new FileReader()
     reader.onload = e => {
-      const { rows: parsed, error } = parseCSVGeneric(e.target.result, cols)
+      const { rows: parsed, error } = parseCSVGeneric(e.target.result, cols, codeCols)
       setParseError(error)
       setRows(parsed)
     }
@@ -281,7 +323,7 @@ function CargaCsvSection({ apiPath, cols, template, templateFilename, previewCol
         </div>
       )}
       {parseError && (
-        <div className="error-msg">{parseError}
+        <div className="error-msg" style={{ whiteSpace: 'pre-line' }}>{parseError}
           <button className="btn" style={{ marginLeft: 10 }} onClick={() => { setFile(null); setRows([]); setParseError(null) }}>Reintentar</button>
         </div>
       )}
@@ -446,6 +488,7 @@ export default function CatalogoProductos() {
           <CargaCsvSection
             apiPath="/api/productos-hub"
             cols={COLS}
+            codeCols={CODE_COLS}
             template={TEMPLATE}
             templateFilename="template_productos_hub.csv"
             previewCols={PREVIEW_COLS}
@@ -461,6 +504,7 @@ export default function CatalogoProductos() {
           <CargaCsvSection
             apiPath="/api/rtm"
             cols={RTM_COLS}
+            codeCols={RTM_CODE_COLS}
             template={RTM_TEMPLATE}
             templateFilename="template_rtm.csv"
             previewCols={RTM_PREVIEW_COLS}
