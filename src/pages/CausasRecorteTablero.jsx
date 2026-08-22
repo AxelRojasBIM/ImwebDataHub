@@ -48,7 +48,7 @@ const CAUSA_STYLES = {
   'Consumo arriba del promedio':      { bg: '#fffbeb', border: '#fde68a', text: '#92400e' },
   'Existencia CeVe':                  { bg: '#ecfdf5', border: '#6ee7b7', text: '#065f46' },
   'Sin causa identificada':           { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' },
-  'Sin Pedido CeVe Ult Semana':       { bg: '#f5f3ff', border: '#ddd6fe', text: '#5b21b6' },
+  'Sin Pedido CeVe Ult Semana':       { bg: '#ecfeff', border: '#a5f3fc', text: '#0e7490' },
 }
 const CAUSA_OPTS = Object.keys(CAUSA_STYLES)
 
@@ -124,7 +124,7 @@ const HDR_DIVIDER_STRONG = '2px solid rgba(0,0,0,0.18)'
 // Colores vivos por bloque (título/fecha/métrica) para que ambos análisis
 // resalten más que el resto del encabezado — tonos ejecutivos (índigo/verde
 // azulado), no rojo/marrón, para no leerse como una alerta de error.
-const RECORTE_COLORS = { title: '#4338ca', date: '#4f46e5', metric: '#4338ca' }
+const RECORTE_COLORS = { title: '#1a56db', date: '#2563eb', metric: '#1a56db' }
 const CONSUMO_COLORS = { title: '#0f766e', date: '#0d9488', metric: '#0f766e' }
 
 // Detalle día por día (solo tiene sentido cuando la vista está en un solo día,
@@ -617,7 +617,7 @@ export default function CausasRecorteTablero() {
           title="Clic para expandir/contraer"
           style={{
             padding: '2px 8px', fontSize: 10.5, fontWeight: 600, borderRadius: 6, cursor: 'pointer',
-            background: isOpen ? '#4338ca' : '#eef2ff', color: isOpen ? '#fff' : '#4338ca',
+            background: isOpen ? '#1a56db' : '#eef2ff', color: isOpen ? '#fff' : '#1a56db',
             border: '1px solid #c7d2fe', whiteSpace: 'nowrap',
           }}>
           Pedido Tránsito {isOpen ? '▲' : '▼'}
@@ -634,7 +634,7 @@ export default function CausasRecorteTablero() {
                 <div key={dayIdx} style={{ display: 'flex', justifyContent: 'space-between', gap: 12,
                   fontSize: 11.5, padding: '2px 0', whiteSpace: 'nowrap' }}>
                   <span style={{ color: '#6b7280' }}>Tránsito vta {dayLabel(dayIdx)}</span>
-                  <span style={{ fontWeight: 700, color: '#4338ca' }}>Pedido CeVe: {fmtNum(v)}</span>
+                  <span style={{ fontWeight: 700, color: '#1a56db' }}>Pedido CeVe: {fmtNum(v)}</span>
                 </div>
               )
             })}
@@ -883,7 +883,7 @@ export default function CausasRecorteTablero() {
       {/* Resumen rápido */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexShrink: 0, flexWrap: 'wrap' }}>
         <StatCard
-          icon={<Layers size={19} />} iconBg="#f5f3ff" iconColor="#7c3aed"
+          icon={<Layers size={19} />} iconBg="#eff4ff" iconColor="#1a56db"
           label="Registros" value={fechasListas ? data.total.toLocaleString() : '—'}
           hint={agrupado ? 'grupos' : 'filas'} />
         <StatCard
