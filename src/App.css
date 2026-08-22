@@ -1,4 +1,7 @@
-.shell { display: flex; height: 100vh; overflow: hidden; }
+.shell {
+  display: flex; height: 100%; width: 100%; overflow: hidden;
+  border-radius: 18px; box-shadow: 0 8px 30px rgba(15,23,42,0.12), 0 1px 3px rgba(15,23,42,0.08);
+}
 
 /* ── Sidebar ── */
 .sidebar {
