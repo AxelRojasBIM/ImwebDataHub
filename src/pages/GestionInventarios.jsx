@@ -323,10 +323,14 @@ function ExtractoInventarioCard() {
   const [error, setError] = useState(null)
   const [exportando, setExportando] = useState(false)
   const [exportResult, setExportResult] = useState(null)
+  const [soloFueraCatalogo, setSoloFueraCatalogo] = useState(false)
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
 
   async function handleConsultar() {
     if (!fecha) return
     setConsultando(true); setError(null); setCobertura(null); setExportResult(null)
+    setSoloFueraCatalogo(false); setSortKey(null); setSortDir('asc')
     try {
       const r = await fetch(`${API}/api/gestion-inventarios/cobertura?fecha=${fecha}`)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -374,6 +378,29 @@ function ExtractoInventarioCard() {
     const body = fueraCatalogo.map(c => [c.codigoCeve, c.ivy ? 'Sí' : '', c.ivyPioneros ? 'Sí' : '', c.integralVending ? 'Sí' : '', c.wms ? 'Sí' : ''])
     downloadCsv(`ceves_fuera_de_catalogo_${fecha}.csv`, [header, ...body])
   }
+
+  function handleSort(key) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const SORT_ACCESSORS = {
+    codigoCeve:      c => Number(c.codigoCeve) || 0,
+    nombreCeve:      c => (c.nombreCeve ?? '').toLowerCase(),
+    region:          c => (c.region ?? '').toLowerCase(),
+    organizacion:    c => (c.organizacion ?? '').toLowerCase(),
+    ivy:             c => c.ivy ? 1 : 0,
+    ivyPioneros:     c => c.ivyPioneros ? 1 : 0,
+    integralVending: c => c.integralVending ? 1 : 0,
+    wms:             c => c.wms ? 1 : 0,
+  }
+
+  const filasBase = soloFueraCatalogo ? fueraCatalogo : (cobertura ?? [])
+  const filasVisibles = sortKey ? [...filasBase].sort((a, b) => {
+    const av = SORT_ACCESSORS[sortKey](a), bv = SORT_ACCESSORS[sortKey](b)
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0
+    return sortDir === 'asc' ? cmp : -cmp
+  }) : filasBase
 
   // Resumen por Organización (una tarjeta por cada una, ej. Bimbo / Barcel), con
   // desglose de CeVes con datos / total por Región dentro de cada tarjeta.
@@ -485,12 +512,19 @@ function ExtractoInventarioCard() {
           </div>
 
           {fueraCatalogo.length > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <button onClick={handleDescargarFueraCatalogo} style={{
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <button onClick={() => setSoloFueraCatalogo(v => !v)} style={{
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                fontSize: 11.5, color: soloFueraCatalogo ? '#4338ca' : '#9ca3af',
+                textDecoration: 'underline', textUnderlineOffset: 2, fontWeight: soloFueraCatalogo ? 700 : 400,
+              }}>
+                {soloFueraCatalogo ? '✕ Quitar filtro' : `🔎 Ver ${fueraCatalogo.length} código${fueraCatalogo.length === 1 ? '' : 's'} de CeVe fuera del catálogo`}
+              </button>
+              <button onClick={handleDescargarFueraCatalogo} title="Descargar CSV de estos códigos" style={{
                 background: 'none', border: 'none', padding: 0, cursor: 'pointer',
                 fontSize: 11.5, color: '#9ca3af', textDecoration: 'underline', textUnderlineOffset: 2,
               }}>
-                ⬇ {fueraCatalogo.length} código{fueraCatalogo.length === 1 ? '' : 's'} de CeVe con existencia pero fuera del catálogo
+                ⬇ descargar
               </button>
             </div>
           )}
@@ -516,12 +550,15 @@ function ExtractoInventarioCard() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
-                  {['CeVe', 'Nombre', 'Región', 'Organización', 'IVY', 'IVY Pioneros', 'IV', 'WMS'].map((h, i) => (
-                    <th key={h} style={{
+                  {[
+                    ['CeVe', 'codigoCeve'], ['Nombre', 'nombreCeve'], ['Región', 'region'], ['Organización', 'organizacion'],
+                    ['IVY', 'ivy'], ['IVY Pioneros', 'ivyPioneros'], ['IV', 'integralVending'], ['WMS', 'wms'],
+                  ].map(([h, key], i) => (
+                    <th key={h} onClick={() => handleSort(key)} title="Clic para ordenar" style={{
                       padding: '9px 14px', height: 34, boxSizing: 'border-box', textAlign: i >= 4 ? 'center' : 'left', fontWeight: 600,
-                      color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
-                      position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2,
-                    }}>{h}</th>
+                      color: sortKey === key ? '#1a56db' : '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+                      position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2, cursor: 'pointer', userSelect: 'none',
+                    }}>{h}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>
                   ))}
                 </tr>
                 {/* Fila de totales fija: no se mueve al hacer scroll de la tabla, para
@@ -542,7 +579,7 @@ function ExtractoInventarioCard() {
                 </tr>
               </thead>
               <tbody>
-                {cobertura.map((c, i) => (
+                {filasVisibles.map((c, i) => (
                   <tr key={c.codigoCeve} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '6px 14px', fontWeight: 600, whiteSpace: 'nowrap' }}>{c.codigoCeve}</td>
                     {c.enCatalogo ? (
