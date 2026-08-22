@@ -1,5 +1,47 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Calendar, Layers, Package, DollarSign } from 'lucide-react'
 import { API } from '../App'
+
+// Input de fecha con estilo propio — el <input type="date"> nativo se deja
+// transparente y sin su ícono feo (::-webkit-calendar-picker-indicator
+// estirado a full-size e invisible) y se dibuja un ícono/placeholder propios
+// encima, para que abra el mismo calendario del sistema pero se vea acorde
+// al resto de la UI en vez del widget crudo del navegador.
+function DateField({ value, onChange, max, min }) {
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+      <Calendar size={14} style={{ position: 'absolute', left: 10, color: '#9ca3af', pointerEvents: 'none' }} />
+      <input type="date" value={value} max={max} min={min} onChange={onChange}
+        style={{
+          padding: '7px 10px 7px 30px', borderRadius: 9, border: '1px solid var(--border)',
+          fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400,
+          color: value ? 'var(--text)' : '#9ca3af', width: 132, outline: 'none',
+        }} />
+    </div>
+  )
+}
+
+function StatCard({ icon, iconBg, iconColor, label, value, hint }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14, background: '#fff',
+      border: '1px solid var(--border)', borderRadius: 16, padding: '16px 18px',
+      boxShadow: 'var(--shadow-card)', flex: 1, minWidth: 180,
+    }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 12, background: iconBg, color: iconColor,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        {icon}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 11.5, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+        {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{hint}</div>}
+      </div>
+    </div>
+  )
+}
 
 const CAUSA_STYLES = {
   'Recorte Fabrica':                  { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b' },
@@ -827,15 +869,29 @@ export default function CausasRecorteTablero() {
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box',
+    <div style={{ width: '100%', height: '100%', padding: '24px 32px', boxSizing: 'border-box',
       display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ marginBottom: 16, flexShrink: 0 }}>
+      <div style={{ marginBottom: 20, flexShrink: 0 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
           Causas Recorte
         </h1>
         <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
           Detalle de recortes con la causa diagnosticada (Recorte Fábrica vs. Consumo arriba del promedio).
         </p>
+      </div>
+
+      {/* Resumen rápido */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexShrink: 0, flexWrap: 'wrap' }}>
+        <StatCard
+          icon={<Layers size={19} />} iconBg="#f5f3ff" iconColor="#7c3aed"
+          label="Registros" value={fechasListas ? data.total.toLocaleString() : '—'}
+          hint={agrupado ? 'grupos' : 'filas'} />
+        <StatCard
+          icon={<Package size={19} />} iconBg="#fef2f2" iconColor="#dc2626"
+          label="Recorte Total Pzs" value={fechasListas ? fmtNum(data.totalRecortePzs) : '—'} />
+        <StatCard
+          icon={<DollarSign size={19} />} iconBg="#fffbeb" iconColor="#d97706"
+          label="Recorte Total $" value={fechasListas ? fmtMoney(data.totalRecorteUsd) : '—'} />
       </div>
 
       {/* Filtros */}
@@ -846,13 +902,11 @@ export default function CausasRecorteTablero() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 10 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Desde *
-            <input type="date" value={fechaInicio} max={fechaFin || HOY_ISO} onChange={e => updateFechaInicio(e.target.value)}
-              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400 }} />
+            <DateField value={fechaInicio} max={fechaFin || HOY_ISO} onChange={e => updateFechaInicio(e.target.value)} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Hasta *
-            <input type="date" value={fechaFin} min={fechaInicio || undefined} max={HOY_ISO} onChange={e => updateFechaFin(e.target.value)}
-              style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff', textTransform: 'none', fontWeight: 400 }} />
+            <DateField value={fechaFin} min={fechaInicio || undefined} max={HOY_ISO} onChange={e => updateFechaFin(e.target.value)} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Región
