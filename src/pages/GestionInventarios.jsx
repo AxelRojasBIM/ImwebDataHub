@@ -326,11 +326,13 @@ function ExtractoInventarioCard() {
   const [soloFueraCatalogo, setSoloFueraCatalogo] = useState(false)
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState('asc')
+  const [filtroRegion, setFiltroRegion] = useState('')
+  const [filtroOrg, setFiltroOrg] = useState('')
 
   async function handleConsultar() {
     if (!fecha) return
     setConsultando(true); setError(null); setCobertura(null); setExportResult(null)
-    setSoloFueraCatalogo(false); setSortKey(null); setSortDir('asc')
+    setSoloFueraCatalogo(false); setSortKey(null); setSortDir('asc'); setFiltroRegion(''); setFiltroOrg('')
     try {
       const r = await fetch(`${API}/api/gestion-inventarios/cobertura?fecha=${fecha}`)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -395,12 +397,17 @@ function ExtractoInventarioCard() {
     wms:             c => c.wms ? 1 : 0,
   }
 
-  const filasBase = soloFueraCatalogo ? fueraCatalogo : (cobertura ?? [])
-  const filasVisibles = sortKey ? [...filasBase].sort((a, b) => {
+  const regionesDisponibles = cobertura ? [...new Set(cobertura.map(c => c.region ?? 'Sin región'))].sort() : []
+  const orgsDisponibles = cobertura ? [...new Set(cobertura.map(c => c.organizacion ?? 'Sin organización'))].sort() : []
+
+  const filasFiltradas = (soloFueraCatalogo ? fueraCatalogo : (cobertura ?? []))
+    .filter(c => !filtroRegion || (c.region ?? 'Sin región') === filtroRegion)
+    .filter(c => !filtroOrg || (c.organizacion ?? 'Sin organización') === filtroOrg)
+  const filasVisibles = sortKey ? [...filasFiltradas].sort((a, b) => {
     const av = SORT_ACCESSORS[sortKey](a), bv = SORT_ACCESSORS[sortKey](b)
     const cmp = av < bv ? -1 : av > bv ? 1 : 0
     return sortDir === 'asc' ? cmp : -cmp
-  }) : filasBase
+  }) : filasFiltradas
 
   // Resumen por Organización (una tarjeta por cada una, ej. Bimbo / Barcel), con
   // desglose de CeVes con datos / total por Región dentro de cada tarjeta.
@@ -502,8 +509,32 @@ function ExtractoInventarioCard() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 6 }}>
-            <div style={{ fontSize: 12.5, color: '#374151' }}>
-              <strong>{totalConDatos.toLocaleString('es-MX')}</strong> de <strong>{cobertura.length.toLocaleString('es-MX')}</strong> CeVes con inventario cargado el {fecha}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12.5, color: '#374151' }}>
+                <strong>{totalConDatos.toLocaleString('es-MX')}</strong> de <strong>{cobertura.length.toLocaleString('es-MX')}</strong> CeVes con inventario cargado el {fecha}
+              </div>
+              <select value={filtroRegion} onChange={e => setFiltroRegion(e.target.value)} style={{
+                fontSize: 11.5, padding: '3px 6px', borderRadius: 6, border: '1px solid #e5e7eb',
+                background: filtroRegion ? '#eef2ff' : '#fff', color: filtroRegion ? '#4338ca' : '#6b7280',
+              }}>
+                <option value="">Región: todas</option>
+                {regionesDisponibles.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <select value={filtroOrg} onChange={e => setFiltroOrg(e.target.value)} style={{
+                fontSize: 11.5, padding: '3px 6px', borderRadius: 6, border: '1px solid #e5e7eb',
+                background: filtroOrg ? '#eef2ff' : '#fff', color: filtroOrg ? '#4338ca' : '#6b7280',
+              }}>
+                <option value="">Organización: todas</option>
+                {orgsDisponibles.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              {(filtroRegion || filtroOrg) && (
+                <button onClick={() => { setFiltroRegion(''); setFiltroOrg('') }} style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  fontSize: 11.5, color: '#9ca3af', textDecoration: 'underline', textUnderlineOffset: 2,
+                }}>
+                  ✕ limpiar
+                </button>
+              )}
             </div>
             <button className="btn primary" onClick={handleExportar} disabled={exportando}
               style={{ padding: '7px 18px', fontWeight: 700, fontSize: 12.5 }}>
