@@ -254,9 +254,9 @@ function TabCarga({ onSaved }) {
           onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
           onDragOver={e => e.preventDefault()}
           onClick={() => inputRef.current.click()}
-          style={{ border: '2px dashed #93b4fd', borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', background: '#f0f4ff', marginBottom: 20 }}
+          style={{ border: '2px dashed #a5b4fc', borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', background: '#f0f4ff', marginBottom: 20 }}
         >
-          <div style={{ fontSize: 28, marginBottom: 8, color: '#1a56db' }}>◈</div>
+          <div style={{ fontSize: 28, marginBottom: 8, color: '#6366f1' }}>◈</div>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>Arrastra el CSV aquí o haz clic para seleccionarlo</div>
           <div style={{ fontSize: 12, color: '#6b7280', marginTop: 5 }}>{COLS.length} columnas requeridas · descarga el template para ver el formato</div>
         </div>
@@ -297,7 +297,7 @@ function TabCarga({ onSaved }) {
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                     <button className="btn" style={{ fontSize: 12, padding: '4px 12px', fontWeight: 500 }} onClick={() => handleView(b)}>Ver</button>
-                    <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#1a56db', borderColor: '#93b4fd', background: '#eff4ff', fontWeight: 600 }} onClick={() => handleDownload(b)}>↓ CSV</button>
+                    <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#6366f1', borderColor: '#a5b4fc', background: '#eef2ff', fontWeight: 600 }} onClick={() => handleDownload(b)}>↓ CSV</button>
                     <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#991b1b', borderColor: '#fca5a5', background: '#fef2f2', fontWeight: 600 }} onClick={() => handleDelete(b.batchId)}>Eliminar</button>
                   </div>
                 </td>
@@ -399,8 +399,8 @@ function TurnoLaboralCell({ row, onSaved }) {
       style={{
         cursor: 'pointer', padding: '3px 9px', borderRadius: 99, fontSize: 12, fontWeight: 600,
         opacity: saving ? 0.5 : 1,
-        background: row.turno_laboral ? '#eff4ff' : '#f3f4f6',
-        border: `1px solid ${row.turno_laboral ? '#93b4fd' : '#e5e7eb'}`,
+        background: row.turno_laboral ? '#eef2ff' : '#f3f4f6',
+        border: `1px solid ${row.turno_laboral ? '#a5b4fc' : '#e5e7eb'}`,
         color: row.turno_laboral ? '#1e3a8a' : '#9ca3af',
       }}
     >
@@ -441,7 +441,7 @@ function EditableTextCell({ row, campo, field, value, onSaved }) {
           if (e.key === 'Enter') e.currentTarget.blur()
           if (e.key === 'Escape') { setVal(value ?? ''); setEditing(false) }
         }}
-        style={{ width: '100%', padding: '4px 7px', borderRadius: 6, border: '1px solid #93b4fd', fontSize: 13, background: '#fff' }}
+        style={{ width: '100%', padding: '4px 7px', borderRadius: 6, border: '1px solid #a5b4fc', fontSize: 13, background: '#fff' }}
       />
     )
   }
@@ -567,9 +567,9 @@ export default function CatalogoCeves() {
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-              borderBottom: tab === t.key ? '2px solid #1a56db' : '2px solid transparent',
+              borderBottom: tab === t.key ? '2px solid #6366f1' : '2px solid transparent',
               marginBottom: -2, background: 'transparent',
-              color: tab === t.key ? '#1a56db' : '#6b7280', transition: 'color 0.15s',
+              color: tab === t.key ? '#6366f1' : '#6b7280', transition: 'color 0.15s',
             }}>
               <span style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
               <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9ca3af', marginTop: 1 }}>{t.sub}</span>

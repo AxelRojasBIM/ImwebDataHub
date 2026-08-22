@@ -117,7 +117,7 @@ export default function CausasRecorte() {
           onDragOver={e => e.preventDefault()}
           onClick={() => inputRef.current.click()}
           style={{
-            border: '2px dashed #93b4fd', borderRadius: 12,
+            border: '2px dashed #a5b4fc', borderRadius: 12,
             padding: '28px 20px', textAlign: 'center', cursor: 'pointer',
             background: file ? '#ecfdf5' : '#fff',
             marginBottom: 16, transition: 'background 0.15s'
@@ -215,7 +215,7 @@ export default function CausasRecorte() {
                     <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
                       {row.estado === 'OK' && (
                         <button onClick={() => handleExportar(row.ejecucionId)}
-                          style={{ background: 'none', border: '1px solid #93b4fd', borderRadius: 6,
+                          style={{ background: 'none', border: '1px solid #a5b4fc', borderRadius: 6,
                             color: '#1d4ed8', cursor: 'pointer', padding: '3px 10px', fontSize: 12, marginRight: 6 }}>
                           Exportar
                         </button>

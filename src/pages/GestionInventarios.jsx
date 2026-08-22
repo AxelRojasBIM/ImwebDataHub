@@ -587,7 +587,7 @@ function ExtractoInventarioCard() {
                   ].map(([h, key], i) => (
                     <th key={h} onClick={() => handleSort(key)} title="Clic para ordenar" style={{
                       padding: '9px 14px', height: 34, boxSizing: 'border-box', textAlign: i >= 4 ? 'center' : 'left', fontWeight: 600,
-                      color: sortKey === key ? '#1a56db' : '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+                      color: sortKey === key ? '#6366f1' : '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
                       position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2, cursor: 'pointer', userSelect: 'none',
                     }}>{h}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>
                   ))}
@@ -793,9 +793,9 @@ export default function GestionInventarios() {
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-              borderBottom: tab === t.key ? '2px solid #1a56db' : '2px solid transparent',
+              borderBottom: tab === t.key ? '2px solid #6366f1' : '2px solid transparent',
               marginBottom: -2, background: 'transparent',
-              color: tab === t.key ? '#1a56db' : '#6b7280', transition: 'color 0.15s',
+              color: tab === t.key ? '#6366f1' : '#6b7280', transition: 'color 0.15s',
             }}>
               <span style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
               <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9ca3af', marginTop: 1 }}>{t.sub}</span>
