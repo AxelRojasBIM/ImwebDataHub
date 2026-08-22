@@ -515,14 +515,14 @@ function ExtractoInventarioCard() {
               </div>
               <select value={filtroRegion} onChange={e => setFiltroRegion(e.target.value)} style={{
                 fontSize: 11.5, padding: '3px 6px', borderRadius: 6, border: '1px solid #e5e7eb',
-                background: filtroRegion ? '#f5f3ff' : '#fff', color: filtroRegion ? '#6d28d9' : '#6b7280',
+                background: filtroRegion ? '#f3f4f6' : '#fff', color: filtroRegion ? '#1f2937' : '#6b7280',
               }}>
                 <option value="">Región: todas</option>
                 {regionesDisponibles.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
               <select value={filtroOrg} onChange={e => setFiltroOrg(e.target.value)} style={{
                 fontSize: 11.5, padding: '3px 6px', borderRadius: 6, border: '1px solid #e5e7eb',
-                background: filtroOrg ? '#f5f3ff' : '#fff', color: filtroOrg ? '#6d28d9' : '#6b7280',
+                background: filtroOrg ? '#f3f4f6' : '#fff', color: filtroOrg ? '#1f2937' : '#6b7280',
               }}>
                 <option value="">Organización: todas</option>
                 {orgsDisponibles.map(o => <option key={o} value={o}>{o}</option>)}
@@ -546,7 +546,7 @@ function ExtractoInventarioCard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <button onClick={() => setSoloFueraCatalogo(v => !v)} style={{
                 background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                fontSize: 11.5, color: soloFueraCatalogo ? '#6d28d9' : '#9ca3af',
+                fontSize: 11.5, color: soloFueraCatalogo ? '#1f2937' : '#9ca3af',
                 textDecoration: 'underline', textUnderlineOffset: 2, fontWeight: soloFueraCatalogo ? 700 : 400,
               }}>
                 {soloFueraCatalogo ? '✕ Quitar filtro' : `🔎 Ver ${fueraCatalogo.length} código${fueraCatalogo.length === 1 ? '' : 's'} de CeVe fuera del catálogo`}
@@ -587,24 +587,24 @@ function ExtractoInventarioCard() {
                   ].map(([h, key], i) => (
                     <th key={h} onClick={() => handleSort(key)} title="Clic para ordenar" style={{
                       padding: '9px 14px', height: 34, boxSizing: 'border-box', textAlign: i >= 4 ? 'center' : 'left', fontWeight: 600,
-                      color: sortKey === key ? '#7c3aed' : '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+                      color: sortKey === key ? '#475569' : '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
                       position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2, cursor: 'pointer', userSelect: 'none',
                     }}>{h}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>
                   ))}
                 </tr>
                 {/* Fila de totales fija: no se mueve al hacer scroll de la tabla, para
                     comparar cuántos CeVes trajo cada sistema sin perder de vista el conteo. */}
-                <tr style={{ background: '#f5f3ff' }}>
+                <tr style={{ background: '#f3f4f6' }}>
                   <th colSpan={4} style={{
                     padding: '6px 14px', height: 30, boxSizing: 'border-box', textAlign: 'left', fontWeight: 700,
                     color: '#3730a3', fontSize: 11.5, borderBottom: '2px solid #c7d2fe',
-                    position: 'sticky', top: 34, background: '#f5f3ff', zIndex: 2,
+                    position: 'sticky', top: 34, background: '#f3f4f6', zIndex: 2,
                   }}>Total CeVes por sistema</th>
                   {['ivy', 'ivyPioneros', 'integralVending', 'wms'].map(k => (
                     <th key={k} style={{
                       padding: '6px 14px', height: 30, boxSizing: 'border-box', textAlign: 'center', fontWeight: 700,
                       color: '#3730a3', fontSize: 12.5, borderBottom: '2px solid #c7d2fe',
-                      position: 'sticky', top: 34, background: '#f5f3ff', zIndex: 2,
+                      position: 'sticky', top: 34, background: '#f3f4f6', zIndex: 2,
                     }}>{totalesPorFuente[k].toLocaleString('es-MX')}</th>
                   ))}
                 </tr>
@@ -793,9 +793,9 @@ export default function GestionInventarios() {
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-              borderBottom: tab === t.key ? '2px solid #7c3aed' : '2px solid transparent',
+              borderBottom: tab === t.key ? '2px solid #475569' : '2px solid transparent',
               marginBottom: -2, background: 'transparent',
-              color: tab === t.key ? '#7c3aed' : '#6b7280', transition: 'color 0.15s',
+              color: tab === t.key ? '#475569' : '#6b7280', transition: 'color 0.15s',
             }}>
               <span style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
               <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#9ca3af', marginTop: 1 }}>{t.sub}</span>

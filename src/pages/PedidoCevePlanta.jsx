@@ -344,9 +344,9 @@ export default function PedidoCevePlanta() {
             onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
             onDragOver={e => e.preventDefault()}
             onClick={() => inputRef.current.click()}
-            style={{ border: '2px dashed #c4b5fd', borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', background: '#f0f4ff', marginBottom: 20, transition: 'background 0.15s' }}
+            style={{ border: '2px dashed #d1d5db', borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', background: '#f0f4ff', marginBottom: 20, transition: 'background 0.15s' }}
           >
-            <div style={{ fontSize: 28, marginBottom: 8, color: '#7c3aed' }}>↑</div>
+            <div style={{ fontSize: 28, marginBottom: 8, color: '#475569' }}>↑</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>Arrastra un CSV aquí o haz clic para seleccionarlo</div>
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 5 }}>Formato: {COLS.join(', ')}</div>
           </div>
@@ -386,7 +386,7 @@ export default function PedidoCevePlanta() {
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                       <button className="btn" style={{ fontSize: 12, padding: '4px 12px', fontWeight: 500 }} onClick={() => handleView(b)}>Ver</button>
-                      <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#7c3aed', borderColor: '#c4b5fd', background: '#f5f3ff', fontWeight: 600 }} onClick={() => handleDownloadBatch(b)}>↓ CSV</button>
+                      <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#475569', borderColor: '#d1d5db', background: '#f3f4f6', fontWeight: 600 }} onClick={() => handleDownloadBatch(b)}>↓ CSV</button>
                       <button className="btn" style={{ fontSize: 12, padding: '4px 12px', color: '#991b1b', borderColor: '#fca5a5', background: '#fef2f2', fontWeight: 600 }} onClick={() => handleDelete(b.batchId)}>Eliminar</button>
                     </div>
                   </td>

@@ -224,7 +224,7 @@ function TabFillRate() {
                       {row.ejecucionId && !enCurso && (
                         <>
                           <button onClick={() => handleDescargar(row.ejecucionId)}
-                            style={{ background: 'none', border: '1px solid #c4b5fd', borderRadius: 6,
+                            style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 6,
                               color: '#1d4ed8', cursor: 'pointer', padding: '3px 10px', fontSize: 12, marginRight: 6 }}>
                             Descargar
                           </button>
