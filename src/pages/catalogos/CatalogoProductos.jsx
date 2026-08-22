@@ -31,34 +31,46 @@ const RTM_TEMPLATE = `${RTM_COLS.join(',')}
 
 const RTM_PREVIEW_COLS = ['Product_code','Product_Short_Desc','Brand_Name','Category_Name','Piece_Price']
 
-function splitCSVLine(line) {
-  const fields = []
-  let cur = '', inQ = false
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
+// Parser de CSV completo (no línea por línea): respeta comillas incluso si el
+// campo trae saltos de línea adentro (ej. una descripción exportada con \n),
+// porque partir primero por '\n' descuadra las columnas de esa fila sin avisar.
+function parseCSVRows(text) {
+  const rows = []
+  let row = [], cur = '', inQ = false
+  const len = text.length
+  for (let i = 0; i < len; i++) {
+    const ch = text[i]
     if (inQ) {
-      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++ }
+      if (ch === '"' && text[i + 1] === '"') { cur += '"'; i++ }
       else if (ch === '"') inQ = false
       else cur += ch
-    } else {
-      if (ch === '"') inQ = true
-      else if (ch === ',') { fields.push(cur.trim()); cur = '' }
-      else cur += ch
+      continue
     }
+    if (ch === '"') { inQ = true; continue }
+    if (ch === ',') { row.push(cur.trim()); cur = ''; continue }
+    if (ch === '\r') continue
+    if (ch === '\n') {
+      row.push(cur.trim())
+      rows.push(row)
+      row = []; cur = ''
+      continue
+    }
+    cur += ch
   }
-  fields.push(cur.trim())
-  return fields
+  if (cur !== '' || row.length) { row.push(cur.trim()); rows.push(row) }
+  // descarta líneas realmente vacías (una sola columna vacía)
+  return rows.filter(r => !(r.length === 1 && r[0] === ''))
 }
 
 function parseCSVGeneric(text, cols) {
-  const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim())
-  if (lines.length < 2) return { rows: [], error: 'El archivo está vacío.' }
-  const headers = splitCSVLine(lines[0]).map(h => h.trim())
+  const allRows = parseCSVRows(text)
+  if (allRows.length < 2) return { rows: [], error: 'El archivo está vacío.' }
+  const headers = allRows[0]
   const missing = cols.filter(c => !headers.includes(c))
   if (missing.length) return { rows: [], error: `Columnas faltantes: ${missing.join(', ')}` }
   const rows = []
-  for (let i = 1; i < lines.length; i++) {
-    const vals = splitCSVLine(lines[i])
+  for (let i = 1; i < allRows.length; i++) {
+    const vals = allRows[i]
     if (vals.length !== headers.length) {
       return { rows: [], error: `Fila ${i + 1}: tiene ${vals.length} columnas, se esperaban ${headers.length}. `
         + `Probablemente hay una coma sin comillas dentro de un texto (ej. en un nombre) que descuadra las columnas siguientes.` }
