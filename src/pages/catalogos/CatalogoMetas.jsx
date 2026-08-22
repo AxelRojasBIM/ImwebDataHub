@@ -14,7 +14,7 @@ function DayDot({ val }) {
     <span style={{
       display:'inline-flex', alignItems:'center', justifyContent:'center',
       width:22, height:22, borderRadius:'50%', fontSize:11, fontWeight:700,
-      background: on ? '#6366f1' : '#e5e7eb',
+      background: on ? '#7c3aed' : '#e5e7eb',
       color: on ? '#fff' : '#9ca3af',
     }}>{on ? '✓' : ''}</span>
   )
@@ -293,7 +293,7 @@ function TabConsolidado() {
   return (
     <div>
       {/* Botón ejecutar */}
-      <div style={{ background:'#f0f4ff', border:'1px solid #a5b4fc', borderRadius:12, padding:'14px 18px',
+      <div style={{ background:'#f0f4ff', border:'1px solid #c4b5fd', borderRadius:12, padding:'14px 18px',
         display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>
         <div>
           <div style={{fontWeight:700, fontSize:14, color:'#1e3a8a'}}>Catálogo consolidado Frecuencias Producto CeVes</div>
@@ -322,7 +322,7 @@ function TabConsolidado() {
         <div style={{ display:'flex', gap:12, marginBottom:14, flexWrap:'wrap' }}>
           {[
             { label:'Total registros', val: Number(meta.tot).toLocaleString() },
-            { label:'De Hub Pedidos',  val: Number(meta.hub).toLocaleString(), color:'#6366f1' },
+            { label:'De Hub Pedidos',  val: Number(meta.hub).toLocaleString(), color:'#7c3aed' },
             { label:'De Imweb',        val: Number(meta.imweb).toLocaleString(), color:'#0f6e56' },
             { label:'Última ejecución', val: fmtDT(meta.fechaEjecucion) },
           ].map(m => (
@@ -374,8 +374,8 @@ function TabConsolidado() {
                   <td>
                     <span style={{
                       fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:10,
-                      background: r.sistemaOrigen==='HubPedidos' ? '#eef2ff' : '#ecfdf5',
-                      color:      r.sistemaOrigen==='HubPedidos' ? '#6366f1' : '#065f46',
+                      background: r.sistemaOrigen==='HubPedidos' ? '#f5f3ff' : '#ecfdf5',
+                      color:      r.sistemaOrigen==='HubPedidos' ? '#7c3aed' : '#065f46',
                     }}>{r.sistemaOrigen}</span>
                   </td>
                   <td style={{fontSize:11,color:'#6b7280'}}>{fmtDT(r.fechaEjecucion)}</td>
@@ -414,9 +414,9 @@ export default function CatalogoMetas() {
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding:'10px 22px', fontSize:13, fontWeight:600, cursor:'pointer', border:'none',
-              borderBottom: tab===t.key ? '2px solid #6366f1' : '2px solid transparent',
+              borderBottom: tab===t.key ? '2px solid #7c3aed' : '2px solid transparent',
               marginBottom:-2, background:'transparent',
-              color: tab===t.key ? '#6366f1' : '#6b7280', transition:'color 0.15s',
+              color: tab===t.key ? '#7c3aed' : '#6b7280', transition:'color 0.15s',
             }}>
               <span style={{marginRight:6}}>{t.icon}</span>{t.label}
               <span style={{display:'block',fontSize:10,fontWeight:400,color:'#9ca3af',marginTop:1}}>{t.sub}</span>
