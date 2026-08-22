@@ -10,7 +10,7 @@ import { API } from '../App'
 function DateField({ value, onChange, max, min }) {
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-      <Calendar size={14} style={{ position: 'absolute', left: 10, color: '#9ca3af', pointerEvents: 'none' }} />
+      <Calendar size={14} style={{ position: 'absolute', left: 10, color: '#9ca3af', pointerEvents: 'none', zIndex: 1 }} />
       <input type="date" value={value} max={max} min={min} onChange={onChange}
         style={{
           padding: '7px 10px 7px 30px', borderRadius: 9, border: '1px solid var(--border)',
