@@ -627,31 +627,40 @@ export default function CausasRecorteTablero() {
           <div style={{
             position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 10,
             background: '#fff', border: '1px solid #c7d2fe', borderRadius: 8,
-            boxShadow: '0 4px 12px rgba(15,23,42,0.18)', padding: '8px 10px', minWidth: 200,
+            boxShadow: '0 4px 12px rgba(15,23,42,0.18)', padding: '8px 10px',
           }}>
-            {recorteDayCols.map(dayIdx => {
-              const v = recorteFabricaValue(row, dayIdx, 'Pedido CeVe')
-              return (
-                <div key={dayIdx} style={{ display: 'flex', justifyContent: 'space-between', gap: 12,
-                  fontSize: 11.5, padding: '2px 0', whiteSpace: 'nowrap' }}>
-                  <span style={{ color: '#6b7280' }}>Tránsito vta {dayLabel(dayIdx)}</span>
-                  <span style={{ fontWeight: 700, color: '#1a56db' }}>Pedido CeVe: {fmtNum(v)}</span>
-                </div>
-              )
-            })}
-            {Array.isArray(row.fechaFuturo) && row.fechaFuturo.length > 0 && (
-              <div style={{ borderTop: '1px dashed #c7d2fe', margin: '4px 0 2px' }} />
-            )}
-            {(row.fechaFuturo ?? []).map((f, i) => {
-              const v = row.pedidoFuturo?.[i]
-              return (
-                <div key={`fut-${f}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12,
-                  fontSize: 11.5, padding: '2px 0', whiteSpace: 'nowrap' }}>
-                  <span style={{ color: '#6b7280' }}>Pedido vta {fmtDateShort(f)}</span>
-                  <span style={{ fontWeight: 700, color: '#0f766e' }}>Pedido CeVe: {fmtNum(v)}</span>
-                </div>
-              )
-            })}
+            <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '2px 8px 4px 2px', color: '#6b7280', fontWeight: 700, whiteSpace: 'nowrap' }}>Fecha</th>
+                  <th title="Pedido CeVe" style={{ textAlign: 'right', padding: '2px 6px 4px', color: '#1a56db', fontWeight: 700 }}>P</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recorteDayCols.map(dayIdx => {
+                  const v = recorteFabricaValue(row, dayIdx, 'Pedido CeVe')
+                  return (
+                    <tr key={dayIdx} style={{ borderTop: '1px dashed #e5e7eb' }}>
+                      <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>Tránsito vta {dayLabel(dayIdx)}</td>
+                      <td style={{ padding: '3px 6px', textAlign: 'right', color: '#111827', whiteSpace: 'nowrap' }}>{fmtNum(v)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              {Array.isArray(row.fechaFuturo) && row.fechaFuturo.length > 0 && (
+                <tbody>
+                  {(row.fechaFuturo ?? []).map((f, i) => {
+                    const v = row.pedidoFuturo?.[i]
+                    return (
+                      <tr key={`fut-${f}`} style={{ borderTop: i === 0 ? '1px solid #c7d2fe' : '1px dashed #e5e7eb' }}>
+                        <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>Pedido vta {fmtDateShort(f)}</td>
+                        <td style={{ padding: '3px 6px', textAlign: 'right', color: '#0f766e', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtNum(v)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              )}
+            </table>
           </div>
         )}
       </div>
