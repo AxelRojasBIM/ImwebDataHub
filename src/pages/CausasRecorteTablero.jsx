@@ -132,6 +132,7 @@ const HDR_DIVIDER_STRONG = '2px solid rgba(0,0,0,0.18)'
 // azulado), no rojo/marrón, para no leerse como una alerta de error.
 const RECORTE_COLORS = { title: '#1a56db', date: '#2563eb', metric: '#1a56db' }
 const CONSUMO_COLORS = { title: '#0f766e', date: '#0d9488', metric: '#0f766e' }
+const TRANSITO_COLORS = { title: '#475569', date: '#334155', metric: '#475569' }
 
 // Detalle día por día (solo tiene sentido cuando la vista está en un solo día,
 // porque ahí las fechas de tránsito son las mismas para todas las filas).
@@ -335,6 +336,7 @@ export default function CausasRecorteTablero() {
   // Nace contraído — el usuario hace clic en el título para expandir cada bloque por separado.
   const [recorteExpanded, setRecorteExpanded] = useState(false)
   const [consumoExpanded, setConsumoExpanded] = useState(false)
+  const [transitoExpanded, setTransitoExpanded] = useState(false)
 
   // Popovers "Pedido Tránsito" / "Recorte Fábrica" / "Consumo Inventario" — se
   // abren por fila, no por columna completa, para no alterar la altura fija
@@ -510,21 +512,39 @@ export default function CausasRecorteTablero() {
     && String(diaDates[5]).slice(0, 10) === String(fechaFin).slice(0, 10))
   const recorteDayCols = hoyDuplicaDia6 ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6]
   const consumoDayCols = [0, 1, 2, 3, 4, 5]
+  // Fechas futuras de Pedido Tránsito: a diferencia de recorteDayCols/consumoDayCols
+  // (siempre los mismos 6-7 días para toda la tabla), cada fila puede tener sus
+  // propias fechas futuras — se toma la primera fila con datos como set de columnas
+  // "canónico" (en la práctica, todas las filas de una misma consulta comparten el
+  // mismo calendario de fechas futuras). Cada tabla (Top N / detalle-agrupada) usa
+  // sus propias filas, así que cada una calcula su propio set.
+  function futuroDatesFrom(rows) {
+    for (const r of rows) { if (Array.isArray(r.fechaFuturo) && r.fechaFuturo.length) return r.fechaFuturo }
+    return []
+  }
+  const futuroDatesMain = useMemo(() => futuroDatesFrom(data.rows), [data.rows])
+  const futuroDatesTopN = useMemo(() => futuroDatesFrom(topNData?.rows ?? []), [topNData])
+  const futuroIdxMain = futuroDatesMain.map((_, i) => i)
+  const futuroIdxTopN = futuroDatesTopN.map((_, i) => i)
   const recorteColCount = recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1
   const consumoColCount = consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1
+  const transitoColCountMain = transitoExpanded ? Math.max(futuroIdxMain.length, 1) : 1
+  const transitoColCountTopN = transitoExpanded ? Math.max(futuroIdxTopN.length, 1) : 1
   const detalleHeaderH = TITLE_H + DATE_H + METRIC_H
   // El rowSpan de las columnas base debe coincidir EXACTO con la cantidad de filas
   // reales del thead — las filas de fecha/métrica solo se renderizan si alguna
   // sección está expandida. Un rowSpan que excede las filas reales del thead rompe
   // el cálculo de anchos de columna bajo table-layout:fixed (columnas colapsan a 0
   // y el contenido de la fila TOTAL se desborda encimándose con otras celdas).
-  const anySubExpanded = recorteExpanded || consumoExpanded
+  const anySubExpanded = recorteExpanded || consumoExpanded || transitoExpanded
   const baseHeaderRowSpan = anySubExpanded ? 3 : 1
   const baseHeaderHeight  = anySubExpanded ? detalleHeaderH : HEADER_H
-  const recorteTitleRowSpan = recorteExpanded ? 1 : (consumoExpanded ? 3 : 1)
-  const recorteTitleHeight  = recorteExpanded ? TITLE_H : (consumoExpanded ? detalleHeaderH : HEADER_H)
-  const consumoTitleRowSpan = consumoExpanded ? 1 : (recorteExpanded ? 3 : 1)
-  const consumoTitleHeight  = consumoExpanded ? TITLE_H : (recorteExpanded ? detalleHeaderH : HEADER_H)
+  const recorteTitleRowSpan = recorteExpanded ? 1 : (anySubExpanded ? 3 : 1)
+  const recorteTitleHeight  = recorteExpanded ? TITLE_H : (anySubExpanded ? detalleHeaderH : HEADER_H)
+  const consumoTitleRowSpan = consumoExpanded ? 1 : (anySubExpanded ? 3 : 1)
+  const consumoTitleHeight  = consumoExpanded ? TITLE_H : (anySubExpanded ? detalleHeaderH : HEADER_H)
+  const transitoTitleRowSpan = transitoExpanded ? 1 : (anySubExpanded ? 3 : 1)
+  const transitoTitleHeight  = transitoExpanded ? TITLE_H : (anySubExpanded ? detalleHeaderH : HEADER_H)
 
   const detailColumnsBase = useMemo(() => [
     { key: 'fecha', label: 'Fecha', width: 85, align: 'left' },
@@ -541,7 +561,6 @@ export default function CausasRecorteTablero() {
     { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
     { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
     { key: 'causaPrincipal', label: 'Causa Principal', width: 150, align: 'left' },
-    { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
   ], [])
 
@@ -560,7 +579,6 @@ export default function CausasRecorteTablero() {
     { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
     { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
-    { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
     // Depende de data.groupBy (lo que en verdad respondió el servidor), no de los
     // checkboxes en vivo — si dependiera de `groupBy`, el memo podía quedar cacheado
@@ -585,7 +603,6 @@ export default function CausasRecorteTablero() {
     { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
     { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
-    { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left' },
   ], [])
 
@@ -719,7 +736,7 @@ export default function CausasRecorteTablero() {
       consumoValue, consumoPopoverRow, setConsumoPopoverRow, { title: CONSUMO_COLORS.title, bg: '#ecfdf5', border: '#a7f3d0' })
   }
 
-  function renderMainCell(col, row, rowKey) {
+  function renderMainCell(col, row) {
     const key = col.key
     if (agrupado && activeGroupFields.some(f => f.key === key)) {
       return <span title={row[key]}>{row[key] ?? '—'}</span>
@@ -742,13 +759,12 @@ export default function CausasRecorteTablero() {
       case 'existenciaUsd': return <span style={{ color: '#065f46' }}>{fmtMoney(row.existenciaUsd)}</span>
       case 'causaPrincipal': return <CausaBadge causa={row.causaPrincipal} />
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
-      case 'pedidoTransito': return renderPedidoTransitoCell(row, rowKey, showDetalleDia)
       case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
       default: return null
     }
   }
 
-  function renderTopNCell(col, row, isNewItem, rank, rowKey) {
+  function renderTopNCell(col, row, isNewItem, rank) {
     switch (col.key) {
       case 'rank': return isNewItem ? rank : ''
       case 'producto': return isNewItem ? <span title={row.descripcion}>{`${row.item} - ${row.descripcion || ''}`}</span> : ''
@@ -765,7 +781,6 @@ export default function CausasRecorteTablero() {
       case 'existenciaEnv': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaEnv)}</span>
       case 'existenciaUsd': return <span style={{ color: '#065f46' }}>{fmtMoney(row.existenciaUsd)}</span>
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
-      case 'pedidoTransito': return renderPedidoTransitoCell(row, rowKey, showDetalleDiaTopN)
       case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
       default: return null
     }
@@ -895,6 +910,13 @@ export default function CausasRecorteTablero() {
       } else {
         headers.push('Consumo Inventario')
       }
+      const futuroIdxExport = isTopN ? futuroIdxTopN : futuroIdxMain
+      const futuroDatesExport = isTopN ? futuroDatesTopN : futuroDatesMain
+      if (detalleActivo && transitoExpanded) {
+        futuroIdxExport.forEach(idx => headers.push(`Pedido Tránsito ${fmtDateShort(futuroDatesExport[idx])}`))
+      } else {
+        headers.push('Pedido Tránsito')
+      }
 
       let lastItem = null, rank = 0
       const rows = sourceRows.map(row => {
@@ -918,6 +940,11 @@ export default function CausasRecorteTablero() {
           }))
         } else {
           vals.push(row.envsConsumo ?? '')
+        }
+        if (detalleActivo && transitoExpanded) {
+          futuroIdxExport.forEach(idx => vals.push(row.pedidoFuturo?.[idx] ?? ''))
+        } else {
+          vals.push('')
         }
         return vals
       })
@@ -1150,6 +1177,11 @@ export default function CausasRecorteTablero() {
                     <col key={`tn-co-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
                   )))
                 : <col key="tn-co-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
+              {showDetalleDiaTopN && transitoExpanded
+                ? futuroIdxTopN.map(idx => (
+                    <col key={`tn-tr-col-${idx}`} style={{ width: DIA_COL_WIDTH }} />
+                  ))
+                : <col key="tn-tr-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
             </colgroup>
             <thead>
               <tr style={{ background: '#1a2e38' }}>
@@ -1180,8 +1212,18 @@ export default function CausasRecorteTablero() {
                     height: showDetalleDiaTopN ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
                   Consumo Inventario {showDetalleDiaTopN && (consumoExpanded ? '▲' : '▼')}
                 </th>
+                <th colSpan={showDetalleDiaTopN ? transitoColCountTopN : 1} rowSpan={showDetalleDiaTopN ? transitoTitleRowSpan : 1}
+                  onClick={showDetalleDiaTopN ? () => setTransitoExpanded(v => !v) : undefined}
+                  title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
+                  style={{ textAlign: 'center', background: TRANSITO_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
+                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                    padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
+                    height: showDetalleDiaTopN ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
+                    borderLeft: HDR_DIVIDER_STRONG }}>
+                  Pedido Tránsito {showDetalleDiaTopN && (transitoExpanded ? '▲' : '▼')}
+                </th>
               </tr>
-              {showDetalleDiaTopN && (recorteExpanded || consumoExpanded) && (
+              {showDetalleDiaTopN && (recorteExpanded || consumoExpanded || transitoExpanded) && (
                 <tr style={{ background: '#1a2e38' }}>
                   {recorteExpanded && recorteDayCols.map(dayIdx => (
                     <th key={`tn-rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
@@ -1199,9 +1241,17 @@ export default function CausasRecorteTablero() {
                       {dayLabel(dayIdx)}
                     </th>
                   ))}
+                  {transitoExpanded && futuroIdxTopN.map(idx => (
+                    <th key={`tn-tr-date-${idx}`} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                      textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: TRANSITO_COLORS.date,
+                      zIndex: 1, width: DIA_COL_WIDTH, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
+                      borderRight: HDR_DIVIDER_SOFT }}>
+                      {fmtDateShort(futuroDatesTopN[idx])}
+                    </th>
+                  ))}
                 </tr>
               )}
-              {showDetalleDiaTopN && (recorteExpanded || consumoExpanded) && (
+              {showDetalleDiaTopN && (recorteExpanded || consumoExpanded || transitoExpanded) && (
                 <tr style={{ background: '#1a2e38' }}>
                   {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                     <th key={`tn-rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
@@ -1219,6 +1269,14 @@ export default function CausasRecorteTablero() {
                       {metric}
                     </th>
                   )))}
+                  {transitoExpanded && futuroIdxTopN.map(idx => (
+                    <th key={`tn-tr-h-${idx}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                      textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: TRANSITO_COLORS.metric,
+                      zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
+                      borderRight: HDR_DIVIDER_SOFT }}>
+                      P
+                    </th>
+                  ))}
                 </tr>
               )}
             </thead>
@@ -1247,7 +1305,7 @@ export default function CausasRecorteTablero() {
                               position: 'sticky', left: topNStickyLeft[key], zIndex: 1, background: rowBg,
                               boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.08)' : undefined,
                             } : {}) }}>
-                            {renderTopNCell(col, row, isNewItem, rank, rowKey)}
+                            {renderTopNCell(col, row, isNewItem, rank)}
                           </td>
                         )
                       })}
@@ -1279,6 +1337,18 @@ export default function CausasRecorteTablero() {
                       ) : (
                         <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
                           {renderConsumoInventarioCell(row, rowKey, showDetalleDiaTopN)}
+                        </td>
+                      )}
+                      {showDetalleDiaTopN && transitoExpanded ? (
+                        futuroIdxTopN.map(idx => (
+                          <td key={`tn-tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                            whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                            {fmtNum(row.pedidoFuturo?.[idx])}
+                          </td>
+                        ))
+                      ) : (
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                          {renderPedidoTransitoCell(row, rowKey, showDetalleDiaTopN)}
                         </td>
                       )}
                     </tr>
@@ -1320,6 +1390,11 @@ export default function CausasRecorteTablero() {
                       <col key={`co-col-${dayIdx}-${metric}`} style={{ width: DIA_COL_WIDTH }} />
                     )))
                   : <col key="co-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
+                {showDetalleDia && transitoExpanded
+                  ? futuroIdxMain.map(idx => (
+                      <col key={`tr-col-${idx}`} style={{ width: DIA_COL_WIDTH }} />
+                    ))
+                  : <col key="tr-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
               </colgroup>
               <thead>
                 <tr style={{ background: '#1a2e38' }}>
@@ -1352,8 +1427,18 @@ export default function CausasRecorteTablero() {
                       height: showDetalleDia ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
                     Consumo Inventario {showDetalleDia && (consumoExpanded ? '▲' : '▼')}
                   </th>
+                  <th colSpan={showDetalleDia ? transitoColCountMain : 1} rowSpan={showDetalleDia ? transitoTitleRowSpan : 1}
+                    onClick={showDetalleDia ? () => setTransitoExpanded(v => !v) : undefined}
+                    title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
+                    style={{ textAlign: 'center', background: TRANSITO_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
+                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                      padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
+                      height: showDetalleDia ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
+                      borderLeft: HDR_DIVIDER_STRONG }}>
+                    Pedido Tránsito {showDetalleDia && (transitoExpanded ? '▲' : '▼')}
+                  </th>
                 </tr>
-                {showDetalleDia && (recorteExpanded || consumoExpanded) && (
+                {showDetalleDia && (recorteExpanded || consumoExpanded || transitoExpanded) && (
                   <tr style={{ background: '#1a2e38' }}>
                     {recorteExpanded && recorteDayCols.map(dayIdx => (
                       <th key={`rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
@@ -1371,9 +1456,17 @@ export default function CausasRecorteTablero() {
                         {dayLabel(dayIdx)}
                       </th>
                     ))}
+                    {transitoExpanded && futuroIdxMain.map(idx => (
+                      <th key={`tr-date-${idx}`} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: TRANSITO_COLORS.date,
+                        zIndex: 1, width: DIA_COL_WIDTH, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
+                        borderRight: HDR_DIVIDER_SOFT }}>
+                        {fmtDateShort(futuroDatesMain[idx])}
+                      </th>
+                    ))}
                   </tr>
                 )}
-                {showDetalleDia && (recorteExpanded || consumoExpanded) && (
+                {showDetalleDia && (recorteExpanded || consumoExpanded || transitoExpanded) && (
                   <tr style={{ background: '#1a2e38' }}>
                     {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                       <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
@@ -1391,6 +1484,14 @@ export default function CausasRecorteTablero() {
                         {metric}
                       </th>
                     )))}
+                    {transitoExpanded && futuroIdxMain.map(idx => (
+                      <th key={`tr-h-${idx}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                        textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: TRANSITO_COLORS.metric,
+                        zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
+                        borderRight: HDR_DIVIDER_SOFT }}>
+                        P
+                      </th>
+                    ))}
                   </tr>
                 )}
                 {/* Fila de totales — inamovible (sticky) justo debajo del encabezado */}
@@ -1415,6 +1516,8 @@ export default function CausasRecorteTablero() {
                   <td colSpan={showDetalleDia ? recorteColCount : 1} style={{
                     position: 'sticky', top: showDetalleDia ? baseHeaderHeight : HEADER_H, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
                   <td colSpan={showDetalleDia ? consumoColCount : 1} style={{
+                    position: 'sticky', top: showDetalleDia ? baseHeaderHeight : HEADER_H, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
+                  <td colSpan={showDetalleDia ? transitoColCountMain : 1} style={{
                     position: 'sticky', top: showDetalleDia ? baseHeaderHeight : HEADER_H, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
                 </tr>
               </thead>
@@ -1443,7 +1546,7 @@ export default function CausasRecorteTablero() {
                               position: 'sticky', left: stickyLeft[colKey], zIndex: 1, background: rowBg,
                               boxShadow: colKey === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.08)' : undefined,
                             } : {}) }}>
-                            {renderMainCell(col, row, key)}
+                            {renderMainCell(col, row)}
                           </td>
                         )
                       })}
@@ -1475,6 +1578,18 @@ export default function CausasRecorteTablero() {
                       ) : (
                         <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
                           {renderConsumoInventarioCell(row, key, showDetalleDia)}
+                        </td>
+                      )}
+                      {showDetalleDia && transitoExpanded ? (
+                        futuroIdxMain.map(idx => (
+                          <td key={`tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                            whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                            {fmtNum(row.pedidoFuturo?.[idx])}
+                          </td>
+                        ))
+                      ) : (
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                          {renderPedidoTransitoCell(row, key, showDetalleDia)}
                         </td>
                       )}
                     </tr>
