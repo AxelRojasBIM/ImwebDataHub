@@ -284,7 +284,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
       title="Arrastra para reordenar · arrastra el borde derecho para cambiar el ancho"
       style={{
         padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
-        color: '#fff', whiteSpace: wrap ? 'normal' : 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'none',
+        color: '#fff', whiteSpace: wrap ? 'normal' : 'nowrap', fontSize: 12, letterSpacing: 0.3, textTransform: 'none',
         lineHeight: wrap ? 1.15 : undefined, wordBreak: wrap ? 'break-word' : undefined,
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
         background: isDragOver ? '#24374a' : TOTAL_BG,
@@ -1115,7 +1115,7 @@ export default function CausasRecorteTablero() {
       {topNActive && topNData ? (
         <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
           boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, tableLayout: 'fixed' }}>
             <colgroup>
               {topNLayout.orderedColumns.map(col => (
                 <col key={col.key} style={{ width: topNLayout.widths[col.key] ?? col.width }} />
@@ -1150,7 +1150,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setRecorteExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
+                    fontWeight: 700, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'none',
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? recorteTitleHeight : HEADER_H, boxSizing: 'border-box',
                     borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
@@ -1160,7 +1160,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setConsumoExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
+                    fontWeight: 700, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'none',
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
                   Consumo inventario {showDetalleDiaTopN && (consumoExpanded ? '▲' : '▼')}
@@ -1169,7 +1169,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setTransitoExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: TRANSITO_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
+                    fontWeight: 700, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'none',
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
                     borderLeft: HDR_DIVIDER_STRONG }}>
@@ -1179,7 +1179,7 @@ export default function CausasRecorteTablero() {
               {showDetalleDiaTopN && (recorteExpanded || consumoExpanded || transitoExpanded) && (
                 <tr style={{ background: TOTAL_BG }}>
                   {recorteExpanded && recorteDayCols.map(dayIdx => (
-                    <th key={`tn-rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                    <th key={`tn-rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 12, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: RECORTE_COLORS.date,
                       zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
                       borderRight: HDR_DIVIDER_SOFT }}>
@@ -1187,7 +1187,7 @@ export default function CausasRecorteTablero() {
                     </th>
                   ))}
                   {consumoExpanded && consumoDayCols.map(dayIdx => (
-                    <th key={`tn-co-date-${dayIdx}`} colSpan={DIA_METRICS_CONSUMO.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                    <th key={`tn-co-date-${dayIdx}`} colSpan={DIA_METRICS_CONSUMO.length} style={{ padding: '3px 4px', fontSize: 12, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: CONSUMO_COLORS.date,
                       zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
                       borderRight: HDR_DIVIDER_SOFT }}>
@@ -1195,7 +1195,7 @@ export default function CausasRecorteTablero() {
                     </th>
                   ))}
                   {transitoExpanded && futuroIdxTopN.map(idx => (
-                    <th key={`tn-tr-date-${idx}`} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                    <th key={`tn-tr-date-${idx}`} style={{ padding: '3px 4px', fontSize: 12, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: TRANSITO_COLORS.date,
                       zIndex: 1, width: DIA_COL_WIDTH, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
                       borderRight: HDR_DIVIDER_SOFT }}>
@@ -1207,7 +1207,7 @@ export default function CausasRecorteTablero() {
               {showDetalleDiaTopN && (recorteExpanded || consumoExpanded || transitoExpanded) && (
                 <tr style={{ background: TOTAL_BG }}>
                   {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
-                    <th key={`tn-rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                    <th key={`tn-rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 11, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: RECORTE_COLORS.metric,
                       zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
                       borderRight: HDR_DIVIDER_SOFT }}>
@@ -1215,7 +1215,7 @@ export default function CausasRecorteTablero() {
                     </th>
                   )))}
                   {consumoExpanded && consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
-                    <th key={`tn-co-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                    <th key={`tn-co-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 11, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: CONSUMO_COLORS.metric,
                       zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
                       borderRight: HDR_DIVIDER_SOFT }}>
@@ -1223,7 +1223,7 @@ export default function CausasRecorteTablero() {
                     </th>
                   )))}
                   {transitoExpanded && futuroIdxTopN.map(idx => (
-                    <th key={`tn-tr-h-${idx}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                    <th key={`tn-tr-h-${idx}`} style={{ padding: '4px 3px', fontSize: 11, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: TRANSITO_COLORS.metric,
                       zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
                       borderRight: HDR_DIVIDER_SOFT }}>
@@ -1239,7 +1239,7 @@ export default function CausasRecorteTablero() {
                 return topNData.rows.map((row, i) => {
                   const isNewItem = row.item !== lastItem
                   if (isNewItem) { rank++; lastItem = row.item }
-                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26, fontSize: 10 }
+                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26, fontSize: 11 }
                   const rowBg = rank % 2 === 0 ? '#fff' : '#f1f5f9'
                   const rowKey = `${row.item}-${row.codigoCeve}-${i}`
                   return (
@@ -1267,14 +1267,14 @@ export default function CausasRecorteTablero() {
                         recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => {
                           const v = recorteFabricaValue(row, dayIdx, metric)
                           return (
-                            <td key={`tn-rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10,
+                            <td key={`tn-rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11,
                               whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                               {fmtNum(v)}
                             </td>
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11, overflow: 'visible' }}>
                           {renderRecorteFabricaCell(row, rowKey, showDetalleDiaTopN)}
                         </td>
                       )}
@@ -1282,26 +1282,26 @@ export default function CausasRecorteTablero() {
                         consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
                           const v = consumoValue(row, dayIdx, metric)
                           return (
-                            <td key={`tn-co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10,
+                            <td key={`tn-co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11,
                               whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                               {fmtNum(v)}
                             </td>
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11, overflow: 'visible' }}>
                           {renderConsumoInventarioCell(row, rowKey, showDetalleDiaTopN)}
                         </td>
                       )}
                       {showDetalleDiaTopN && transitoExpanded ? (
                         futuroIdxTopN.map(idx => (
-                          <td key={`tn-tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10,
+                          <td key={`tn-tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11,
                             whiteSpace: 'nowrap', overflow: 'hidden' }}>
                             {fmtNum(row.pedidoFuturo?.[idx])}
                           </td>
                         ))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11, overflow: 'visible' }}>
                           {renderPedidoTransitoCell(row, rowKey, showDetalleDiaTopN)}
                         </td>
                       )}
@@ -1329,7 +1329,7 @@ export default function CausasRecorteTablero() {
           <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
             boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)',
             opacity: loading ? 0.55 : 1, transition: 'opacity 0.12s' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, tableLayout: 'fixed' }}>
               <colgroup>
                 {layout.orderedColumns.map(col => (
                   <col key={col.key} style={{ width: layout.widths[col.key] ?? col.width }} />
@@ -1366,7 +1366,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setRecorteExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
+                      fontWeight: 700, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'none',
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? recorteTitleHeight : HEADER_H, boxSizing: 'border-box',
                       borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
@@ -1376,7 +1376,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setConsumoExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
+                      fontWeight: 700, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'none',
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
                     Consumo inventario {showDetalleDia && (consumoExpanded ? '▲' : '▼')}
@@ -1385,7 +1385,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setTransitoExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: TRANSITO_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
+                      fontWeight: 700, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'none',
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
                       borderLeft: HDR_DIVIDER_STRONG }}>
@@ -1395,7 +1395,7 @@ export default function CausasRecorteTablero() {
                 {showDetalleDia && (recorteExpanded || consumoExpanded || transitoExpanded) && (
                   <tr style={{ background: TOTAL_BG }}>
                     {recorteExpanded && recorteDayCols.map(dayIdx => (
-                      <th key={`rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                      <th key={`rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 12, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: RECORTE_COLORS.date,
                         zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
                         borderRight: HDR_DIVIDER_SOFT }}>
@@ -1403,7 +1403,7 @@ export default function CausasRecorteTablero() {
                       </th>
                     ))}
                     {consumoExpanded && consumoDayCols.map(dayIdx => (
-                      <th key={`co-date-${dayIdx}`} colSpan={DIA_METRICS_CONSUMO.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                      <th key={`co-date-${dayIdx}`} colSpan={DIA_METRICS_CONSUMO.length} style={{ padding: '3px 4px', fontSize: 12, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: CONSUMO_COLORS.date,
                         zIndex: 1, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
                         borderRight: HDR_DIVIDER_SOFT }}>
@@ -1411,7 +1411,7 @@ export default function CausasRecorteTablero() {
                       </th>
                     ))}
                     {transitoExpanded && futuroIdxMain.map(idx => (
-                      <th key={`tr-date-${idx}`} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
+                      <th key={`tr-date-${idx}`} style={{ padding: '3px 4px', fontSize: 12, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: TRANSITO_COLORS.date,
                         zIndex: 1, width: DIA_COL_WIDTH, height: DATE_H, boxSizing: 'border-box', overflow: 'hidden', fontWeight: 600,
                         borderRight: HDR_DIVIDER_SOFT }}>
@@ -1423,7 +1423,7 @@ export default function CausasRecorteTablero() {
                 {showDetalleDia && (recorteExpanded || consumoExpanded || transitoExpanded) && (
                   <tr style={{ background: TOTAL_BG }}>
                     {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
-                      <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                      <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 11, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: RECORTE_COLORS.metric,
                         zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
                         borderRight: HDR_DIVIDER_SOFT }}>
@@ -1431,7 +1431,7 @@ export default function CausasRecorteTablero() {
                       </th>
                     )))}
                     {consumoExpanded && consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => (
-                      <th key={`co-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                      <th key={`co-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 11, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: CONSUMO_COLORS.metric,
                         zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
                         borderRight: HDR_DIVIDER_SOFT }}>
@@ -1439,7 +1439,7 @@ export default function CausasRecorteTablero() {
                       </th>
                     )))}
                     {transitoExpanded && futuroIdxMain.map(idx => (
-                      <th key={`tr-h-${idx}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
+                      <th key={`tr-h-${idx}`} style={{ padding: '4px 3px', fontSize: 11, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: TRANSITO_COLORS.metric,
                         zIndex: 1, width: DIA_COL_WIDTH, height: METRIC_H, boxSizing: 'border-box', overflow: 'hidden',
                         borderRight: HDR_DIVIDER_SOFT }}>
@@ -1454,7 +1454,7 @@ export default function CausasRecorteTablero() {
                   const key = agrupado
                     ? activeGroupFields.map(f => row[f.key]).join('|') + '-' + i
                     : `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
-                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26, fontSize: 10 }
+                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26, fontSize: 11 }
                   const baseBg = i % 2 === 0 ? '#fff' : '#f1f5f9'
                   const rowBg = hoveredRow === key ? '#eef2ff' : baseBg
                   return (
@@ -1482,14 +1482,14 @@ export default function CausasRecorteTablero() {
                         recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => {
                           const v = recorteFabricaValue(row, dayIdx, metric)
                           return (
-                            <td key={`rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10,
+                            <td key={`rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11,
                               whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                               {fmtNum(v)}
                             </td>
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11, overflow: 'visible' }}>
                           {renderRecorteFabricaCell(row, key, showDetalleDia)}
                         </td>
                       )}
@@ -1497,26 +1497,26 @@ export default function CausasRecorteTablero() {
                         consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
                           const v = consumoValue(row, dayIdx, metric)
                           return (
-                            <td key={`co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10,
+                            <td key={`co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11,
                               whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                               {fmtNum(v)}
                             </td>
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11, overflow: 'visible' }}>
                           {renderConsumoInventarioCell(row, key, showDetalleDia)}
                         </td>
                       )}
                       {showDetalleDia && transitoExpanded ? (
                         futuroIdxMain.map(idx => (
-                          <td key={`tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10,
+                          <td key={`tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11,
                             whiteSpace: 'nowrap', overflow: 'hidden' }}>
                             {fmtNum(row.pedidoFuturo?.[idx])}
                           </td>
                         ))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11, overflow: 'visible' }}>
                           {renderPedidoTransitoCell(row, key, showDetalleDia)}
                         </td>
                       )}
