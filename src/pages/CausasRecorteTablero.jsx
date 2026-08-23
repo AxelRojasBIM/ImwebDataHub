@@ -1235,7 +1235,7 @@ export default function CausasRecorteTablero() {
                 return topNData.rows.map((row, i) => {
                   const isNewItem = row.item !== lastItem
                   if (isNewItem) { rank++; lastItem = row.item }
-                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26 }
+                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26, fontSize: 10 }
                   const rowBg = rank % 2 === 0 ? '#fff' : '#f1f5f9'
                   const rowKey = `${row.item}-${row.codigoCeve}-${i}`
                   return (
@@ -1450,7 +1450,7 @@ export default function CausasRecorteTablero() {
                   const key = agrupado
                     ? activeGroupFields.map(f => row[f.key]).join('|') + '-' + i
                     : `${row.codigoCeve}-${row.item}-${row.fechaVenta}-${row.canal}-${i}`
-                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26 }
+                  const cellStyle = { padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', height: 26, fontSize: 10 }
                   const baseBg = i % 2 === 0 ? '#fff' : '#f1f5f9'
                   const rowBg = hoveredRow === key ? '#eef2ff' : baseBg
                   return (
