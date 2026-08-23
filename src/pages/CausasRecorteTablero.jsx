@@ -662,7 +662,7 @@ export default function CausasRecorteTablero() {
   // Fábrica / Consumo Inventario — el botón ya muestra el total (no hace falta
   // expandir toda la columna) y al hacer clic despliega el desglose día por
   // día con las mismas métricas que la columna expandida.
-  function renderDayBreakdownCell(row, rowKey, disponible, total, dayCols, metrics, valueFn, openRow, setOpenRow, colors) {
+  function renderDayBreakdownCell(row, rowKey, disponible, total, dayCols, metrics, metricLetters, valueFn, openRow, setOpenRow, colors) {
     if (!disponible) return <span>{fmtNum(total)}</span>
     const isOpen = openRow === rowKey
     return (
@@ -681,30 +681,43 @@ export default function CausasRecorteTablero() {
           <div style={{
             position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 10,
             background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 8,
-            boxShadow: '0 4px 12px rgba(15,23,42,0.18)', padding: '8px 10px', minWidth: 210,
+            boxShadow: '0 4px 12px rgba(15,23,42,0.18)', padding: '8px 10px',
           }}>
-            {dayCols.map(dayIdx => (
-              <div key={dayIdx} style={{ padding: '4px 0', borderBottom: '1px dashed #e5e7eb' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 2 }}>{dayLabel(dayIdx)}</div>
-                {metrics.map(metric => (
-                  <div key={metric} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 11.5, padding: '1px 0', whiteSpace: 'nowrap' }}>
-                    <span style={{ color: '#6b7280' }}>{metric}</span>
-                    <span style={{ fontWeight: 600, color: colors.title }}>{fmtNum(valueFn(row, dayIdx, metric))}</span>
-                  </div>
+            <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '2px 8px 4px 2px', color: '#6b7280', fontWeight: 700, whiteSpace: 'nowrap' }}>Fecha</th>
+                  {metrics.map((metric, idx) => (
+                    <th key={metric} title={metric} style={{ textAlign: 'right', padding: '2px 6px 4px', color: colors.title, fontWeight: 700 }}>
+                      {metricLetters[idx]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dayCols.map(dayIdx => (
+                  <tr key={dayIdx} style={{ borderTop: '1px dashed #e5e7eb' }}>
+                    <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>{dayLabel(dayIdx)}</td>
+                    {metrics.map(metric => (
+                      <td key={metric} style={{ padding: '3px 6px', textAlign: 'right', color: '#111827', whiteSpace: 'nowrap' }}>
+                        {fmtNum(valueFn(row, dayIdx, metric))}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </div>
-            ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
     )
   }
   function renderRecorteFabricaCell(row, rowKey, disponible) {
-    return renderDayBreakdownCell(row, rowKey, disponible, row.envsPlanta, recorteDayCols, DIA_METRICS_RECORTE,
+    return renderDayBreakdownCell(row, rowKey, disponible, row.envsPlanta, recorteDayCols, DIA_METRICS_RECORTE, ['P', 'E', 'R', 'A'],
       recorteFabricaValue, recortePopoverRow, setRecortePopoverRow, { title: RECORTE_COLORS.title, bg: '#eff4ff', border: '#c7d7fd' })
   }
   function renderConsumoInventarioCell(row, rowKey, disponible) {
-    return renderDayBreakdownCell(row, rowKey, disponible, row.envsConsumo, consumoDayCols, DIA_METRICS_CONSUMO,
+    return renderDayBreakdownCell(row, rowKey, disponible, row.envsConsumo, consumoDayCols, DIA_METRICS_CONSUMO, ['CR', 'CP', 'EX', 'AH'],
       consumoValue, consumoPopoverRow, setConsumoPopoverRow, { title: CONSUMO_COLORS.title, bg: '#ecfdf5', border: '#a7f3d0' })
   }
 
