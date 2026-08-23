@@ -276,7 +276,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
       title="Arrastra para reordenar · arrastra el borde derecho para cambiar el ancho"
       style={{
         padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
-        color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'uppercase',
+        color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3,
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
         background: isDragOver ? '#24374a' : '#1a2e38',
         zIndex: isSticky ? 3 : 2, height: height ?? HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
@@ -552,13 +552,17 @@ export default function CausasRecorteTablero() {
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
   ], [])
 
-  const groupedColumnsBase = useMemo(() => [
-    ...activeGroupFields.map(f => ({ key: f.key, label: f.label, width: f.width, align: EXCLUDE_BLACK_CENTER.has(f.key) ? 'left' : 'center' })),
-    // Columna aparte (no parte de "Agrupar por") que el backend agrega solo cuando
-    // se agrupa por CeVe — la región es 1:1 con el CeVe, no un campo agrupable propio.
-    ...(activeGroupFields.some(f => f.key === 'ceve') ? [{ key: 'region', label: 'Región', width: 110, align: 'left' }] : []),
-    ...(activeGroupFields.some(f => f.key === 'item') ? [{ key: 'cupo', label: 'Cupo', width: 70, align: 'center' }] : []),
-    { key: 'filas', label: 'Filas', width: 75, align: 'center' },
+  const groupedColumnsBase = useMemo(() => {
+    const cols = []
+    for (const f of activeGroupFields) {
+      cols.push({ key: f.key, label: f.label, width: f.width, align: EXCLUDE_BLACK_CENTER.has(f.key) ? 'left' : 'center' })
+      // Región y Cupo no son campos agrupables propios (Región es 1:1 con CeVe,
+      // Cupo es 1:1 con Item) — se insertan justo después de su campo relacionado
+      // en vez de aparecer al final de la lista de columnas.
+      if (f.key === 'ceve') cols.push({ key: 'region', label: 'Región', width: 110, align: 'left' })
+      if (f.key === 'item') cols.push({ key: 'cupo', label: 'Cupo', width: 70, align: 'center' })
+    }
+    cols.push(
     { key: 'recortePzs', label: 'Recorte Total Pzs', width: 120, align: 'center' },
     { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'center' },
     { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'center' },
@@ -568,12 +572,14 @@ export default function CausasRecorteTablero() {
     { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'center' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
+    )
+    return cols
     // Depende de data.groupBy (lo que en verdad respondió el servidor), no de los
     // checkboxes en vivo — si dependiera de `groupBy`, el memo podía quedar cacheado
     // con activeGroupFields vacío (calculado en un render donde data.groupBy aún no
     // había llegado) y nunca refrescar, aunque groupBy ya no cambiara después.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [(data.groupBy ?? []).join(',')])
+  }, [(data.groupBy ?? []).join(',')])
 
   const topNColumnsBase = useMemo(() => [
     { key: 'rank', label: '#', width: 36, align: 'center' },
@@ -702,7 +708,6 @@ export default function CausasRecorteTablero() {
       case 'producto': return <span title={row.descripcion}>{row.descripcion || '—'}</span>
       case 'cupo': return row.cupo ?? '—'
       case 'canal': return row.canal || '—'
-      case 'filas': return row.filas?.toLocaleString()
       case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
       case 'recorteEnv': return fmtNum(row.recorteEnv)
       case 'recorteResiduo': return fmtNum(row.recorteResiduo)
@@ -753,7 +758,6 @@ export default function CausasRecorteTablero() {
       case 'producto': return row.descripcion ?? ''
       case 'cupo': return row.cupo ?? ''
       case 'canal': return row.canal ?? ''
-      case 'filas': return row.filas ?? ''
       case 'recortePzs': return row.recortePzs ?? ''
       case 'recorteEnv': return row.recorteEnv ?? ''
       case 'recorteResiduo': return row.recorteResiduo ?? ''
@@ -1136,7 +1140,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setRecorteExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? recorteTitleHeight : HEADER_H, boxSizing: 'border-box',
                     borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
@@ -1146,7 +1150,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setConsumoExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
                   Consumo Inventario {showDetalleDiaTopN && (consumoExpanded ? '▲' : '▼')}
@@ -1155,7 +1159,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setTransitoExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: TRANSITO_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
                     borderLeft: HDR_DIVIDER_STRONG }}>
@@ -1352,7 +1356,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setRecorteExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? recorteTitleHeight : HEADER_H, boxSizing: 'border-box',
                       borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
@@ -1362,7 +1366,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setConsumoExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
                     Consumo Inventario {showDetalleDia && (consumoExpanded ? '▲' : '▼')}
@@ -1371,7 +1375,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setTransitoExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: TRANSITO_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'uppercase',
+                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
                       borderLeft: HDR_DIVIDER_STRONG }}>
@@ -1522,7 +1526,6 @@ export default function CausasRecorteTablero() {
                     if (idx === 0) content = `TOTAL (${data.total.toLocaleString()} ${agrupado ? 'grupos' : 'filas'})`
                     else if (col.key === 'recortePzs') content = fmtNum(data.totalRecortePzs)
                     else if (col.key === 'recorteUsd') content = fmtMoney(data.totalRecorteUsd)
-                    else if (col.key === 'filas') content = data.total.toLocaleString()
                     return (
                       <td key={col.key} style={{ padding: '7px 10px', textAlign: col.align, fontWeight: 600,
                         color: '#fff', fontSize: 12, whiteSpace: 'nowrap', borderTop: '2px solid #000',
