@@ -282,7 +282,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
       title="Arrastra para reordenar · arrastra el borde derecho para cambiar el ancho"
       style={{
         padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
-        color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3,
+        color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'none',
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
         background: isDragOver ? '#24374a' : TOTAL_BG,
         zIndex: isSticky ? 3 : 2, height: height ?? HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
@@ -1146,7 +1146,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setRecorteExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
+                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? recorteTitleHeight : HEADER_H, boxSizing: 'border-box',
                     borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
@@ -1156,7 +1156,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setConsumoExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
+                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
                   Consumo inventario {showDetalleDiaTopN && (consumoExpanded ? '▲' : '▼')}
@@ -1165,7 +1165,7 @@ export default function CausasRecorteTablero() {
                   onClick={showDetalleDiaTopN ? () => setTransitoExpanded(v => !v) : undefined}
                   title={showDetalleDiaTopN ? 'Clic para expandir/contraer' : undefined}
                   style={{ textAlign: 'center', background: TRANSITO_COLORS.title, color: '#fff', cursor: showDetalleDiaTopN ? 'pointer' : 'default',
-                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
+                    fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
                     borderLeft: HDR_DIVIDER_STRONG }}>
@@ -1362,7 +1362,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setRecorteExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: RECORTE_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
+                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? recorteTitleHeight : HEADER_H, boxSizing: 'border-box',
                       borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
@@ -1372,7 +1372,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setConsumoExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: CONSUMO_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
+                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
                     Consumo inventario {showDetalleDia && (consumoExpanded ? '▲' : '▼')}
@@ -1381,7 +1381,7 @@ export default function CausasRecorteTablero() {
                     onClick={showDetalleDia ? () => setTransitoExpanded(v => !v) : undefined}
                     title={showDetalleDia ? 'Clic para expandir/contraer' : undefined}
                     style={{ textAlign: 'center', background: TRANSITO_COLORS.title, color: '#fff', cursor: showDetalleDia ? 'pointer' : 'default',
-                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
+                      fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5, textTransform: 'none',
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
                       borderLeft: HDR_DIVIDER_STRONG }}>
