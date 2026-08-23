@@ -278,7 +278,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
         padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
         color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3,
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
-        background: isDragOver ? '#24374a' : '#1a2e38',
+        background: isDragOver ? '#24374a' : TOTAL_BG,
         zIndex: isSticky ? 3 : 2, height: height ?? HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
         boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
@@ -1127,7 +1127,7 @@ export default function CausasRecorteTablero() {
                 : <col key="tn-tr-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
             </colgroup>
             <thead>
-              <tr style={{ background: '#1a2e38' }}>
+              <tr style={{ background: TOTAL_BG }}>
                 {topNLayout.orderedColumns.map(col => {
                   const key = col.key ?? col.label
                   return (
@@ -1167,7 +1167,7 @@ export default function CausasRecorteTablero() {
                 </th>
               </tr>
               {showDetalleDiaTopN && (recorteExpanded || consumoExpanded || transitoExpanded) && (
-                <tr style={{ background: '#1a2e38' }}>
+                <tr style={{ background: TOTAL_BG }}>
                   {recorteExpanded && recorteDayCols.map(dayIdx => (
                     <th key={`tn-rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: RECORTE_COLORS.date,
@@ -1195,7 +1195,7 @@ export default function CausasRecorteTablero() {
                 </tr>
               )}
               {showDetalleDiaTopN && (recorteExpanded || consumoExpanded || transitoExpanded) && (
-                <tr style={{ background: '#1a2e38' }}>
+                <tr style={{ background: TOTAL_BG }}>
                   {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                     <th key={`tn-rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
                       textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: RECORTE_COLORS.metric,
@@ -1341,7 +1341,7 @@ export default function CausasRecorteTablero() {
                   : <col key="tr-col-collapsed" style={{ width: COLLAPSED_TITLE_WIDTH }} />}
               </colgroup>
               <thead>
-                <tr style={{ background: '#1a2e38' }}>
+                <tr style={{ background: TOTAL_BG }}>
                   {layout.orderedColumns.map(col => {
                     const key = col.key ?? col.label
                     return (
@@ -1383,7 +1383,7 @@ export default function CausasRecorteTablero() {
                   </th>
                 </tr>
                 {showDetalleDia && (recorteExpanded || consumoExpanded || transitoExpanded) && (
-                  <tr style={{ background: '#1a2e38' }}>
+                  <tr style={{ background: TOTAL_BG }}>
                     {recorteExpanded && recorteDayCols.map(dayIdx => (
                       <th key={`rf-date-${dayIdx}`} colSpan={DIA_METRICS_RECORTE.length} style={{ padding: '3px 4px', fontSize: 11, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H, background: RECORTE_COLORS.date,
@@ -1411,7 +1411,7 @@ export default function CausasRecorteTablero() {
                   </tr>
                 )}
                 {showDetalleDia && (recorteExpanded || consumoExpanded || transitoExpanded) && (
-                  <tr style={{ background: '#1a2e38' }}>
+                  <tr style={{ background: TOTAL_BG }}>
                     {recorteExpanded && recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => (
                       <th key={`rf-h-${dayIdx}-${metric}`} style={{ padding: '4px 3px', fontSize: 10, color: '#fff',
                         textAlign: 'center', whiteSpace: 'nowrap', position: 'sticky', top: TITLE_H + DATE_H, background: RECORTE_COLORS.metric,
