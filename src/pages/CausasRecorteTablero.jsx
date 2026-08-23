@@ -173,6 +173,25 @@ function recorteFabricaValue(row, dayIdx, metric) {
   return null
 }
 function consumoValue(row, dayIdx, metric) {
+  // El total (envsConsumo) suma los 6 dias de transito MAS un termino aparte del
+  // dia analizado ("Hoy"), calculado sobre el pedido del archivo subido en vez del
+  // transito — ver comentario de EnvsConsumo en SqlService.cs. Sin esta fila el
+  // desglose por dia nunca alcanza el total mostrado en el boton.
+  if (dayIdx === 6) {
+    const cupo = row.cupo
+    const pedidoConsumo = row.hoyPedidoConsumo
+    const cargoPromConsumo = row.hoyCargoPromedioConsumo
+    if (!(cupo > 0) || pedidoConsumo == null || cargoPromConsumo == null) return null
+    const real = pedidoConsumo / cupo
+    const prom = cargoPromConsumo / cupo
+    const recorteEnvHoy = Math.max((row.hoyPedido ?? 0) - (row.hoyEntregado ?? 0), 0)
+    const aplicaExceso = recorteEnvHoy > 0 && pedidoConsumo > cargoPromConsumo
+    if (metric === 'Cargo Real') return real
+    if (metric === 'Cargo Prom.') return prom
+    if (metric === 'Exceso') return aplicaExceso ? real - prom : 0
+    if (metric === 'Ahorro') return 0
+    return null
+  }
   const real = row.cargoReal?.[dayIdx]
   const prom = row.cargoPromedio?.[dayIdx]
   if (real == null && prom == null) return null
@@ -509,7 +528,7 @@ export default function CausasRecorteTablero() {
   const hoyDuplicaDia6 = !!(diaDates[5] && fechaFin
     && String(diaDates[5]).slice(0, 10) === String(fechaFin).slice(0, 10))
   const recorteDayCols = hoyDuplicaDia6 ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6]
-  const consumoDayCols = [0, 1, 2, 3, 4, 5]
+  const consumoDayCols = [0, 1, 2, 3, 4, 5, 6]
   // Fechas futuras de Pedido Tránsito: a diferencia de recorteDayCols/consumoDayCols
   // (siempre los mismos 6-7 días para toda la tabla), cada fila puede tener sus
   // propias fechas futuras — se toma la primera fila con datos como set de columnas
