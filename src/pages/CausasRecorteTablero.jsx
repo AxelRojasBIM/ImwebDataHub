@@ -44,6 +44,14 @@ const CAUSA_LABELS = {
 }
 const causaLabel = (causa) => CAUSA_LABELS[causa] || causa
 
+// Columnas que se quedan con su alineación/color original (texto descriptivo) —
+// todo lo demás (métricas, cupo, canal, marca, filas, etc.) se centra y se pinta
+// de negro plano.
+const EXCLUDE_BLACK_CENTER = new Set([
+  'fecha', 'ceve', 'item', 'producto', 'categoria', 'region',
+  'causaPrincipal', 'causaPredominante', 'resumen',
+])
+
 const GROUP_FIELDS = [
   { key: 'fecha',     label: 'Fecha',     width: 90 },
   { key: 'ceve',      label: 'CeVe',      width: 180 },
@@ -531,33 +539,33 @@ export default function CausasRecorteTablero() {
     { key: 'ceve', label: 'CeVe', width: 120, align: 'left' },
     { key: 'item', label: 'Item', width: 75, align: 'left' },
     { key: 'producto', label: 'Producto', width: 170, align: 'left' },
-    { key: 'cupo', label: 'Cupo', width: 70, align: 'right' },
-    { key: 'canal', label: 'Canal', width: 95, align: 'left' },
-    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 110, align: 'right' },
-    { key: 'recorteEnv', label: 'Recorte Env', width: 95, align: 'right' },
-    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 130, align: 'right' },
-    { key: 'recorteUsd', label: 'Recorte $', width: 95, align: 'right' },
-    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'right' },
-    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
-    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
+    { key: 'cupo', label: 'Cupo', width: 70, align: 'center' },
+    { key: 'canal', label: 'Canal', width: 95, align: 'center' },
+    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 110, align: 'center' },
+    { key: 'recorteEnv', label: 'Recorte Env', width: 95, align: 'center' },
+    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 130, align: 'center' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 95, align: 'center' },
+    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'center' },
+    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'center' },
+    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'center' },
     { key: 'causaPrincipal', label: 'Causa Principal', width: 150, align: 'left' },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
   ], [])
 
   const groupedColumnsBase = useMemo(() => [
-    ...activeGroupFields.map(f => ({ key: f.key, label: f.label, width: f.width, align: 'left' })),
+    ...activeGroupFields.map(f => ({ key: f.key, label: f.label, width: f.width, align: EXCLUDE_BLACK_CENTER.has(f.key) ? 'left' : 'center' })),
     // Columna aparte (no parte de "Agrupar por") que el backend agrega solo cuando
     // se agrupa por CeVe — la región es 1:1 con el CeVe, no un campo agrupable propio.
     ...(activeGroupFields.some(f => f.key === 'ceve') ? [{ key: 'region', label: 'Región', width: 110, align: 'left' }] : []),
-    ...(activeGroupFields.some(f => f.key === 'item') ? [{ key: 'cupo', label: 'Cupo', width: 70, align: 'right' }] : []),
-    { key: 'filas', label: 'Filas', width: 75, align: 'right' },
-    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 120, align: 'right' },
-    { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'right' },
-    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'right' },
-    { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
-    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'right' },
-    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
-    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
+    ...(activeGroupFields.some(f => f.key === 'item') ? [{ key: 'cupo', label: 'Cupo', width: 70, align: 'center' }] : []),
+    { key: 'filas', label: 'Filas', width: 75, align: 'center' },
+    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 120, align: 'center' },
+    { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'center' },
+    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'center' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'center' },
+    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'center' },
+    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'center' },
+    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'center' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
     // Depende de data.groupBy (lo que en verdad respondió el servidor), no de los
@@ -568,20 +576,20 @@ export default function CausasRecorteTablero() {
   ], [(data.groupBy ?? []).join(',')])
 
   const topNColumnsBase = useMemo(() => [
-    { key: 'rank', label: '#', width: 36, align: 'right' },
+    { key: 'rank', label: '#', width: 36, align: 'center' },
     { key: 'producto', label: 'Producto', width: 220, align: 'left' },
-    { key: 'cupo', label: 'Cupo', width: 70, align: 'right' },
-    { key: 'itemTotalPzs', label: 'Total Producto Pzs', width: 120, align: 'right' },
-    { key: 'itemTotalUsd', label: 'Total Producto $', width: 120, align: 'right' },
+    { key: 'cupo', label: 'Cupo', width: 70, align: 'center' },
+    { key: 'itemTotalPzs', label: 'Total Producto Pzs', width: 120, align: 'center' },
+    { key: 'itemTotalUsd', label: 'Total Producto $', width: 120, align: 'center' },
     { key: 'ceve', label: 'CeVe', width: 180, align: 'left' },
     { key: 'region', label: 'Región', width: 110, align: 'left' },
-    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 120, align: 'right' },
-    { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'right' },
-    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'right' },
-    { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'right' },
-    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'right' },
-    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
-    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
+    { key: 'recortePzs', label: 'Recorte Total Pzs', width: 120, align: 'center' },
+    { key: 'recorteEnv', label: 'Recorte Env', width: 100, align: 'center' },
+    { key: 'recorteResiduo', label: 'Recorte Pzs (residuo)', width: 140, align: 'center' },
+    { key: 'recorteUsd', label: 'Recorte $', width: 110, align: 'center' },
+    { key: 'existenciaPzs', label: 'Existencia Total Pzs', width: 130, align: 'center' },
+    { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'center' },
+    { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'center' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left' },
   ], [])
@@ -696,12 +704,12 @@ export default function CausasRecorteTablero() {
       case 'canal': return row.canal || '—'
       case 'filas': return row.filas?.toLocaleString()
       case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
-      case 'recorteEnv': return <span style={{ color: '#1e3a8a' }}>{fmtNum(row.recorteEnv)}</span>
-      case 'recorteResiduo': return <span style={{ color: '#6b7280' }}>{fmtNum(row.recorteResiduo)}</span>
+      case 'recorteEnv': return fmtNum(row.recorteEnv)
+      case 'recorteResiduo': return fmtNum(row.recorteResiduo)
       case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
-      case 'existenciaPzs': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaPzs)}</span>
-      case 'existenciaEnv': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaEnv)}</span>
-      case 'existenciaUsd': return <span style={{ color: '#065f46' }}>{fmtMoney(row.existenciaUsd)}</span>
+      case 'existenciaPzs': return fmtNum(row.existenciaPzs)
+      case 'existenciaEnv': return fmtNum(row.existenciaEnv)
+      case 'existenciaUsd': return fmtMoney(row.existenciaUsd)
       case 'causaPrincipal': return <CausaBadge causa={row.causaPrincipal} />
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
       case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
@@ -719,12 +727,12 @@ export default function CausasRecorteTablero() {
       case 'ceve': return <span title={`${row.codigoCeve ?? ''} - ${row.ceve ?? ''}`}>{row.codigoCeve}{row.ceve ? ` - ${row.ceve}` : ''}</span>
       case 'region': return row.region || '—'
       case 'recortePzs': return <span style={{ fontWeight: 600 }}>{fmtNum(row.recortePzs)}</span>
-      case 'recorteEnv': return <span style={{ color: '#1e3a8a' }}>{fmtNum(row.recorteEnv)}</span>
-      case 'recorteResiduo': return <span style={{ color: '#6b7280' }}>{fmtNum(row.recorteResiduo)}</span>
+      case 'recorteEnv': return fmtNum(row.recorteEnv)
+      case 'recorteResiduo': return fmtNum(row.recorteResiduo)
       case 'recorteUsd': return <span style={{ fontWeight: 600 }}>{fmtMoney(row.recorteUsd)}</span>
-      case 'existenciaPzs': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaPzs)}</span>
-      case 'existenciaEnv': return <span style={{ color: '#065f46' }}>{fmtNum(row.existenciaEnv)}</span>
-      case 'existenciaUsd': return <span style={{ color: '#065f46' }}>{fmtMoney(row.existenciaUsd)}</span>
+      case 'existenciaPzs': return fmtNum(row.existenciaPzs)
+      case 'existenciaEnv': return fmtNum(row.existenciaEnv)
+      case 'existenciaUsd': return fmtMoney(row.existenciaUsd)
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
       case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
       default: return null
@@ -1230,7 +1238,8 @@ export default function CausasRecorteTablero() {
                         const isSticky = topNStickyLeft[key] !== undefined
                         return (
                           <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
-                            color: (col.key === 'itemTotalPzs' || col.key === 'itemTotalUsd' || col.key === 'rank') && !isNewItem ? '#d1d5db' : undefined,
+                            color: (col.key === 'itemTotalPzs' || col.key === 'itemTotalUsd' || col.key === 'rank') && !isNewItem
+                              ? '#d1d5db' : (EXCLUDE_BLACK_CENTER.has(key) ? undefined : '#111827'),
                             ...(key === 'pedidoTransito' ? { overflow: 'visible' } : {}),
                             ...(isSticky ? {
                               position: 'sticky', left: topNStickyLeft[key], zIndex: 1, background: rowBg,
@@ -1444,6 +1453,7 @@ export default function CausasRecorteTablero() {
                         const isSticky = stickyLeft[colKey] !== undefined
                         return (
                           <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
+                            color: EXCLUDE_BLACK_CENTER.has(colKey) ? undefined : '#111827',
                             // "Pedido Tránsito" abre un popover que se saldría de la celda —
                             // overflow:hidden (heredado de cellStyle) lo recortaría.
                             ...(colKey === 'pedidoTransito' ? { overflow: 'visible' } : {}),
