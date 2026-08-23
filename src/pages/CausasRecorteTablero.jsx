@@ -336,9 +336,12 @@ export default function CausasRecorteTablero() {
   const [recorteExpanded, setRecorteExpanded] = useState(false)
   const [consumoExpanded, setConsumoExpanded] = useState(false)
 
-  // Popover "Pedido Tránsito" — se abre por fila,
-  // no por columna completa, para no alterar la altura fija de las filas de la tabla.
+  // Popovers "Pedido Tránsito" / "Recorte Fábrica" / "Consumo Inventario" — se
+  // abren por fila, no por columna completa, para no alterar la altura fija
+  // de las filas de la tabla.
   const [pedidoTransitoRow, setPedidoTransitoRow] = useState(null)
+  const [recortePopoverRow, setRecortePopoverRow] = useState(null)
+  const [consumoPopoverRow, setConsumoPopoverRow] = useState(null)
 
   // Top N
   const [topNOpen, setTopNOpen]     = useState(false)
@@ -653,6 +656,56 @@ export default function CausasRecorteTablero() {
         )}
       </div>
     )
+  }
+
+  // Popover genérico "resumen por día" para las celdas colapsadas de Recorte
+  // Fábrica / Consumo Inventario — el botón ya muestra el total (no hace falta
+  // expandir toda la columna) y al hacer clic despliega el desglose día por
+  // día con las mismas métricas que la columna expandida.
+  function renderDayBreakdownCell(row, rowKey, disponible, total, dayCols, metrics, valueFn, openRow, setOpenRow, colors) {
+    if (!disponible) return <span>{fmtNum(total)}</span>
+    const isOpen = openRow === rowKey
+    return (
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setOpenRow(prev => prev === rowKey ? null : rowKey) }}
+          title="Clic para ver el resumen por día"
+          style={{
+            padding: '2px 8px', fontSize: 11, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
+            background: isOpen ? colors.title : colors.bg, color: isOpen ? '#fff' : colors.title,
+            border: `1px solid ${colors.border}`, whiteSpace: 'nowrap',
+          }}>
+          {fmtNum(total)} {isOpen ? '▲' : '▼'}
+        </button>
+        {isOpen && (
+          <div style={{
+            position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 10,
+            background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(15,23,42,0.18)', padding: '8px 10px', minWidth: 210,
+          }}>
+            {dayCols.map(dayIdx => (
+              <div key={dayIdx} style={{ padding: '4px 0', borderBottom: '1px dashed #e5e7eb' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 2 }}>{dayLabel(dayIdx)}</div>
+                {metrics.map(metric => (
+                  <div key={metric} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 11.5, padding: '1px 0', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: '#6b7280' }}>{metric}</span>
+                    <span style={{ fontWeight: 600, color: colors.title }}>{fmtNum(valueFn(row, dayIdx, metric))}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+  function renderRecorteFabricaCell(row, rowKey, disponible) {
+    return renderDayBreakdownCell(row, rowKey, disponible, row.envsPlanta, recorteDayCols, DIA_METRICS_RECORTE,
+      recorteFabricaValue, recortePopoverRow, setRecortePopoverRow, { title: RECORTE_COLORS.title, bg: '#eff4ff', border: '#c7d7fd' })
+  }
+  function renderConsumoInventarioCell(row, rowKey, disponible) {
+    return renderDayBreakdownCell(row, rowKey, disponible, row.envsConsumo, consumoDayCols, DIA_METRICS_CONSUMO,
+      consumoValue, consumoPopoverRow, setConsumoPopoverRow, { title: CONSUMO_COLORS.title, bg: '#ecfdf5', border: '#a7f3d0' })
   }
 
   function renderMainCell(col, row, rowKey) {
@@ -1198,7 +1251,9 @@ export default function CausasRecorteTablero() {
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</td>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                          {renderRecorteFabricaCell(row, rowKey, showDetalleDiaTopN)}
+                        </td>
                       )}
                       {showDetalleDiaTopN && consumoExpanded ? (
                         consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
@@ -1211,7 +1266,9 @@ export default function CausasRecorteTablero() {
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, color: '#92400e' }}>{fmtNum(row.envsConsumo)}</td>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                          {renderConsumoInventarioCell(row, rowKey, showDetalleDiaTopN)}
+                        </td>
                       )}
                     </tr>
                   )
@@ -1390,7 +1447,9 @@ export default function CausasRecorteTablero() {
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</td>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                          {renderRecorteFabricaCell(row, key, showDetalleDia)}
+                        </td>
                       )}
                       {showDetalleDia && consumoExpanded ? (
                         consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
@@ -1403,7 +1462,9 @@ export default function CausasRecorteTablero() {
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, color: '#92400e' }}>{fmtNum(row.envsConsumo)}</td>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                          {renderConsumoInventarioCell(row, key, showDetalleDia)}
+                        </td>
                       )}
                     </tr>
                   )
