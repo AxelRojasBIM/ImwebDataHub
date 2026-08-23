@@ -112,6 +112,7 @@ const HDR_DIVIDER_STRONG = '2px solid rgba(0,0,0,0.18)'
 const RECORTE_COLORS = { title: '#1a56db', date: '#2563eb', metric: '#1a56db' }
 const CONSUMO_COLORS = { title: '#0f766e', date: '#0d9488', metric: '#0f766e' }
 const TRANSITO_COLORS = { title: '#475569', date: '#334155', metric: '#475569' }
+const TOTAL_BG = '#1a2e4a'
 
 // Detalle día por día (solo tiene sentido cuando la vista está en un solo día,
 // porque ahí las fechas de tránsito son las mismas para todas las filas).
@@ -1424,32 +1425,6 @@ export default function CausasRecorteTablero() {
                     ))}
                   </tr>
                 )}
-                {/* Fila de totales — inamovible (sticky) justo debajo del encabezado */}
-                <tr style={{ background: '#eef2ff' }}>
-                  {layout.orderedColumns.map((col, idx) => {
-                    const key = col.key ?? col.label
-                    const isSticky = stickyLeft[key] !== undefined
-                    let content = ''
-                    if (idx === 0) content = 'TOTAL'
-                    else if (col.key === 'recortePzs') content = fmtNum(data.totalRecortePzs)
-                    else if (col.key === 'recorteUsd') content = fmtMoney(data.totalRecorteUsd)
-                    else if (col.key === 'filas') content = data.total.toLocaleString()
-                    return (
-                      <td key={col.key} style={{ padding: '6px 10px', textAlign: col.align, fontWeight: 700,
-                        color: '#1e3a8a', fontSize: 11.5, whiteSpace: 'nowrap', borderBottom: '2px solid #c7d7fd',
-                        position: 'sticky', top: showDetalleDia ? baseHeaderHeight : HEADER_H,
-                        left: isSticky ? stickyLeft[key] : undefined,
-                        background: '#eef2ff', zIndex: isSticky ? 2 : 1,
-                        boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.1)' : undefined }}>{content}</td>
-                    )
-                  })}
-                  <td colSpan={showDetalleDia ? recorteColCount : 1} style={{
-                    position: 'sticky', top: showDetalleDia ? baseHeaderHeight : HEADER_H, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
-                  <td colSpan={showDetalleDia ? consumoColCount : 1} style={{
-                    position: 'sticky', top: showDetalleDia ? baseHeaderHeight : HEADER_H, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
-                  <td colSpan={showDetalleDia ? transitoColCountMain : 1} style={{
-                    position: 'sticky', top: showDetalleDia ? baseHeaderHeight : HEADER_H, background: '#eef2ff', borderBottom: '2px solid #c7d7fd' }} />
-                </tr>
               </thead>
               <tbody>
                 {data.rows.map((row, i) => {
@@ -1526,6 +1501,35 @@ export default function CausasRecorteTablero() {
                   )
                 })}
               </tbody>
+              {/* Fila de totales — fija al fondo de la tabla (sticky bottom), calculada
+                  sobre TODO el conjunto filtrado (no solo la página visible), igual que
+                  en Existencia Teórica. */}
+              <tfoot>
+                <tr style={{ background: TOTAL_BG }}>
+                  {layout.orderedColumns.map((col, idx) => {
+                    const key = col.key ?? col.label
+                    const isSticky = stickyLeft[key] !== undefined
+                    let content = ''
+                    if (idx === 0) content = `TOTAL (${data.total.toLocaleString()} ${agrupado ? 'grupos' : 'filas'})`
+                    else if (col.key === 'recortePzs') content = fmtNum(data.totalRecortePzs)
+                    else if (col.key === 'recorteUsd') content = fmtMoney(data.totalRecorteUsd)
+                    else if (col.key === 'filas') content = data.total.toLocaleString()
+                    return (
+                      <td key={col.key} style={{ padding: '7px 10px', textAlign: col.align, fontWeight: 600,
+                        color: '#fff', fontSize: 12, whiteSpace: 'nowrap', borderTop: '2px solid #000',
+                        position: 'sticky', bottom: 0, left: isSticky ? stickyLeft[key] : undefined,
+                        background: TOTAL_BG, zIndex: isSticky ? 2 : 1,
+                        boxShadow: key === STICKY_UPTO_KEY ? '2px 0 4px rgba(0,0,0,0.3)' : undefined }}>{content}</td>
+                    )
+                  })}
+                  <td colSpan={showDetalleDia ? recorteColCount : 1} style={{
+                    position: 'sticky', bottom: 0, background: TOTAL_BG, borderTop: '2px solid #000' }} />
+                  <td colSpan={showDetalleDia ? consumoColCount : 1} style={{
+                    position: 'sticky', bottom: 0, background: TOTAL_BG, borderTop: '2px solid #000' }} />
+                  <td colSpan={showDetalleDia ? transitoColCountMain : 1} style={{
+                    position: 'sticky', bottom: 0, background: TOTAL_BG, borderTop: '2px solid #000' }} />
+                </tr>
+              </tfoot>
             </table>
           </div>
 
