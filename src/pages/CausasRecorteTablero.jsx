@@ -90,6 +90,12 @@ function fmtDateShort(iso) {
   const [, m, d] = iso.split('-')
   return `${d}/${m}`
 }
+// Solo para mostrar en los encabezados — el label real (usado en CSV, orden,
+// etc.) se queda igual. "Recorte Total Pzs" -> "Recorte total pzs".
+function sentenceCase(s) {
+  if (!s) return s
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+}
 // Igual que el resto de la app: "código - nombre" (solo el código si no hay nombre distinto).
 function ceveLabel(codigoCeve, ceve) {
   if (!ceve || ceve === codigoCeve) return codigoCeve
@@ -283,7 +289,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
         boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
       }}>
-      {col.label}
+      {sentenceCase(col.label)}
       {onSort && col.key && (
         <span style={{ marginLeft: 5, opacity: active ? 1 : 0.35, fontSize: 10 }}>
           {active ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
@@ -1144,7 +1150,7 @@ export default function CausasRecorteTablero() {
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? recorteTitleHeight : HEADER_H, boxSizing: 'border-box',
                     borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
-                  Recorte Fabrica {showDetalleDiaTopN && (recorteExpanded ? '▲' : '▼')}
+                  Recorte fabrica {showDetalleDiaTopN && (recorteExpanded ? '▲' : '▼')}
                 </th>
                 <th colSpan={showDetalleDiaTopN ? consumoColCount : 1} rowSpan={showDetalleDiaTopN ? consumoTitleRowSpan : 1}
                   onClick={showDetalleDiaTopN ? () => setConsumoExpanded(v => !v) : undefined}
@@ -1153,7 +1159,7 @@ export default function CausasRecorteTablero() {
                     fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
-                  Consumo Inventario {showDetalleDiaTopN && (consumoExpanded ? '▲' : '▼')}
+                  Consumo inventario {showDetalleDiaTopN && (consumoExpanded ? '▲' : '▼')}
                 </th>
                 <th colSpan={showDetalleDiaTopN ? transitoColCountTopN : 1} rowSpan={showDetalleDiaTopN ? transitoTitleRowSpan : 1}
                   onClick={showDetalleDiaTopN ? () => setTransitoExpanded(v => !v) : undefined}
@@ -1163,7 +1169,7 @@ export default function CausasRecorteTablero() {
                     padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                     height: showDetalleDiaTopN ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
                     borderLeft: HDR_DIVIDER_STRONG }}>
-                  Pedido Tránsito {showDetalleDiaTopN && (transitoExpanded ? '▲' : '▼')}
+                  Pedido tránsito {showDetalleDiaTopN && (transitoExpanded ? '▲' : '▼')}
                 </th>
               </tr>
               {showDetalleDiaTopN && (recorteExpanded || consumoExpanded || transitoExpanded) && (
@@ -1360,7 +1366,7 @@ export default function CausasRecorteTablero() {
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? recorteTitleHeight : HEADER_H, boxSizing: 'border-box',
                       borderLeft: HDR_DIVIDER_STRONG, borderRight: HDR_DIVIDER_STRONG }}>
-                    Recorte Fabrica {showDetalleDia && (recorteExpanded ? '▲' : '▼')}
+                    Recorte fabrica {showDetalleDia && (recorteExpanded ? '▲' : '▼')}
                   </th>
                   <th colSpan={showDetalleDia ? consumoColCount : 1} rowSpan={showDetalleDia ? consumoTitleRowSpan : 1}
                     onClick={showDetalleDia ? () => setConsumoExpanded(v => !v) : undefined}
@@ -1369,7 +1375,7 @@ export default function CausasRecorteTablero() {
                       fontWeight: 700, fontSize: 11.5, letterSpacing: 0.5,
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? consumoTitleHeight : HEADER_H, boxSizing: 'border-box' }}>
-                    Consumo Inventario {showDetalleDia && (consumoExpanded ? '▲' : '▼')}
+                    Consumo inventario {showDetalleDia && (consumoExpanded ? '▲' : '▼')}
                   </th>
                   <th colSpan={showDetalleDia ? transitoColCountMain : 1} rowSpan={showDetalleDia ? transitoTitleRowSpan : 1}
                     onClick={showDetalleDia ? () => setTransitoExpanded(v => !v) : undefined}
@@ -1379,7 +1385,7 @@ export default function CausasRecorteTablero() {
                       padding: '6px 4px', position: 'sticky', top: 0, zIndex: 2,
                       height: showDetalleDia ? transitoTitleHeight : HEADER_H, boxSizing: 'border-box',
                       borderLeft: HDR_DIVIDER_STRONG }}>
-                    Pedido Tránsito {showDetalleDia && (transitoExpanded ? '▲' : '▼')}
+                    Pedido tránsito {showDetalleDia && (transitoExpanded ? '▲' : '▼')}
                   </th>
                 </tr>
                 {showDetalleDia && (recorteExpanded || consumoExpanded || transitoExpanded) && (
