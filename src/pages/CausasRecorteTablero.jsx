@@ -269,7 +269,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
         padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
         color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'uppercase',
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
-        background: isDragOver ? '#1d4ed8' : '#2563eb',
+        background: isDragOver ? '#24374a' : '#1a2e38',
         zIndex: isSticky ? 3 : 2, height: height ?? HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
         boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
