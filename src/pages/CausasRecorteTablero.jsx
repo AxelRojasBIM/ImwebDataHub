@@ -62,6 +62,7 @@ const GROUP_FIELDS = [
 ]
 
 const HEADER_H = 32
+const HEADER_NOWRAP_KEYS = new Set(['fecha', 'ceve', 'region', 'item', 'cupo', 'categoria', 'causaPredominante', 'causaPrincipal', 'resumen'])
 const MIN_COL_WIDTH = 50
 
 function CausaBadge({ causa, small }) {
@@ -270,6 +271,7 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
   const key = col.key ?? col.label
   const isDragOver = layout.dragOverKey === key
   const isSticky = stickyLeft != null
+  const wrap = !HEADER_NOWRAP_KEYS.has(key)
   return (
     <th
       rowSpan={rowSpan}
@@ -282,10 +284,12 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, rowSpan, heig
       title="Arrastra para reordenar · arrastra el borde derecho para cambiar el ancho"
       style={{
         padding: '7px 10px', width, textAlign: col.align, fontWeight: 700,
-        color: '#fff', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'none',
+        color: '#fff', whiteSpace: wrap ? 'normal' : 'nowrap', fontSize: 11, letterSpacing: 0.3, textTransform: 'none',
+        lineHeight: wrap ? 1.15 : undefined, wordBreak: wrap ? 'break-word' : undefined,
         position: 'sticky', top: 0, left: isSticky ? stickyLeft : undefined,
         background: isDragOver ? '#24374a' : TOTAL_BG,
-        zIndex: isSticky ? 3 : 2, height: height ?? HEADER_H, boxSizing: 'border-box', overflow: 'hidden',
+        zIndex: isSticky ? 3 : 2, height: height ?? HEADER_H, boxSizing: 'border-box',
+        overflow: wrap ? 'visible' : 'hidden',
         cursor: onSort && col.key ? 'pointer' : 'grab', userSelect: 'none',
         boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.15)' : undefined,
       }}>
