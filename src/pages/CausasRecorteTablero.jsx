@@ -625,59 +625,14 @@ export default function CausasRecorteTablero() {
   // día de Recorte Fábrica/Consumo Inventario está disponible (rango de un solo día
   // agrupado por CeVe+Item), porque reutiliza esos mismos campos por fila
   // (row.pedidoFabrica[]/row.fechaTransito[]) en vez de pedir algo nuevo al backend.
-  function renderPedidoTransitoCell(row, rowKey, disponible) {
-    if (!disponible) return <span style={{ color: '#9ca3af' }}>—</span>
-    const isOpen = pedidoTransitoRow === rowKey
-    return (
-      <div style={{ position: 'relative', display: 'inline-block' }}>
-        <button
-          onClick={(e) => { e.stopPropagation(); setPedidoTransitoRow(prev => prev === rowKey ? null : rowKey) }}
-          title="Clic para expandir/contraer"
-          style={{
-            padding: '2px 8px', fontSize: 10.5, fontWeight: 600, borderRadius: 6, cursor: 'pointer',
-            background: isOpen ? '#1a56db' : '#eef2ff', color: isOpen ? '#fff' : '#1a56db',
-            border: '1px solid #c7d2fe', whiteSpace: 'nowrap',
-          }}>
-          Pedido Tránsito {isOpen ? '▲' : '▼'}
-        </button>
-        {isOpen && (
-          <div style={{
-            position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 10,
-            background: '#fff', border: '1px solid #c7d2fe', borderRadius: 8,
-            boxShadow: '0 4px 12px rgba(15,23,42,0.18)', padding: '8px 10px',
-          }}>
-            <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', padding: '2px 8px 4px 2px', color: '#6b7280', fontWeight: 700, whiteSpace: 'nowrap' }}>Fecha</th>
-                  <th title="Pedido CeVe" style={{ textAlign: 'right', padding: '2px 6px 4px', color: '#0f766e', fontWeight: 700 }}>P</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(row.fechaFuturo ?? []).length === 0 ? (
-                  <tr><td colSpan={2} style={{ padding: '4px 2px', color: '#9ca3af' }}>Sin pedidos futuros</td></tr>
-                ) : (row.fechaFuturo ?? []).map((f, i) => {
-                  const v = row.pedidoFuturo?.[i]
-                  return (
-                    <tr key={`fut-${f}`} style={{ borderTop: '1px dashed #e5e7eb' }}>
-                      <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>Pedido vta {fmtDateShort(f)}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'right', color: '#0f766e', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtNum(v)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   // Popover genérico "resumen por día" para las celdas colapsadas de Recorte
-  // Fábrica / Consumo Inventario — el botón ya muestra el total (no hace falta
-  // expandir toda la columna) y al hacer clic despliega el desglose día por
-  // día con las mismas métricas que la columna expandida.
-  function renderDayBreakdownCell(row, rowKey, disponible, total, dayCols, metrics, metricLetters, valueFn, openRow, setOpenRow, colors) {
+  // Fábrica / Consumo Inventario / Pedido Tránsito — el botón ya muestra el
+  // total (no hace falta expandir toda la columna) y al hacer clic despliega
+  // el desglose día por día con las mismas métricas que la columna expandida.
+  // labelFn recibe (row, dayIdx) — Pedido Tránsito lo necesita porque sus
+  // "días" son fechas futuras propias de cada fila, no el calendario fijo
+  // que usa dayLabel() para Recorte/Consumo.
+  function renderDayBreakdownCell(row, rowKey, disponible, total, dayCols, metrics, metricLetters, valueFn, openRow, setOpenRow, colors, labelFn = (_row, idx) => dayLabel(idx)) {
     if (!disponible) return <span>{fmtNum(total)}</span>
     const isOpen = openRow === rowKey
     return (
@@ -710,9 +665,11 @@ export default function CausasRecorteTablero() {
                 </tr>
               </thead>
               <tbody>
-                {dayCols.map(dayIdx => (
+                {dayCols.length === 0 ? (
+                  <tr><td colSpan={1 + metrics.length} style={{ padding: '4px 2px', color: '#9ca3af' }}>Sin datos</td></tr>
+                ) : dayCols.map(dayIdx => (
                   <tr key={dayIdx} style={{ borderTop: '1px dashed #e5e7eb' }}>
-                    <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>{dayLabel(dayIdx)}</td>
+                    <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>{labelFn(row, dayIdx)}</td>
                     {metrics.map(metric => (
                       <td key={metric} style={{ padding: '3px 6px', textAlign: 'right', color: '#111827', whiteSpace: 'nowrap' }}>
                         {fmtNum(valueFn(row, dayIdx, metric))}
@@ -734,6 +691,14 @@ export default function CausasRecorteTablero() {
   function renderConsumoInventarioCell(row, rowKey, disponible) {
     return renderDayBreakdownCell(row, rowKey, disponible, row.envsConsumo, consumoDayCols, DIA_METRICS_CONSUMO, ['CR', 'CP', 'EX', 'AH'],
       consumoValue, consumoPopoverRow, setConsumoPopoverRow, { title: CONSUMO_COLORS.title, bg: '#ecfdf5', border: '#a7f3d0' })
+  }
+  function renderPedidoTransitoCell(row, rowKey, disponible) {
+    const futuroIdx = (row.fechaFuturo ?? []).map((_, i) => i)
+    const total = (row.pedidoFuturo ?? []).reduce((acc, v) => acc + (Number(v) || 0), 0)
+    return renderDayBreakdownCell(row, rowKey, disponible, total, futuroIdx, ['Pedido CeVe'], ['P'],
+      (r, idx) => r.pedidoFuturo?.[idx], pedidoTransitoRow, setPedidoTransitoRow,
+      { title: TRANSITO_COLORS.title, bg: '#f1f5f9', border: '#cbd5e1' },
+      (r, idx) => fmtDateShort(r.fechaFuturo?.[idx]))
   }
 
   function renderMainCell(col, row) {
