@@ -336,7 +336,7 @@ export default function CausasRecorteTablero() {
   const [recorteExpanded, setRecorteExpanded] = useState(false)
   const [consumoExpanded, setConsumoExpanded] = useState(false)
 
-  // Popover "Pedido Tránsito" (columna junto a Causa Secundaria) — se abre por fila,
+  // Popover "Pedido Tránsito" — se abre por fila,
   // no por columna completa, para no alterar la altura fija de las filas de la tabla.
   const [pedidoTransitoRow, setPedidoTransitoRow] = useState(null)
 
@@ -538,7 +538,6 @@ export default function CausasRecorteTablero() {
     { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
     { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
     { key: 'causaPrincipal', label: 'Causa Principal', width: 150, align: 'left' },
-    { key: 'causaSecundaria', label: 'Causa Secundaria', width: 150, align: 'left' },
     { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
     { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
@@ -560,7 +559,6 @@ export default function CausasRecorteTablero() {
     { key: 'existenciaEnv', label: 'Existencia Env', width: 110, align: 'right' },
     { key: 'existenciaUsd', label: 'Existencia $', width: 120, align: 'right' },
     { key: 'causaPredominante', label: 'Causa Predominante', width: 170, align: 'left' },
-    { key: 'causaSecundaria', label: 'Causa Secundaria', width: 170, align: 'left' },
     { key: 'pedidoTransito', label: 'Pedido Tránsito', width: 150, align: 'left', sortable: false },
     { key: 'resumen', label: 'Resumen', width: 320, align: 'left', sortable: false },
     { key: 'envsPlanta', label: 'Recorte Planta (Envs)', width: 150, align: 'right' },
@@ -686,7 +684,6 @@ export default function CausasRecorteTablero() {
       case 'existenciaUsd': return <span style={{ color: '#065f46' }}>{fmtMoney(row.existenciaUsd)}</span>
       case 'causaPrincipal': return <CausaBadge causa={row.causaPrincipal} />
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
-      case 'causaSecundaria': return <CausaBadge causa={row.causaSecundaria} small />
       case 'pedidoTransito': return renderPedidoTransitoCell(row, rowKey, showDetalleDia)
       case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
       case 'envsPlanta': return <span style={{ color: '#991b1b' }}>{fmtNum(row.envsPlanta)}</span>
@@ -744,7 +741,6 @@ export default function CausasRecorteTablero() {
       case 'existenciaUsd': return row.existenciaUsd ?? ''
       case 'causaPrincipal': return causaLabel(row.causaPrincipal) ?? ''
       case 'causaPredominante': return causaLabel(row.causaPredominante) ?? ''
-      case 'causaSecundaria': return causaLabel(row.causaSecundaria) ?? ''
       case 'resumen': return row.resumen ?? ''
       case 'envsPlanta': return row.envsPlanta ?? ''
       case 'envsConsumo': return row.envsConsumo ?? ''
