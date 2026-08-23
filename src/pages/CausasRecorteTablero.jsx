@@ -1111,7 +1111,7 @@ export default function CausasRecorteTablero() {
       {topNActive && topNData ? (
         <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
           boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, tableLayout: 'fixed' }}>
             <colgroup>
               {topNLayout.orderedColumns.map(col => (
                 <col key={col.key} style={{ width: topNLayout.widths[col.key] ?? col.width }} />
@@ -1263,14 +1263,14 @@ export default function CausasRecorteTablero() {
                         recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => {
                           const v = recorteFabricaValue(row, dayIdx, metric)
                           return (
-                            <td key={`tn-rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                            <td key={`tn-rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10.5,
                               whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                               {fmtNum(v)}
                             </td>
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10.5, overflow: 'visible' }}>
                           {renderRecorteFabricaCell(row, rowKey, showDetalleDiaTopN)}
                         </td>
                       )}
@@ -1278,26 +1278,26 @@ export default function CausasRecorteTablero() {
                         consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
                           const v = consumoValue(row, dayIdx, metric)
                           return (
-                            <td key={`tn-co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                            <td key={`tn-co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10.5,
                               whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                               {fmtNum(v)}
                             </td>
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10.5, overflow: 'visible' }}>
                           {renderConsumoInventarioCell(row, rowKey, showDetalleDiaTopN)}
                         </td>
                       )}
                       {showDetalleDiaTopN && transitoExpanded ? (
                         futuroIdxTopN.map(idx => (
-                          <td key={`tn-tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                          <td key={`tn-tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10.5,
                             whiteSpace: 'nowrap', overflow: 'hidden' }}>
                             {fmtNum(row.pedidoFuturo?.[idx])}
                           </td>
                         ))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10.5, overflow: 'visible' }}>
                           {renderPedidoTransitoCell(row, rowKey, showDetalleDiaTopN)}
                         </td>
                       )}
@@ -1325,7 +1325,7 @@ export default function CausasRecorteTablero() {
           <div style={{ flex: 1, overflow: 'auto', borderRadius: 12, border: '1px solid var(--border)', minHeight: 0,
             boxShadow: '0 1px 3px rgba(15,23,42,0.07), 0 1px 2px rgba(15,23,42,0.05)',
             opacity: loading ? 0.55 : 1, transition: 'opacity 0.12s' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, tableLayout: 'fixed' }}>
               <colgroup>
                 {layout.orderedColumns.map(col => (
                   <col key={col.key} style={{ width: layout.widths[col.key] ?? col.width }} />
@@ -1478,14 +1478,14 @@ export default function CausasRecorteTablero() {
                         recorteDayCols.flatMap(dayIdx => DIA_METRICS_RECORTE.map(metric => {
                           const v = recorteFabricaValue(row, dayIdx, metric)
                           return (
-                            <td key={`rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                            <td key={`rf-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10.5,
                               whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                               {fmtNum(v)}
                             </td>
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10.5, overflow: 'visible' }}>
                           {renderRecorteFabricaCell(row, key, showDetalleDia)}
                         </td>
                       )}
@@ -1493,26 +1493,26 @@ export default function CausasRecorteTablero() {
                         consumoDayCols.flatMap(dayIdx => DIA_METRICS_CONSUMO.map(metric => {
                           const v = consumoValue(row, dayIdx, metric)
                           return (
-                            <td key={`co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                            <td key={`co-${dayIdx}-${metric}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10.5,
                               whiteSpace: 'nowrap', overflow: 'hidden', ...metricCellStyle(metric, v) }}>
                               {fmtNum(v)}
                             </td>
                           )
                         }))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10.5, overflow: 'visible' }}>
                           {renderConsumoInventarioCell(row, key, showDetalleDia)}
                         </td>
                       )}
                       {showDetalleDia && transitoExpanded ? (
                         futuroIdxMain.map(idx => (
-                          <td key={`tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 11.5,
+                          <td key={`tr-${idx}`} style={{ padding: '6px 3px', textAlign: 'right', fontSize: 10.5,
                             whiteSpace: 'nowrap', overflow: 'hidden' }}>
                             {fmtNum(row.pedidoFuturo?.[idx])}
                           </td>
                         ))
                       ) : (
-                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 11.5, overflow: 'visible' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10.5, overflow: 'visible' }}>
                           {renderPedidoTransitoCell(row, key, showDetalleDia)}
                         </td>
                       )}
