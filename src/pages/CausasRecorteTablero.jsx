@@ -712,7 +712,7 @@ export default function CausasRecorteTablero() {
       case 'existenciaUsd': return fmtMoney(row.existenciaUsd)
       case 'causaPrincipal': return <CausaBadge causa={row.causaPrincipal} />
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
-      case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
+      case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5 }}>{row.resumen || '—'}</span>
       default: return null
     }
   }
@@ -734,7 +734,7 @@ export default function CausasRecorteTablero() {
       case 'existenciaEnv': return fmtNum(row.existenciaEnv)
       case 'existenciaUsd': return fmtMoney(row.existenciaUsd)
       case 'causaPredominante': return <CausaBadge causa={row.causaPredominante} />
-      case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5, color: '#4b5563' }}>{row.resumen || '—'}</span>
+      case 'resumen': return <span title={row.resumen} style={{ fontSize: 12.5 }}>{row.resumen || '—'}</span>
       default: return null
     }
   }
@@ -1239,7 +1239,7 @@ export default function CausasRecorteTablero() {
                         return (
                           <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
                             color: (col.key === 'itemTotalPzs' || col.key === 'itemTotalUsd' || col.key === 'rank') && !isNewItem
-                              ? '#d1d5db' : (EXCLUDE_BLACK_CENTER.has(key) ? undefined : '#111827'),
+                              ? '#d1d5db' : '#111827',
                             ...(key === 'pedidoTransito' ? { overflow: 'visible' } : {}),
                             ...(isSticky ? {
                               position: 'sticky', left: topNStickyLeft[key], zIndex: 1, background: rowBg,
@@ -1452,8 +1452,7 @@ export default function CausasRecorteTablero() {
                         const colKey = col.key ?? col.label
                         const isSticky = stickyLeft[colKey] !== undefined
                         return (
-                          <td key={col.key} style={{ ...cellStyle, textAlign: col.align,
-                            color: EXCLUDE_BLACK_CENTER.has(colKey) ? undefined : '#111827',
+                          <td key={col.key} style={{ ...cellStyle, textAlign: col.align, color: '#111827',
                             // "Pedido Tránsito" abre un popover que se saldría de la celda —
                             // overflow:hidden (heredado de cellStyle) lo recortaría.
                             ...(colKey === 'pedidoTransito' ? { overflow: 'visible' } : {}),
