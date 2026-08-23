@@ -633,33 +633,22 @@ export default function CausasRecorteTablero() {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left', padding: '2px 8px 4px 2px', color: '#6b7280', fontWeight: 700, whiteSpace: 'nowrap' }}>Fecha</th>
-                  <th title="Pedido CeVe" style={{ textAlign: 'right', padding: '2px 6px 4px', color: '#1a56db', fontWeight: 700 }}>P</th>
+                  <th title="Pedido CeVe" style={{ textAlign: 'right', padding: '2px 6px 4px', color: '#0f766e', fontWeight: 700 }}>P</th>
                 </tr>
               </thead>
               <tbody>
-                {recorteDayCols.map(dayIdx => {
-                  const v = recorteFabricaValue(row, dayIdx, 'Pedido CeVe')
+                {(row.fechaFuturo ?? []).length === 0 ? (
+                  <tr><td colSpan={2} style={{ padding: '4px 2px', color: '#9ca3af' }}>Sin pedidos futuros</td></tr>
+                ) : (row.fechaFuturo ?? []).map((f, i) => {
+                  const v = row.pedidoFuturo?.[i]
                   return (
-                    <tr key={dayIdx} style={{ borderTop: '1px dashed #e5e7eb' }}>
-                      <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>Tránsito vta {dayLabel(dayIdx)}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'right', color: '#111827', whiteSpace: 'nowrap' }}>{fmtNum(v)}</td>
+                    <tr key={`fut-${f}`} style={{ borderTop: '1px dashed #e5e7eb' }}>
+                      <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>Pedido vta {fmtDateShort(f)}</td>
+                      <td style={{ padding: '3px 6px', textAlign: 'right', color: '#0f766e', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtNum(v)}</td>
                     </tr>
                   )
                 })}
               </tbody>
-              {Array.isArray(row.fechaFuturo) && row.fechaFuturo.length > 0 && (
-                <tbody>
-                  {(row.fechaFuturo ?? []).map((f, i) => {
-                    const v = row.pedidoFuturo?.[i]
-                    return (
-                      <tr key={`fut-${f}`} style={{ borderTop: i === 0 ? '1px solid #c7d2fe' : '1px dashed #e5e7eb' }}>
-                        <td style={{ padding: '3px 8px 3px 2px', color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>Pedido vta {fmtDateShort(f)}</td>
-                        <td style={{ padding: '3px 6px', textAlign: 'right', color: '#0f766e', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtNum(v)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              )}
             </table>
           </div>
         )}
