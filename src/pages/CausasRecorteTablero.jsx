@@ -34,6 +34,7 @@ const CAUSA_STYLES = {
   'Existencia CeVe':                  { bg: '#ecfdf5', border: '#6ee7b7', text: '#065f46' },
   'Sin causa identificada':           { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' },
   'Sin Pedido CeVe Ult Semana':       { bg: '#ecfeff', border: '#a5f3fc', text: '#0e7490' },
+  'Sin Pedido CeVe - Pedido fincado en tránsito': { bg: '#ecfeff', border: '#a5f3fc', text: '#0e7490' },
 }
 const CAUSA_OPTS = Object.keys(CAUSA_STYLES)
 
@@ -128,6 +129,97 @@ const RECORTE_COLORS = { title: '#1a56db', date: '#2563eb', metric: '#1a56db' }
 const CONSUMO_COLORS = { title: '#0f766e', date: '#0d9488', metric: '#0f766e' }
 const TRANSITO_COLORS = { title: '#475569', date: '#334155', metric: '#475569' }
 const TOTAL_BG = '#1a2e4a'
+const XLSX_ZEBRA_BG = '#f1f5f9'
+
+// Tipos de columna base (Fecha/CeVe/.../Causa/Resumen) para dar formato al
+// export XLSX -- moneda con formato $, numéricas con separador de miles,
+// causas con el mismo color de badge que se ve en pantalla.
+const XLSX_MONEY_KEYS = new Set(['recorteUsd', 'existenciaUsd'])
+const XLSX_NUMERIC_KEYS = new Set(['recortePzs', 'recorteEnv', 'recorteResiduo', 'existenciaPzs', 'existenciaEnv', 'cupo'])
+const XLSX_CAUSA_KEYS = new Set(['causaPrincipal', 'causaPredominante'])
+function argb(hex) { return 'FF' + hex.replace('#', '').toUpperCase() }
+function xlsxFill(hex) { return { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(hex) } } }
+
+// Export XLSX con el mismo lenguaje visual del tablero (Detalle/Agrupado):
+// encabezado de cada bloque (base/Recorte Fábrica/Consumo Inventario/Pedido
+// Tránsito) con su color, filas zebra, causas con su color de badge, fila
+// TOTAL al final -- Top N se queda en CSV plano, no se pidió para esa vista.
+async function downloadXlsx(filename, { baseColumns, headers, rows, causaRawPerRow, recorteCount, consumoCount, totalRecortePzs, totalRecorteUsd }) {
+  // Import diferido: ExcelJS pesa ~900kb minificado y solo lo necesita quien
+  // exporta Causas Recorte -- cargarlo de entrada infla el bundle de toda la app.
+  const { default: ExcelJS } = await import('exceljs')
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Causas Recorte', { views: [{ state: 'frozen', ySplit: 1 }] })
+
+  const baseCount = baseColumns.length
+  const sectionColor = (colIdx) => {
+    if (colIdx < baseCount) return TOTAL_BG
+    if (colIdx < baseCount + recorteCount) return RECORTE_COLORS.title
+    if (colIdx < baseCount + recorteCount + consumoCount) return CONSUMO_COLORS.title
+    return TRANSITO_COLORS.title
+  }
+
+  const headerRow = ws.addRow(headers)
+  headerRow.height = 28
+  headerRow.eachCell((cell, colIdx) => {
+    cell.fill = xlsxFill(sectionColor(colIdx - 1))
+    cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+  })
+
+  rows.forEach((vals, rowIdx) => {
+    const row = ws.addRow(vals)
+    const zebra = rowIdx % 2 === 1
+    const causaRaw = causaRawPerRow[rowIdx]
+    row.eachCell((cell, colIdx) => {
+      cell.fill = xlsxFill(zebra ? XLSX_ZEBRA_BG : '#ffffff')
+      const col = colIdx - 1 < baseCount ? baseColumns[colIdx - 1] : null
+      if (col && XLSX_CAUSA_KEYS.has(col.key)) {
+        const style = CAUSA_STYLES[causaRaw] || CAUSA_STYLES['Sin causa identificada']
+        cell.fill = xlsxFill(style.bg)
+        cell.font = { color: { argb: argb(style.text) }, bold: true, size: 10.5 }
+        cell.alignment = { horizontal: col.align, vertical: 'middle' }
+        return
+      }
+      cell.font = { color: { argb: 'FF111827' }, size: 10.5 }
+      cell.alignment = { horizontal: col ? col.align : 'center', vertical: 'middle' }
+      if (col && XLSX_MONEY_KEYS.has(col.key)) cell.numFmt = '$#,##0'
+      else if (col && XLSX_NUMERIC_KEYS.has(col.key)) cell.numFmt = '#,##0'
+      else if (!col) cell.numFmt = '#,##0'
+    })
+  })
+
+  const totalVals = headers.map((_, colIdx) => {
+    if (colIdx >= baseCount) return ''
+    const key = baseColumns[colIdx].key
+    if (key === 'recortePzs') return totalRecortePzs ?? 0
+    if (key === 'recorteUsd') return totalRecorteUsd ?? 0
+    return colIdx === 0 ? 'TOTAL' : ''
+  })
+  const totalRow = ws.addRow(totalVals)
+  totalRow.eachCell((cell, colIdx) => {
+    cell.fill = xlsxFill(TOTAL_BG)
+    cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    const key = colIdx - 1 < baseCount ? baseColumns[colIdx - 1].key : null
+    if (key === 'recortePzs' || key === 'existenciaPzs' || key === 'recorteEnv' || key === 'existenciaEnv' || key === 'cupo') cell.numFmt = '#,##0'
+    if (key === 'recorteUsd' || key === 'existenciaUsd') cell.numFmt = '$#,##0'
+  })
+
+  baseColumns.forEach((col, i) => { ws.getColumn(i + 1).width = Math.max(10, Math.round((col.width ?? 100) / 7)) })
+  for (let i = baseCount; i < headers.length; i++) ws.getColumn(i + 1).width = 12
+
+  const buf = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 // Detalle día por día (solo tiene sentido cuando la vista está en un solo día,
 // porque ahí las fechas de tránsito son las mismas para todas las filas).
@@ -938,9 +1030,22 @@ export default function CausasRecorteTablero() {
         return vals
       })
 
-      const suffix = isTopN ? '_topN' : agrupado ? '_agrupado' : ''
-      const filename = `causas_recorte_${fechaInicio || 'sf'}_a_${fechaFin || 'sf'}${suffix}.csv`
-      downloadCsv(filename, [headers], rows)
+      if (isTopN) {
+        const filename = `causas_recorte_${fechaInicio || 'sf'}_a_${fechaFin || 'sf'}_topN.csv`
+        downloadCsv(filename, [headers], rows)
+      } else {
+        // Top N se queda en CSV plano -- el export con colores/fechas tipo tablero
+        // solo se pidió para Detalle/Agrupado.
+        const causaRawPerRow = sourceRows.map(row => row.causaPrincipal ?? row.causaPredominante ?? null)
+        const filename = `causas_recorte_${fechaInicio || 'sf'}_a_${fechaFin || 'sf'}${agrupado ? '_agrupado' : ''}.xlsx`
+        await downloadXlsx(filename, {
+          baseColumns: sourceLayout.orderedColumns,
+          headers, rows, causaRawPerRow,
+          recorteCount: detalleActivo && recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1,
+          consumoCount: detalleActivo && consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1,
+          totalRecortePzs: data.totalRecortePzs, totalRecorteUsd: data.totalRecorteUsd,
+        })
+      }
     } catch (e) {
       alert('No se pudo exportar: ' + e.message)
     } finally {
