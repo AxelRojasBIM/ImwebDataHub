@@ -522,7 +522,7 @@ export default function CausasRecorteTablero() {
     // ANALIZADO (fechaFin) tomado del archivo de pedido en vez del transito -- se
     // muestra la fecha real para que quede claro que es el mismo dia, no "hoy".
     if (idx === 6) return `${fmtDateShort(fechaFin)} (pedido)`
-    return fmtDateShort(diaDates[idx]) || `Día ${idx + 1}`
+    return (fmtDateShort(diaDates[idx]) || `Día ${idx + 1}`) + ' (tránsito)'
   }
   // El día 6 de tránsito cae en la fecha analizada casi siempre (el tránsito
   // solo salta domingos), así que "Hoy" repite exactamente esos mismos datos.
