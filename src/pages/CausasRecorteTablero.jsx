@@ -518,7 +518,10 @@ export default function CausasRecorteTablero() {
   const sampleRow = activeRowsForDias.find(r => r.fechaTransito && r.fechaTransito.some(d => d))
   const diaDates = sampleRow ? sampleRow.fechaTransito : [null, null, null, null, null, null]
   function dayLabel(idx) {
-    if (idx === 6) return 'Hoy'
+    // "Hoy" es confuso: no es la fecha real de hoy, es un termino aparte del dia
+    // ANALIZADO (fechaFin) tomado del archivo de pedido en vez del transito -- se
+    // muestra la fecha real para que quede claro que es el mismo dia, no "hoy".
+    if (idx === 6) return `${fmtDateShort(fechaFin)} (pedido)`
     return fmtDateShort(diaDates[idx]) || `Día ${idx + 1}`
   }
   // El día 6 de tránsito cae en la fecha analizada casi siempre (el tránsito
