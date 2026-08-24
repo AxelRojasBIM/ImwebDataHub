@@ -915,25 +915,6 @@ export default function CausasRecorteTablero() {
       default: return ''
     }
   }
-  function csvEscape(v) {
-    if (v == null) return ''
-    const s = String(v)
-    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-  }
-  function downloadCsv(filename, headerRows, dataRows) {
-    const lines = [...headerRows, ...dataRows].map(r => r.map(csvEscape).join(','))
-    const csv = '﻿' + lines.join('\r\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
   // Exporta exactamente la vista activa en ese momento — Top N, agrupada o de
   // detalle — incluyendo el desglose día por día completo (Recorte Fábrica /
   // Consumo Inventario) cuando el rango es de un solo día, sin importar si esos
@@ -1030,22 +1011,23 @@ export default function CausasRecorteTablero() {
         return vals
       })
 
-      if (isTopN) {
-        const filename = `causas_recorte_${fechaInicio || 'sf'}_a_${fechaFin || 'sf'}_topN.csv`
-        downloadCsv(filename, [headers], rows)
-      } else {
-        // Top N se queda en CSV plano -- el export con colores/fechas tipo tablero
-        // solo se pidió para Detalle/Agrupado.
-        const causaRawPerRow = sourceRows.map(row => row.causaPrincipal ?? row.causaPredominante ?? null)
-        const filename = `causas_recorte_${fechaInicio || 'sf'}_a_${fechaFin || 'sf'}${agrupado ? '_agrupado' : ''}.xlsx`
-        await downloadXlsx(filename, {
-          baseColumns: sourceLayout.orderedColumns,
-          headers, rows, causaRawPerRow,
-          recorteCount: detalleActivo && recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1,
-          consumoCount: detalleActivo && consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1,
-          totalRecortePzs: data.totalRecortePzs, totalRecorteUsd: data.totalRecorteUsd,
-        })
-      }
+      // El botón "Exportar" es el mismo para Top N y Detalle/Agrupado -- si Top N
+      // está activo se exporta esa vista, si no la que esté en pantalla. Ambas
+      // salen en XLSX con colores; antes Top N se quedaba en CSV plano y, como
+      // Top N suele estar activo, el botón "siempre bajaba CSV" aunque el usuario
+      // quisiera exportar la tabla de abajo.
+      const causaRawPerRow = sourceRows.map(row => row.causaPrincipal ?? row.causaPredominante ?? null)
+      const suffix = isTopN ? '_topN' : agrupado ? '_agrupado' : ''
+      const filename = `causas_recorte_${fechaInicio || 'sf'}_a_${fechaFin || 'sf'}${suffix}.xlsx`
+      const totalRecortePzs = isTopN ? sourceRows.reduce((acc, r) => acc + (Number(r.recortePzs) || 0), 0) : data.totalRecortePzs
+      const totalRecorteUsd = isTopN ? sourceRows.reduce((acc, r) => acc + (Number(r.recorteUsd) || 0), 0) : data.totalRecorteUsd
+      await downloadXlsx(filename, {
+        baseColumns: sourceLayout.orderedColumns,
+        headers, rows, causaRawPerRow,
+        recorteCount: detalleActivo && recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1,
+        consumoCount: detalleActivo && consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1,
+        totalRecortePzs, totalRecorteUsd,
+      })
     } catch (e) {
       alert('No se pudo exportar: ' + e.message)
     } finally {
