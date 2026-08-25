@@ -1033,7 +1033,14 @@ export default function CausasRecorteTablero() {
         totalRecortePzs, totalRecorteUsd,
       })
     } catch (e) {
-      alert('No se pudo exportar: ' + e.message)
+      // Import diferido de ExcelJS (ver downloadXlsx): si la pestaña llevaba abierta
+      // desde antes del último despliegue, el bundle viejo en memoria todavía apunta
+      // al nombre de archivo con el hash anterior, que el servidor ya no tiene (cada
+      // deploy reemplaza toda la carpeta de assets) -- da 404 y este mensaje confuso.
+      const stale = /dynamically imported module|Importing a module script failed/i.test(e.message || '')
+      alert(stale
+        ? 'La página tiene una versión vieja cargada (se publicó una actualización mientras la tenías abierta). Refresca la página (Ctrl+Shift+R) e intenta exportar de nuevo.'
+        : 'No se pudo exportar: ' + e.message)
     } finally {
       setExporting(false)
     }
