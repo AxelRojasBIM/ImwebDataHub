@@ -33,8 +33,8 @@ const CAUSA_STYLES = {
   'Consumo arriba del promedio':      { bg: '#fffbeb', border: '#fde68a', text: '#92400e' },
   'Existencia CeVe':                  { bg: '#ecfdf5', border: '#6ee7b7', text: '#065f46' },
   'Sin causa identificada':           { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' },
-  'Sin Pedido CeVe Ult Semana':       { bg: '#ecfeff', border: '#a5f3fc', text: '#0e7490' },
-  'Sin Pedido CeVe - Pedido fincado en tránsito': { bg: '#ecfeff', border: '#a5f3fc', text: '#0e7490' },
+  'Sin Pedido CeVe Últimos 7 días':                       { bg: '#ecfeff', border: '#a5f3fc', text: '#0e7490' },
+  'Sin Pedido CeVe Últimos 7 días - Pedido en tránsito':  { bg: '#ecfeff', border: '#a5f3fc', text: '#0e7490' },
 }
 const CAUSA_OPTS = Object.keys(CAUSA_STYLES)
 
