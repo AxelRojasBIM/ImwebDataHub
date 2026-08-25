@@ -957,15 +957,19 @@ export default function CausasRecorteTablero() {
         sourceRows = (await r.json()).rows
       }
 
+      // El desglose día por día se exporta completo cuando la vista es de un solo
+      // día (detalleActivo), SIN importar si esos bloques están colapsados en
+      // pantalla ahora mismo -- colapsar es solo para ahorrar espacio en la UI,
+      // no significa que ese detalle no deba salir en el export.
       const headers = sourceLayout.orderedColumns.map(c => c.label)
-      if (detalleActivo && recorteExpanded) {
+      if (detalleActivo) {
         recorteDayCols.forEach(dayIdx => DIA_METRICS_RECORTE.forEach(metric => {
           headers.push(`Recorte Fabrica ${dayLabel(dayIdx)} ${metric}`)
         }))
       } else {
         headers.push('Recorte Fabrica')
       }
-      if (detalleActivo && consumoExpanded) {
+      if (detalleActivo) {
         consumoDayCols.forEach(dayIdx => DIA_METRICS_CONSUMO.forEach(metric => {
           headers.push(`Consumo Inventario ${dayLabel(dayIdx)} ${metric}`)
         }))
@@ -974,7 +978,7 @@ export default function CausasRecorteTablero() {
       }
       const futuroIdxExport = isTopN ? futuroIdxTopN : futuroIdxMain
       const futuroDatesExport = isTopN ? futuroDatesTopN : futuroDatesMain
-      if (detalleActivo && transitoExpanded) {
+      if (detalleActivo) {
         futuroIdxExport.forEach(idx => headers.push(`Pedido Tránsito ${fmtDateShort(futuroDatesExport[idx])}`))
       } else {
         headers.push('Pedido Tránsito')
@@ -989,21 +993,21 @@ export default function CausasRecorteTablero() {
           if (isTopN && col.key === 'rank') return rank
           return getValue(col, row)
         })
-        if (detalleActivo && recorteExpanded) {
+        if (detalleActivo) {
           recorteDayCols.forEach(dayIdx => DIA_METRICS_RECORTE.forEach(metric => {
             vals.push(recorteFabricaValue(row, dayIdx, metric) ?? '')
           }))
         } else {
           vals.push(row.envsPlanta ?? '')
         }
-        if (detalleActivo && consumoExpanded) {
+        if (detalleActivo) {
           consumoDayCols.forEach(dayIdx => DIA_METRICS_CONSUMO.forEach(metric => {
             vals.push(consumoValue(row, dayIdx, metric) ?? '')
           }))
         } else {
           vals.push(row.envsConsumo ?? '')
         }
-        if (detalleActivo && transitoExpanded) {
+        if (detalleActivo) {
           futuroIdxExport.forEach(idx => vals.push(row.pedidoFuturo?.[idx] ?? ''))
         } else {
           vals.push('')
@@ -1024,8 +1028,8 @@ export default function CausasRecorteTablero() {
       await downloadXlsx(filename, {
         baseColumns: sourceLayout.orderedColumns,
         headers, rows, causaRawPerRow,
-        recorteCount: detalleActivo && recorteExpanded ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1,
-        consumoCount: detalleActivo && consumoExpanded ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1,
+        recorteCount: detalleActivo ? recorteDayCols.length * DIA_METRICS_RECORTE.length : 1,
+        consumoCount: detalleActivo ? consumoDayCols.length * DIA_METRICS_CONSUMO.length : 1,
         totalRecortePzs, totalRecorteUsd,
       })
     } catch (e) {
