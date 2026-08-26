@@ -30,6 +30,7 @@ function DateField({ value, onChange, max, min }) {
 
 const CAUSA_STYLES = {
   'Recorte Fabrica':                  { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b' },
+  'Recorte por cupo en Tina':          { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af' },
   'Consumo arriba del promedio':      { bg: '#fffbeb', border: '#fde68a', text: '#92400e' },
   'Existencia CeVe':                  { bg: '#ecfdf5', border: '#6ee7b7', text: '#065f46' },
   'Sin causa identificada':           { bg: '#f3f4f6', border: '#e5e7eb', text: '#4b5563' },
