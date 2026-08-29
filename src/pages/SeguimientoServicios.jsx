@@ -352,6 +352,7 @@ function TabSeguimiento({ reloadKey }) {
   const [region, setRegion]       = useState('')
   // '' | 'rtmFalta' | 'rtmEnvio' | 'ivFalta' | 'ivEnvio' -- el ✓/✕ de cada recuadro filtra por separado
   const [sistemaFiltro, setSistemaFiltro] = useState('')
+  const [estadoFiltro, setEstadoFiltro] = useState('') // '' | 'completo' | 'incompleto' | 'falta' | 'na'
 
   const loadFechas = useCallback(async () => {
     try {
@@ -391,6 +392,7 @@ function TabSeguimiento({ reloadKey }) {
     (!q || (c.codCeve || '').toLowerCase().includes(q) || (c.nombre || '').toLowerCase().includes(q)) &&
     (!organizacion || c.organizacion === organizacion) &&
     (!region || c.region === region) &&
+    (!estadoFiltro || estadoCeve(c) === estadoFiltro) &&
     matchesSistema(c)
   )
 
@@ -453,6 +455,14 @@ function TabSeguimiento({ reloadKey }) {
           style={{ alignSelf: 'flex-end', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, color: region ? 'var(--text)' : '#9ca3af', background: '#fafafa', outline: 'none' }}>
           <option value="">Región — todas</option>
           {regiones.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)}
+          style={{ alignSelf: 'flex-end', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, color: estadoFiltro ? 'var(--text)' : '#9ca3af', background: '#fafafa', outline: 'none' }}>
+          <option value="">Estado — todos</option>
+          <option value="completo">✓ Enviado</option>
+          <option value="incompleto">⚠ Incompleto</option>
+          <option value="falta">✕ Falta</option>
+          <option value="na">— N/A</option>
         </select>
         <button className="btn" style={{ alignSelf: 'flex-end' }} onClick={loadResumen}>↻ Actualizar</button>
       </div>
