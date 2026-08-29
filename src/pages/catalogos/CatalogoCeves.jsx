@@ -409,6 +409,57 @@ function TurnoLaboralCell({ row, onSaved }) {
   )
 }
 
+// Celda de 2 opciones (RTM/Integral Vending: Activo-Inactivo, Compartido/Propio:
+// Propio-Compartido) — mismo patrón de clic-para-editar que TurnoLaboralCell, pero
+// generalizado: la primera opción de `options` se pinta en verde (el estado
+// "positivo" por defecto), la segunda en gris.
+function ToggleBadgeCell({ row, campo, field, value, options, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const isPositive = value === options[0]
+
+  async function save(nextValue) {
+    setEditing(false)
+    if (nextValue === value) return
+    setSaving(true)
+    try {
+      await saveCeveCampo(row.id, campo, nextValue)
+      onSaved(row.id, field, nextValue)
+    } catch { /* deja el valor visible como estaba; el usuario puede reintentar */ }
+    finally { setSaving(false) }
+  }
+
+  if (editing) {
+    return (
+      <select
+        autoFocus
+        value={value ?? options[1]}
+        disabled={saving}
+        onChange={e => save(e.target.value)}
+        onBlur={() => setEditing(false)}
+        style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12.5, background: '#fff' }}
+      >
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    )
+  }
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      title="Clic para editar"
+      style={{
+        cursor: 'pointer', padding: '3px 9px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+        opacity: saving ? 0.5 : 1,
+        background: isPositive ? '#ecfdf5' : '#f3f4f6',
+        border: `1px solid ${isPositive ? '#6ee7b7' : '#e5e7eb'}`,
+        color: isPositive ? '#065f46' : '#6b7280',
+      }}
+    >
+      {value || options[1]}
+    </span>
+  )
+}
+
 // Celda de texto libre editable — usada para Nombre CeVe, Región, Gerente,
 // Subgerente y Coordinador. Clic para editar, Enter/blur guarda, Esc cancela.
 function EditableTextCell({ row, campo, field, value, onSaved }) {
@@ -510,13 +561,16 @@ function TabActual({ reloadKey }) {
               <th>Subgerente</th>
               <th>Coordinador</th>
               <th>Turno Laboral</th>
+              <th>RTM</th>
+              <th>Integral Vending</th>
+              <th>Compartido/Propio</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="loading">Cargando...</td></tr>
+              <tr><td colSpan={10} className="loading">Cargando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="empty">{rows.length === 0 ? 'Aún no hay CEVEs cargados.' : 'Sin resultados para ese filtro.'}</td></tr>
+              <tr><td colSpan={10} className="empty">{rows.length === 0 ? 'Aún no hay CEVEs cargados.' : 'Sin resultados para ese filtro.'}</td></tr>
             ) : pageRows.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight: 600 }}>{r.cod_ceve}</td>
@@ -526,6 +580,9 @@ function TabActual({ reloadKey }) {
                 <td><EditableTextCell row={r} campo="subgerente" field="subgerente" value={r.subgerente} onSaved={handleSavedCampo} /></td>
                 <td><EditableTextCell row={r} campo="coordinador" field="coordinador" value={r.coordinador} onSaved={handleSavedCampo} /></td>
                 <td><TurnoLaboralCell row={r} onSaved={handleSavedCampo} /></td>
+                <td><ToggleBadgeCell row={r} campo="rtm" field="rtm" value={r.rtm} options={['Activo', 'Inactivo']} onSaved={handleSavedCampo} /></td>
+                <td><ToggleBadgeCell row={r} campo="integralVending" field="integral_vending" value={r.integral_vending} options={['Activo', 'Inactivo']} onSaved={handleSavedCampo} /></td>
+                <td><ToggleBadgeCell row={r} campo="compartidoPropio" field="compartido_propio" value={r.compartido_propio} options={['Propio', 'Compartido']} onSaved={handleSavedCampo} /></td>
               </tr>
             ))}
           </tbody>
