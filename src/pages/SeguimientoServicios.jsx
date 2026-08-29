@@ -65,22 +65,31 @@ function decodeCsvBuffer(buffer) {
 function fmtDT(val) { return val ? String(val).slice(0, 16).replace('T', ' ') : '—' }
 function fmtNum(v) { return v == null ? '—' : Number(v).toLocaleString('es-MX') }
 
-// Recuadro pequeño dentro de cada tarjeta Nacional/Región -- enviados en verde,
-// faltantes en rojo (o gris si no falta ninguno), clic filtra la tabla a los
-// faltantes de ese sistema en esa región.
-function SistemaMiniPill({ label, enviados, faltantes, active, onClick }) {
+// Recuadro pequeño dentro de cada tarjeta Nacional/Región -- ✓ (enviados, verde) y
+// ✕ (faltantes, rojo) son botones independientes: clic en ✓ filtra la tabla a los
+// que YA mandaron ese sistema en esa región, clic en ✕ a los que faltan.
+function SistemaMiniPill({ label, enviados, faltantes, activeEnvio, activeFalta, onClickEnvio, onClickFalta }) {
+  const active = activeEnvio || activeFalta
   return (
-    <div onClick={onClick} title={`Ver los que faltan ${label} en esta región`}
+    <div title={label}
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '4px 8px', borderRadius: 7, fontSize: 11.5,
         background: active ? '#eff4ff' : '#fafafa',
         border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
       }}>
       <span style={{ fontWeight: 700, color: active ? 'var(--accent)' : '#475569' }}>{label}</span>
       <span style={{ display: 'flex', gap: 6 }}>
-        <span style={{ color: '#065f46', fontWeight: 600 }}>✓ {enviados}</span>
-        <span style={{ color: faltantes > 0 ? '#991b1b' : '#9ca3af', fontWeight: 600 }}>✕ {faltantes}</span>
+        <span onClick={onClickEnvio} title={`Ver los que ya enviaron ${label} en esta región`}
+          style={{
+            cursor: 'pointer', color: '#065f46', fontWeight: 600, padding: '0 3px', borderRadius: 4,
+            background: activeEnvio ? '#bbf7d0' : 'transparent',
+          }}>✓ {enviados}</span>
+        <span onClick={onClickFalta} title={`Ver los que falta ${label} en esta región`}
+          style={{
+            cursor: 'pointer', color: faltantes > 0 ? '#991b1b' : '#9ca3af', fontWeight: 600, padding: '0 3px', borderRadius: 4,
+            background: activeFalta ? '#fecaca' : 'transparent',
+          }}>✕ {faltantes}</span>
       </span>
     </div>
   )
@@ -307,9 +316,10 @@ function TabSeguimiento({ reloadKey }) {
   const [resumen, setResumen]     = useState(null)
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
-  const [organizacion, setOrganizacion] = useState('')
+  const [organizacion, setOrganizacion] = useState('Bimbo') // por default filtrado a Bimbo
   const [region, setRegion]       = useState('')
-  const [sistemaFiltro, setSistemaFiltro] = useState('') // '' | 'rtm' | 'iv' -- filtra a los FALTANTES de ese sistema
+  // '' | 'rtmFalta' | 'rtmEnvio' | 'ivFalta' | 'ivEnvio' -- el ✓/✕ de cada recuadro filtra por separado
+  const [sistemaFiltro, setSistemaFiltro] = useState('')
 
   const loadFechas = useCallback(async () => {
     try {
@@ -338,11 +348,18 @@ function TabSeguimiento({ reloadKey }) {
   const ceves = resumen?.ceves ?? []
   const organizaciones = [...new Set(ceves.map(c => c.organizacion).filter(Boolean))].sort()
   const regiones = [...new Set(ceves.map(c => c.region).filter(Boolean))].sort()
+  function matchesSistema(c) {
+    if (sistemaFiltro === 'rtmFalta') return c.rtmActivo && !c.rtmEnviado
+    if (sistemaFiltro === 'rtmEnvio') return c.rtmActivo && c.rtmEnviado
+    if (sistemaFiltro === 'ivFalta')  return c.ivActivo && !c.ivEnviado
+    if (sistemaFiltro === 'ivEnvio')  return c.ivActivo && c.ivEnviado
+    return true
+  }
   const filtered = ceves.filter(c =>
     (!q || (c.codCeve || '').toLowerCase().includes(q) || (c.nombre || '').toLowerCase().includes(q)) &&
     (!organizacion || c.organizacion === organizacion) &&
     (!region || c.region === region) &&
-    (!sistemaFiltro || (sistemaFiltro === 'rtm' ? !c.rtmEnviado : !c.ivEnviado))
+    matchesSistema(c)
   )
 
   // Los totales/porcentaje reflejan el filtro activo (organización/región/sistema/
@@ -353,27 +370,32 @@ function TabSeguimiento({ reloadKey }) {
   const pct = totalF > 0 ? Math.round((enviadosF / totalF) * 100) : 0
 
   // Estadísticas por región para las tarjetas (Nacional + una por región) --
-  // siempre sobre el universo completo de `ceves`, sin importar los demás filtros,
-  // para que las tarjetas den una foto estable de dónde están los huecos.
+  // respetan el filtro de organización (por default Bimbo), pero no búsqueda/región/
+  // sistema, para que las tarjetas den una foto estable de dónde están los huecos
+  // dentro de esa organización. Un CeVe sin RTM/Integral Vending activado en el
+  // catálogo no cuenta ni como enviado ni como faltante -- simplemente no aplica.
   function statsFor(regionName) {
-    const subset = regionName ? ceves.filter(c => c.region === regionName) : ceves
+    const subset = ceves.filter(c =>
+      (!regionName || c.region === regionName) && (!organizacion || c.organizacion === organizacion))
+    const rtmAplica = subset.filter(c => c.rtmActivo)
+    const ivAplica = subset.filter(c => c.ivActivo)
     return {
       total: subset.length,
-      rtmEnviados: subset.filter(c => c.rtmEnviado).length,
-      rtmFaltantes: subset.filter(c => !c.rtmEnviado).length,
-      ivEnviados: subset.filter(c => c.ivEnviado).length,
-      ivFaltantes: subset.filter(c => !c.ivEnviado).length,
+      rtmEnviados: rtmAplica.filter(c => c.rtmEnviado).length,
+      rtmFaltantes: rtmAplica.filter(c => !c.rtmEnviado).length,
+      ivEnviados: ivAplica.filter(c => c.ivEnviado).length,
+      ivFaltantes: ivAplica.filter(c => !c.ivEnviado).length,
     }
   }
   function selectCard(regionName) {
     setRegion(prev => prev === regionName ? '' : regionName)
     setSistemaFiltro('')
   }
-  function selectSistema(regionName, sistema, e) {
+  function selectSistema(regionName, filtroKey, e) {
     e.stopPropagation()
-    if (region === regionName && sistemaFiltro === sistema) { setSistemaFiltro(''); return }
+    if (region === regionName && sistemaFiltro === filtroKey) { setSistemaFiltro(''); return }
     setRegion(regionName)
-    setSistemaFiltro(sistema)
+    setSistemaFiltro(filtroKey)
   }
 
   return (
@@ -428,11 +450,15 @@ function TabSeguimiento({ reloadKey }) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <SistemaMiniPill label="RTM" enviados={s.rtmEnviados} faltantes={s.rtmFaltantes}
-                    active={region === (r ?? '') && sistemaFiltro === 'rtm'}
-                    onClick={e => selectSistema(r ?? '', 'rtm', e)} />
+                    activeEnvio={region === (r ?? '') && sistemaFiltro === 'rtmEnvio'}
+                    activeFalta={region === (r ?? '') && sistemaFiltro === 'rtmFalta'}
+                    onClickEnvio={e => selectSistema(r ?? '', 'rtmEnvio', e)}
+                    onClickFalta={e => selectSistema(r ?? '', 'rtmFalta', e)} />
                   <SistemaMiniPill label="IV" enviados={s.ivEnviados} faltantes={s.ivFaltantes}
-                    active={region === (r ?? '') && sistemaFiltro === 'iv'}
-                    onClick={e => selectSistema(r ?? '', 'iv', e)} />
+                    activeEnvio={region === (r ?? '') && sistemaFiltro === 'ivEnvio'}
+                    activeFalta={region === (r ?? '') && sistemaFiltro === 'ivFalta'}
+                    onClickEnvio={e => selectSistema(r ?? '', 'ivEnvio', e)}
+                    onClickFalta={e => selectSistema(r ?? '', 'ivFalta', e)} />
                 </div>
               </div>
             )
@@ -442,7 +468,8 @@ function TabSeguimiento({ reloadKey }) {
 
       {sistemaFiltro && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 12.5, color: '#475569' }}>
-          Mostrando solo los que falta <b>{sistemaFiltro === 'rtm' ? 'RTM' : 'Integral Vending'}</b>{region ? ` en ${region}` : ''}
+          Mostrando solo los que {sistemaFiltro.endsWith('Falta') ? 'falta' : 'ya enviaron'}{' '}
+          <b>{sistemaFiltro.startsWith('rtm') ? 'RTM' : 'Integral Vending'}</b>{region ? ` en ${region}` : ''}
           <button className="btn" style={{ fontSize: 11.5, padding: '3px 10px' }} onClick={() => setSistemaFiltro('')}>✕ Quitar filtro</button>
         </div>
       )}
