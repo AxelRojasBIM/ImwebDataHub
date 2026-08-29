@@ -95,6 +95,38 @@ function SistemaMiniPill({ label, enviados, faltantes, activeEnvio, activeFalta,
   )
 }
 
+// Estado real del CeVe: mira solo los sistemas que tiene activos en el catálogo
+// (rtmActivo/ivActivo) -- si ninguno de los activos mandó info, "Falta"; si
+// mandaron todos los activos, "Enviado"; si mandó alguno pero no todos,
+// "Incompleto" (ej. tiene RTM e IV activos pero solo llegó uno de los dos).
+function estadoCeve(c) {
+  const activos = []
+  if (c.rtmActivo) activos.push(c.rtmEnviado)
+  if (c.ivActivo) activos.push(c.ivEnviado)
+  if (activos.length === 0) return 'na'
+  const enviados = activos.filter(Boolean).length
+  if (enviados === 0) return 'falta'
+  if (enviados === activos.length) return 'completo'
+  return 'incompleto'
+}
+const ESTADO_STYLES = {
+  completo:   { bg: '#ecfdf5', border: '#6ee7b7', text: '#065f46', label: '✓ Enviado' },
+  incompleto: { bg: '#fffbeb', border: '#fde68a', text: '#92400e', label: '⚠ Incompleto' },
+  falta:      { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', label: '✕ Falta' },
+  na:         { bg: '#f3f4f6', border: '#e5e7eb', text: '#9ca3af', label: '— N/A' },
+}
+function EstadoBadge({ estado }) {
+  const s = ESTADO_STYLES[estado]
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99,
+      fontSize: 11.5, fontWeight: 700, background: s.bg, border: `1px solid ${s.border}`, color: s.text,
+    }}>
+      {s.label}
+    </span>
+  )
+}
+
 // Badge por sistema (RTM/Integral Vending) -- verde con las filas cargadas cuando
 // ese sistema en concreto llegó ese día, gris cuando no.
 function SistemaBadge({ enviado, filas }) {
@@ -504,30 +536,24 @@ function TabSeguimiento({ reloadKey }) {
               <tr><td colSpan={8} className="empty">Sube un CSV para empezar a ver el seguimiento.</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={8} className="empty">Sin resultados para ese filtro.</td></tr>
-            ) : filtered.map(c => (
-              <tr key={c.codCeve} style={{ background: c.enviado ? undefined : '#fef2f2' }}>
-                <td style={{ fontWeight: 600 }}>{c.codCeve}</td>
-                <td>{c.nombre || '—'}</td>
-                <td>{c.region || '—'}</td>
-                <td>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99,
-                    fontSize: 11.5, fontWeight: 700,
-                    background: c.enviado ? '#ecfdf5' : '#fef2f2',
-                    border: `1px solid ${c.enviado ? '#6ee7b7' : '#fca5a5'}`,
-                    color: c.enviado ? '#065f46' : '#991b1b',
-                  }}>
-                    {c.enviado ? '✓ Enviado' : '✕ Falta'}
-                  </span>
-                </td>
-                <td style={{ textAlign: 'right', fontWeight: c.enviado ? 600 : 400, color: c.enviado ? 'var(--text)' : '#9ca3af' }}>
-                  {c.enviado ? fmtNum(c.filas) : '—'}
-                </td>
-                <td><SistemaBadge enviado={c.rtmEnviado} filas={c.rtmFilas} /></td>
-                <td><SistemaBadge enviado={c.ivEnviado} filas={c.ivFilas} /></td>
-                <td style={{ fontSize: 12, color: '#6b7280' }}>{fmtDT(c.ultimaCarga)}</td>
-              </tr>
-            ))}
+            ) : filtered.map(c => {
+              const estado = estadoCeve(c)
+              const rowBg = estado === 'falta' ? '#fef2f2' : estado === 'incompleto' ? '#fffbeb' : undefined
+              return (
+                <tr key={c.codCeve} style={{ background: rowBg }}>
+                  <td style={{ fontWeight: 600 }}>{c.codCeve}</td>
+                  <td>{c.nombre || '—'}</td>
+                  <td>{c.region || '—'}</td>
+                  <td><EstadoBadge estado={estado} /></td>
+                  <td style={{ textAlign: 'right', fontWeight: c.enviado ? 600 : 400, color: c.enviado ? 'var(--text)' : '#9ca3af' }}>
+                    {c.enviado ? fmtNum(c.filas) : '—'}
+                  </td>
+                  <td><SistemaBadge enviado={c.rtmEnviado} filas={c.rtmFilas} /></td>
+                  <td><SistemaBadge enviado={c.ivEnviado} filas={c.ivFilas} /></td>
+                  <td style={{ fontSize: 12, color: '#6b7280' }}>{fmtDT(c.ultimaCarga)}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
