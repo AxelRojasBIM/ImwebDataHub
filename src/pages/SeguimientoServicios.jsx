@@ -65,6 +65,27 @@ function decodeCsvBuffer(buffer) {
 function fmtDT(val) { return val ? String(val).slice(0, 16).replace('T', ' ') : '—' }
 function fmtNum(v) { return v == null ? '—' : Number(v).toLocaleString('es-MX') }
 
+// Recuadro pequeño dentro de cada tarjeta Nacional/Región -- enviados en verde,
+// faltantes en rojo (o gris si no falta ninguno), clic filtra la tabla a los
+// faltantes de ese sistema en esa región.
+function SistemaMiniPill({ label, enviados, faltantes, active, onClick }) {
+  return (
+    <div onClick={onClick} title={`Ver los que faltan ${label} en esta región`}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+        padding: '4px 8px', borderRadius: 7, fontSize: 11.5,
+        background: active ? '#eff4ff' : '#fafafa',
+        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+      }}>
+      <span style={{ fontWeight: 700, color: active ? 'var(--accent)' : '#475569' }}>{label}</span>
+      <span style={{ display: 'flex', gap: 6 }}>
+        <span style={{ color: '#065f46', fontWeight: 600 }}>✓ {enviados}</span>
+        <span style={{ color: faltantes > 0 ? '#991b1b' : '#9ca3af', fontWeight: 600 }}>✕ {faltantes}</span>
+      </span>
+    </div>
+  )
+}
+
 // Badge por sistema (RTM/Integral Vending) -- verde con las filas cargadas cuando
 // ese sistema en concreto llegó ese día, gris cuando no.
 function SistemaBadge({ enviado, filas }) {
@@ -288,6 +309,7 @@ function TabSeguimiento({ reloadKey }) {
   const [search, setSearch]       = useState('')
   const [organizacion, setOrganizacion] = useState('')
   const [region, setRegion]       = useState('')
+  const [sistemaFiltro, setSistemaFiltro] = useState('') // '' | 'rtm' | 'iv' -- filtra a los FALTANTES de ese sistema
 
   const loadFechas = useCallback(async () => {
     try {
@@ -319,16 +341,40 @@ function TabSeguimiento({ reloadKey }) {
   const filtered = ceves.filter(c =>
     (!q || (c.codCeve || '').toLowerCase().includes(q) || (c.nombre || '').toLowerCase().includes(q)) &&
     (!organizacion || c.organizacion === organizacion) &&
-    (!region || c.region === region)
+    (!region || c.region === region) &&
+    (!sistemaFiltro || (sistemaFiltro === 'rtm' ? !c.rtmEnviado : !c.ivEnviado))
   )
 
-  // Los totales/porcentaje reflejan el filtro activo (organización/región/búsqueda),
-  // no siempre el universo completo de CeVes -- si estás viendo solo una región, el
-  // resumen debe hablar de esa región.
+  // Los totales/porcentaje reflejan el filtro activo (organización/región/sistema/
+  // búsqueda), no siempre el universo completo de CeVes -- si estás viendo solo una
+  // región, el resumen debe hablar de esa región.
   const totalF = filtered.length
   const enviadosF = filtered.filter(c => c.enviado).length
-  const faltantesF = totalF - enviadosF
   const pct = totalF > 0 ? Math.round((enviadosF / totalF) * 100) : 0
+
+  // Estadísticas por región para las tarjetas (Nacional + una por región) --
+  // siempre sobre el universo completo de `ceves`, sin importar los demás filtros,
+  // para que las tarjetas den una foto estable de dónde están los huecos.
+  function statsFor(regionName) {
+    const subset = regionName ? ceves.filter(c => c.region === regionName) : ceves
+    return {
+      total: subset.length,
+      rtmEnviados: subset.filter(c => c.rtmEnviado).length,
+      rtmFaltantes: subset.filter(c => !c.rtmEnviado).length,
+      ivEnviados: subset.filter(c => c.ivEnviado).length,
+      ivFaltantes: subset.filter(c => !c.ivEnviado).length,
+    }
+  }
+  function selectCard(regionName) {
+    setRegion(prev => prev === regionName ? '' : regionName)
+    setSistemaFiltro('')
+  }
+  function selectSistema(regionName, sistema, e) {
+    e.stopPropagation()
+    if (region === regionName && sistemaFiltro === sistema) { setSistemaFiltro(''); return }
+    setRegion(regionName)
+    setSistemaFiltro(sistema)
+  }
 
   return (
     <div>
@@ -357,21 +403,47 @@ function TabSeguimiento({ reloadKey }) {
         <button className="btn" style={{ alignSelf: 'flex-end' }} onClick={loadResumen}>↻ Actualizar</button>
       </div>
 
-      {/* Stat cards */}
+      {/* Tarjetas Nacional + por región -- clic en la tarjeta filtra la tabla por esa
+          región; clic en el recuadro RTM/IV filtra además a los faltantes de ese
+          sistema en esa región. */}
       {resumen && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 22 }}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px', boxShadow: 'var(--shadow-card)' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, marginBottom: 6 }}>Total CeVes</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)' }}>{totalF}</div>
-          </div>
-          <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-            <div style={{ fontSize: 12, color: '#065f46', fontWeight: 500, marginBottom: 6 }}>Enviados</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#065f46' }}>{enviadosF} <span style={{ fontSize: 14, fontWeight: 600 }}>({pct}%)</span></div>
-          </div>
-          <div style={{ background: faltantesF > 0 ? '#fef2f2' : '#f3f4f6', border: `1px solid ${faltantesF > 0 ? '#fca5a5' : '#e5e7eb'}`, borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-            <div style={{ fontSize: 12, color: faltantesF > 0 ? '#991b1b' : '#6b7280', fontWeight: 500, marginBottom: 6 }}>Faltantes</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: faltantesF > 0 ? '#991b1b' : '#6b7280' }}>{faltantesF}</div>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${1 + regiones.length}, 1fr)`, gap: 12, marginBottom: 22 }}>
+          {[null, ...regiones].map(r => {
+            const s = statsFor(r)
+            const isNacional = r === null
+            const selected = isNacional ? region === '' && !sistemaFiltro : region === r
+            return (
+              <div key={r ?? '__nacional'} onClick={() => selectCard(r ?? '')}
+                style={{
+                  cursor: 'pointer', background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '14px 16px',
+                  border: `1.5px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                  boxShadow: selected ? '0 0 0 3px rgba(26,86,219,0.12)' : 'var(--shadow-card)',
+                  transition: 'border-color 0.12s, box-shadow 0.12s',
+                }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: isNacional ? 'var(--accent)' : 'var(--text)' }}>
+                    {isNacional ? '🌎 Nacional' : r}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#9ca3af' }}>{s.total} CeVes</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <SistemaMiniPill label="RTM" enviados={s.rtmEnviados} faltantes={s.rtmFaltantes}
+                    active={region === (r ?? '') && sistemaFiltro === 'rtm'}
+                    onClick={e => selectSistema(r ?? '', 'rtm', e)} />
+                  <SistemaMiniPill label="IV" enviados={s.ivEnviados} faltantes={s.ivFaltantes}
+                    active={region === (r ?? '') && sistemaFiltro === 'iv'}
+                    onClick={e => selectSistema(r ?? '', 'iv', e)} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {sistemaFiltro && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 12.5, color: '#475569' }}>
+          Mostrando solo los que falta <b>{sistemaFiltro === 'rtm' ? 'RTM' : 'Integral Vending'}</b>{region ? ` en ${region}` : ''}
+          <button className="btn" style={{ fontSize: 11.5, padding: '3px 10px' }} onClick={() => setSistemaFiltro('')}>✕ Quitar filtro</button>
         </div>
       )}
 
