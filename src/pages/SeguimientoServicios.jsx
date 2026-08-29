@@ -127,10 +127,23 @@ function EstadoBadge({ estado }) {
   )
 }
 
-// Badge por sistema (RTM/Integral Vending) -- verde con las filas cargadas cuando
-// ese sistema en concreto llegó ese día, gris cuando no.
-function SistemaBadge({ enviado, filas }) {
-  if (!enviado) return <span style={{ color: '#9ca3af', fontSize: 12.5 }}>—</span>
+// Badge por sistema (RTM/Integral Vending) -- 3 estados, no solo enviado/no:
+// verde con las filas cargadas si llegó, rojo "Falta" si el CeVe SÍ tiene ese
+// sistema activo en el catálogo pero no llegó, gris "—" solo cuando el sistema
+// ni siquiera aplica para ese CeVe (no está activo). Antes "no llegó" y "no
+// aplica" se veían igual (gris), y no se distinguía cuál sistema faltaba.
+function SistemaBadge({ activo, enviado, filas }) {
+  if (!activo) return <span style={{ color: '#9ca3af', fontSize: 12.5 }}>—</span>
+  if (!enviado) {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 99,
+        fontSize: 11.5, fontWeight: 700, background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b',
+      }}>
+        ✕ Falta
+      </span>
+    )
+  }
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 99,
@@ -571,8 +584,8 @@ function TabSeguimiento({ reloadKey }) {
                   <td style={{ textAlign: 'right', fontWeight: c.enviado ? 600 : 400, color: c.enviado ? 'var(--text)' : '#9ca3af' }}>
                     {c.enviado ? fmtNum(c.filas) : '—'}
                   </td>
-                  <td><SistemaBadge enviado={c.rtmEnviado} filas={c.rtmFilas} /></td>
-                  <td><SistemaBadge enviado={c.ivEnviado} filas={c.ivFilas} /></td>
+                  <td><SistemaBadge activo={c.rtmActivo} enviado={c.rtmEnviado} filas={c.rtmFilas} /></td>
+                  <td><SistemaBadge activo={c.ivActivo} enviado={c.ivEnviado} filas={c.ivFilas} /></td>
                   <td style={{ fontSize: 12, color: '#6b7280' }}>{fmtDT(c.ultimaCarga)}</td>
                 </tr>
               )
