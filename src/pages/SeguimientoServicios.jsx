@@ -65,6 +65,20 @@ function decodeCsvBuffer(buffer) {
 function fmtDT(val) { return val ? String(val).slice(0, 16).replace('T', ' ') : '—' }
 function fmtNum(v) { return v == null ? '—' : Number(v).toLocaleString('es-MX') }
 
+// Badge por sistema (RTM/Integral Vending) -- verde con las filas cargadas cuando
+// ese sistema en concreto llegó ese día, gris cuando no.
+function SistemaBadge({ enviado, filas }) {
+  if (!enviado) return <span style={{ color: '#9ca3af', fontSize: 12.5 }}>—</span>
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 99,
+      fontSize: 11.5, fontWeight: 700, background: '#ecfdf5', border: '1px solid #6ee7b7', color: '#065f46',
+    }}>
+      ✓ {fmtNum(filas)}
+    </span>
+  )
+}
+
 // ── Tab: Carga ───────────────────────────────────────────────────────────────
 function TabCarga({ onSaved }) {
   const { usuario } = useAuth()
@@ -376,22 +390,26 @@ function TabSeguimiento({ reloadKey }) {
             <tr>
               <th>CeVe</th>
               <th>Nombre</th>
+              <th>Región</th>
               <th>Estado</th>
               <th style={{ textAlign: 'right' }}>Filas cargadas</th>
+              <th>RTM</th>
+              <th>Integral Vending</th>
               <th>Última carga</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="loading">Cargando...</td></tr>
+              <tr><td colSpan={8} className="loading">Cargando...</td></tr>
             ) : !fecha ? (
-              <tr><td colSpan={5} className="empty">Sube un CSV para empezar a ver el seguimiento.</td></tr>
+              <tr><td colSpan={8} className="empty">Sube un CSV para empezar a ver el seguimiento.</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="empty">Sin resultados para ese filtro.</td></tr>
+              <tr><td colSpan={8} className="empty">Sin resultados para ese filtro.</td></tr>
             ) : filtered.map(c => (
               <tr key={c.codCeve} style={{ background: c.enviado ? undefined : '#fef2f2' }}>
                 <td style={{ fontWeight: 600 }}>{c.codCeve}</td>
                 <td>{c.nombre || '—'}</td>
+                <td>{c.region || '—'}</td>
                 <td>
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99,
@@ -406,6 +424,8 @@ function TabSeguimiento({ reloadKey }) {
                 <td style={{ textAlign: 'right', fontWeight: c.enviado ? 600 : 400, color: c.enviado ? 'var(--text)' : '#9ca3af' }}>
                   {c.enviado ? fmtNum(c.filas) : '—'}
                 </td>
+                <td><SistemaBadge enviado={c.rtmEnviado} filas={c.rtmFilas} /></td>
+                <td><SistemaBadge enviado={c.ivEnviado} filas={c.ivFilas} /></td>
                 <td style={{ fontSize: 12, color: '#6b7280' }}>{fmtDT(c.ultimaCarga)}</td>
               </tr>
             ))}
