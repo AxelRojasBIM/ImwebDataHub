@@ -272,6 +272,8 @@ function TabSeguimiento({ reloadKey }) {
   const [resumen, setResumen]     = useState(null)
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
+  const [organizacion, setOrganizacion] = useState('')
+  const [region, setRegion]       = useState('')
 
   const loadFechas = useCallback(async () => {
     try {
@@ -298,11 +300,21 @@ function TabSeguimiento({ reloadKey }) {
 
   const q = search.trim().toLowerCase()
   const ceves = resumen?.ceves ?? []
-  const filtered = q
-    ? ceves.filter(c => (c.codCeve || '').toLowerCase().includes(q) || (c.nombre || '').toLowerCase().includes(q))
-    : ceves
+  const organizaciones = [...new Set(ceves.map(c => c.organizacion).filter(Boolean))].sort()
+  const regiones = [...new Set(ceves.map(c => c.region).filter(Boolean))].sort()
+  const filtered = ceves.filter(c =>
+    (!q || (c.codCeve || '').toLowerCase().includes(q) || (c.nombre || '').toLowerCase().includes(q)) &&
+    (!organizacion || c.organizacion === organizacion) &&
+    (!region || c.region === region)
+  )
 
-  const pct = resumen && resumen.total > 0 ? Math.round((resumen.enviados / resumen.total) * 100) : 0
+  // Los totales/porcentaje reflejan el filtro activo (organización/región/búsqueda),
+  // no siempre el universo completo de CeVes -- si estás viendo solo una región, el
+  // resumen debe hablar de esa región.
+  const totalF = filtered.length
+  const enviadosF = filtered.filter(c => c.enviado).length
+  const faltantesF = totalF - enviadosF
+  const pct = totalF > 0 ? Math.round((enviadosF / totalF) * 100) : 0
 
   return (
     <div>
@@ -317,6 +329,17 @@ function TabSeguimiento({ reloadKey }) {
         </label>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar CeVe o nombre..."
           style={{ flex: '0 1 260px', alignSelf: 'flex-end', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, outline: 'none' }} />
+        {/* Filtros discretos: mismo alto que el buscador, pero grises/pequeños para no competir visualmente con la fecha */}
+        <select value={organizacion} onChange={e => setOrganizacion(e.target.value)}
+          style={{ alignSelf: 'flex-end', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, color: organizacion ? 'var(--text)' : '#9ca3af', background: '#fafafa', outline: 'none' }}>
+          <option value="">Organización — todas</option>
+          {organizaciones.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <select value={region} onChange={e => setRegion(e.target.value)}
+          style={{ alignSelf: 'flex-end', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, color: region ? 'var(--text)' : '#9ca3af', background: '#fafafa', outline: 'none' }}>
+          <option value="">Región — todas</option>
+          {regiones.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
         <button className="btn" style={{ alignSelf: 'flex-end' }} onClick={loadResumen}>↻ Actualizar</button>
       </div>
 
@@ -325,21 +348,21 @@ function TabSeguimiento({ reloadKey }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 22 }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px', boxShadow: 'var(--shadow-card)' }}>
             <div style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, marginBottom: 6 }}>Total CeVes</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)' }}>{resumen.total}</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)' }}>{totalF}</div>
           </div>
           <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 12, color: '#065f46', fontWeight: 500, marginBottom: 6 }}>Enviados</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#065f46' }}>{resumen.enviados} <span style={{ fontSize: 14, fontWeight: 600 }}>({pct}%)</span></div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#065f46' }}>{enviadosF} <span style={{ fontSize: 14, fontWeight: 600 }}>({pct}%)</span></div>
           </div>
-          <div style={{ background: resumen.faltantes > 0 ? '#fef2f2' : '#f3f4f6', border: `1px solid ${resumen.faltantes > 0 ? '#fca5a5' : '#e5e7eb'}`, borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-            <div style={{ fontSize: 12, color: resumen.faltantes > 0 ? '#991b1b' : '#6b7280', fontWeight: 500, marginBottom: 6 }}>Faltantes</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: resumen.faltantes > 0 ? '#991b1b' : '#6b7280' }}>{resumen.faltantes}</div>
+          <div style={{ background: faltantesF > 0 ? '#fef2f2' : '#f3f4f6', border: `1px solid ${faltantesF > 0 ? '#fca5a5' : '#e5e7eb'}`, borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
+            <div style={{ fontSize: 12, color: faltantesF > 0 ? '#991b1b' : '#6b7280', fontWeight: 500, marginBottom: 6 }}>Faltantes</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: faltantesF > 0 ? '#991b1b' : '#6b7280' }}>{faltantesF}</div>
           </div>
         </div>
       )}
 
       {/* Barra de progreso */}
-      {resumen && resumen.total > 0 && (
+      {resumen && totalF > 0 && (
         <div style={{ marginBottom: 20 }}>
           <div style={{ height: 10, borderRadius: 99, background: '#f3f4f6', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#059669' : '#1a56db', borderRadius: 99, transition: 'width 0.3s' }} />
