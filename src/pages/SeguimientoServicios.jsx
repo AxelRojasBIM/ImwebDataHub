@@ -352,7 +352,10 @@ function TabSeguimiento({ reloadKey }) {
   const [region, setRegion]       = useState('')
   // '' | 'rtmFalta' | 'rtmEnvio' | 'ivFalta' | 'ivEnvio' -- el ✓/✕ de cada recuadro filtra por separado
   const [sistemaFiltro, setSistemaFiltro] = useState('')
-  const [estadoFiltro, setEstadoFiltro] = useState('') // '' | 'completo' | 'incompleto' | 'falta' | 'na'
+  const [estadosFiltro, setEstadosFiltro] = useState([]) // subset de ['completo','incompleto','falta','na'] -- vacío = todos
+  function toggleEstado(key) {
+    setEstadosFiltro(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
 
   const loadFechas = useCallback(async () => {
     try {
@@ -392,7 +395,7 @@ function TabSeguimiento({ reloadKey }) {
     (!q || (c.codCeve || '').toLowerCase().includes(q) || (c.nombre || '').toLowerCase().includes(q)) &&
     (!organizacion || c.organizacion === organizacion) &&
     (!region || c.region === region) &&
-    (!estadoFiltro || estadoCeve(c) === estadoFiltro) &&
+    (estadosFiltro.length === 0 || estadosFiltro.includes(estadoCeve(c))) &&
     matchesSistema(c)
   )
 
@@ -456,14 +459,24 @@ function TabSeguimiento({ reloadKey }) {
           <option value="">Región — todas</option>
           {regiones.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
-        <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)}
-          style={{ alignSelf: 'flex-end', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12.5, color: estadoFiltro ? 'var(--text)' : '#9ca3af', background: '#fafafa', outline: 'none' }}>
-          <option value="">Estado — todos</option>
-          <option value="completo">✓ Enviado</option>
-          <option value="incompleto">⚠ Incompleto</option>
-          <option value="falta">✕ Falta</option>
-          <option value="na">— N/A</option>
-        </select>
+        {/* Chips de Estado -- selección múltiple (a diferencia de Organización/Región,
+            que son un solo valor a la vez), clic para prender/apagar cada uno. */}
+        <div style={{ display: 'flex', gap: 5, alignSelf: 'flex-end' }}>
+          {Object.entries(ESTADO_STYLES).map(([key, s]) => {
+            const active = estadosFiltro.includes(key)
+            return (
+              <span key={key} onClick={() => toggleEstado(key)} title={s.label}
+                style={{
+                  cursor: 'pointer', padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                  background: active ? s.bg : '#fafafa',
+                  border: `1px solid ${active ? s.border : 'var(--border)'}`,
+                  color: active ? s.text : '#9ca3af',
+                }}>
+                {s.label}
+              </span>
+            )
+          })}
+        </div>
         <button className="btn" style={{ alignSelf: 'flex-end' }} onClick={loadResumen}>↻ Actualizar</button>
       </div>
 
