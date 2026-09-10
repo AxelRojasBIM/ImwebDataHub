@@ -5,15 +5,38 @@ const COLS = [
   'anio', 'semana', 'plan_comercial', 'canal', 'region', 'gerencia', 'cod_ceve',
   'item', 'producto', 'categoria', 'marca', 'meta_pzs', 'meta_importe', 'meta_dist',
 ]
+const EJEMPLO = [
+  '2026', '3', 'PlanQ1', 'Detalle', 'Centro', 'Gerencia Centro', '20279',
+  '12345', 'Pan Blanco Grande', 'Panes', 'Bimbo', '1000', '18500.00', '50',
+]
 const UPLOAD_URL  = '/api/planes-comerciales/upload'
 const BATCHES_URL = '/api/planes-comerciales/batches'
 const DELETE_URL  = '/api/planes-comerciales/batches'
+
+const REGLAS = [
+  'Ninguna columna puede quedar vacía.',
+  '\'meta_pzs\' y \'meta_dist\' deben ser mayores a cero.',
+  'No se permiten filas duplicadas por anio + semana + canal + cod_ceve + item.',
+]
 
 function fmtDT(val) {
   if (!val) return '—'
   return new Date(val).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })
 }
 function fmtNum(n) { return n == null ? '—' : n.toLocaleString('es-MX') }
+
+function descargarPlantilla() {
+  const csv = `${COLS.join(',')}\n${EJEMPLO.join(',')}\n`
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'plantilla_planes_comerciales.csv'
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const card = { background: 'var(--surface, #fff)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px' }
+const cardTitle = { fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }
 
 export default function PlanesComerciales() {
   const [file, setFile]         = useState(null)
@@ -75,99 +98,127 @@ export default function PlanesComerciales() {
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '28px 24px' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
-          Planes Comerciales
-        </h1>
-        <p style={{ margin: '5px 0 0', fontSize: 13, color: '#6b7280' }}>
-          Carga de metas comerciales por CeVe, canal e ítem.
-        </p>
+    <div style={{ maxWidth: 1120, margin: '0 auto', padding: '24px 24px 40px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
+            Planes Comerciales
+          </h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>
+            Carga de metas comerciales por CeVe, canal e ítem.
+          </p>
+        </div>
+        <button className="btn" onClick={descargarPlantilla} style={{ fontSize: 12.5 }}>
+          ⬇ Descargar plantilla CSV
+        </button>
       </div>
 
-      <div style={{ background: '#f8faff', border: '1px solid #c7d7fd', borderRadius: 14, padding: '20px 22px' }}>
-        {/* Columnas */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-          {COLS.map((c, i) => (
-            <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99,
-              background: '#e0e7ff', color: '#3730a3', fontFamily: 'monospace' }}>{c}</span>
-          ))}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(340px, 1.3fr)', gap: 16, alignItems: 'start' }}>
+        {/* Plantilla / reglas */}
+        <div style={card}>
+          <div style={cardTitle}>Plantilla y reglas de carga</div>
+
+          <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 12 }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: 10.5, whiteSpace: 'nowrap' }}>
+              <thead>
+                <tr>
+                  {COLS.map(c => (
+                    <th key={c} style={{ padding: '5px 8px', textAlign: 'left', fontWeight: 700,
+                      color: '#3730a3', background: '#e0e7ff', fontFamily: 'monospace', borderBottom: '1px solid var(--border)' }}>{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {EJEMPLO.map((v, i) => (
+                    <td key={i} style={{ padding: '5px 8px', color: '#6b7280' }}>{v}</td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: '#4b5563', lineHeight: 1.7 }}>
+            {REGLAS.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
         </div>
 
-        {/* Drop zone */}
-        <div
-          onDragOver={e => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          onClick={() => !file && inputRef.current?.click()}
-          style={{
-            border: `2px dashed ${dragging ? '#3b82f6' : file ? '#22c55e' : '#93c5fd'}`,
-            borderRadius: 10, padding: '22px 20px', textAlign: 'center',
-            cursor: file ? 'default' : 'pointer',
-            background: dragging ? '#eff6ff' : file ? '#f0fdf4' : '#fff',
-            transition: 'all .15s', marginBottom: 12,
-          }}
-        >
-          <input ref={inputRef} type="file" accept=".csv" style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = '' }} />
-          {file ? (
-            <div>
-              <div style={{ fontSize: 22, marginBottom: 4 }}>📄</div>
-              <div style={{ fontWeight: 700, color: '#15803d', fontSize: 13 }}>{file.name}</div>
-              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>
-                {(file.size / 1024 / 1024).toFixed(1)} MB
+        {/* Carga */}
+        <div style={card}>
+          <div style={cardTitle}>Cargar archivo</div>
+
+          <div
+            onDragOver={e => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            onClick={() => !file && inputRef.current?.click()}
+            style={{
+              border: `2px dashed ${dragging ? '#3b82f6' : file ? '#22c55e' : '#93c5fd'}`,
+              borderRadius: 10, padding: '20px 18px', textAlign: 'center',
+              cursor: file ? 'default' : 'pointer',
+              background: dragging ? '#eff6ff' : file ? '#f0fdf4' : '#f8faff',
+              transition: 'all .15s', marginBottom: 12,
+            }}
+          >
+            <input ref={inputRef} type="file" accept=".csv" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = '' }} />
+            {file ? (
+              <div>
+                <div style={{ fontSize: 20, marginBottom: 4 }}>📄</div>
+                <div style={{ fontWeight: 700, color: '#15803d', fontSize: 13 }}>{file.name}</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>
+                  {(file.size / 1024 / 1024).toFixed(1)} MB
+                </div>
+                <button onClick={e => { e.stopPropagation(); setFile(null) }}
+                  style={{ marginTop: 8, fontSize: 12, padding: '3px 10px', borderRadius: 6,
+                    border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
+                  ✕ Quitar
+                </button>
               </div>
-              <button onClick={e => { e.stopPropagation(); setFile(null) }}
-                style={{ marginTop: 8, fontSize: 12, padding: '3px 10px', borderRadius: 6,
-                  border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
-                ✕ Quitar
-              </button>
-            </div>
-          ) : (
-            <div>
-              <div style={{ fontSize: 26, marginBottom: 6 }}>☁</div>
-              <div style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>
-                Arrastra el CSV o <span style={{ color: '#2563eb' }}>haz clic</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
-          <button className="btn primary" onClick={handleUpload} disabled={!file || uploading}
-            style={{ padding: '8px 24px', fontWeight: 700, fontSize: 13 }}>
-            {uploading ? '⏳ Cargando…' : '↑ Cargar archivo'}
-          </button>
-        </div>
-
-        {result && (
-          <div style={{ padding: '9px 14px', borderRadius: 8, fontSize: 13, marginBottom: 14,
-            background: result.ok ? '#ecfdf5' : '#fef2f2',
-            color: result.ok ? '#065f46' : '#991b1b',
-            border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}` }}>
-            {result.ok ? (
-              `✓ ${fmtNum(result.saved)} registros cargados.`
             ) : (
               <div>
-                <div style={{ fontWeight: 700, marginBottom: result.errores?.length ? 8 : 0 }}>
-                  ✕ Carga negada: {result.msg}
+                <div style={{ fontSize: 24, marginBottom: 4 }}>☁</div>
+                <div style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>
+                  Arrastra el CSV o <span style={{ color: '#2563eb' }}>haz clic</span>
                 </div>
-                {result.errores?.length > 0 && (
-                  <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 260, overflowY: 'auto' }}>
-                    {result.errores.map((err, i) => (
-                      <li key={i} style={{ marginBottom: 4 }}>{err}</li>
-                    ))}
-                  </ul>
-                )}
               </div>
             )}
           </div>
-        )}
 
-        {/* Historial */}
-        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
-          Historial de cargas
+          <button className="btn primary" onClick={handleUpload} disabled={!file || uploading}
+            style={{ padding: '8px 24px', fontWeight: 700, fontSize: 13, marginBottom: 14 }}>
+            {uploading ? '⏳ Cargando…' : '↑ Cargar archivo'}
+          </button>
+
+          {result && (
+            <div style={{ padding: '9px 14px', borderRadius: 8, fontSize: 13,
+              background: result.ok ? '#ecfdf5' : '#fef2f2',
+              color: result.ok ? '#065f46' : '#991b1b',
+              border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}` }}>
+              {result.ok ? (
+                `✓ ${fmtNum(result.saved)} registros cargados.`
+              ) : (
+                <div>
+                  <div style={{ fontWeight: 700, marginBottom: result.errores?.length ? 8 : 0 }}>
+                    ✕ Carga negada: {result.msg}
+                  </div>
+                  {result.errores?.length > 0 && (
+                    <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 220, overflowY: 'auto' }}>
+                      {result.errores.map((err, i) => (
+                        <li key={i} style={{ marginBottom: 4 }}>{err}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Historial */}
+      <div style={{ ...card, marginTop: 16 }}>
+        <div style={cardTitle}>Historial de cargas</div>
         {loadingB ? (
           <div style={{ fontSize: 13, color: '#9ca3af' }}>Cargando…</div>
         ) : batches.length === 0 ? (
