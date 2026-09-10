@@ -23,6 +23,7 @@ import CausasRecorte from './pages/CausasRecorte'
 import CausasRecorteTablero from './pages/CausasRecorteTablero'
 import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
 import SeguimientoServicios from './pages/SeguimientoServicios'
+import PlanesComerciales from './pages/PlanesComerciales'
 import Login from './pages/Login'
 import Administracion from './pages/admin/Administracion'
 import { useEffect, useState } from 'react'
@@ -186,6 +187,7 @@ function AppShell({ usuario, logout }) {
           <Route path="/causas-recorte-tablero" element={<Guarded path="/causas-recorte-tablero" rol={rol}><CausasRecorteTablero /></Guarded>} />
           <Route path="/existencia-teorica-tablero" element={<Guarded path="/existencia-teorica-tablero" rol={rol}><ExistenciaTeoricaTablero /></Guarded>} />
           <Route path="/seguimiento-servicios" element={<Guarded path="/seguimiento-servicios" rol={rol}><SeguimientoServicios /></Guarded>} />
+          <Route path="/planes-comerciales" element={<Guarded path="/planes-comerciales" rol={rol}><PlanesComerciales /></Guarded>} />
           <Route path="/admin/usuarios" element={<Guarded path="/admin/usuarios" rol={rol}><Administracion /></Guarded>} />
         </Routes>
       </main>

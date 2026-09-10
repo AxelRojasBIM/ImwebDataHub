@@ -1,7 +1,7 @@
 import {
   Stethoscope, Ruler, BarChart3, Search, Calculator, Warehouse,
   LayoutGrid, Database, TrendingUp, PieChart, Package, Truck,
-  MapPin, Boxes, Target, Calendar, Factory, Users, ClipboardCheck,
+  MapPin, Boxes, Target, Calendar, Factory, Users, ClipboardCheck, FileText,
 } from 'lucide-react'
 
 const nav = [
@@ -11,6 +11,12 @@ const nav = [
       { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: Stethoscope },
       { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: Ruler },
       { to: '/seguimiento-servicios', label: 'Seguimiento Servicios', icon: ClipboardCheck },
+    ]
+  },
+  {
+    section: 'Planeación',
+    items: [
+      { to: '/planes-comerciales', label: 'Planes Comerciales', icon: FileText },
     ]
   },
   {
