@@ -98,7 +98,7 @@ export default function PlanesComerciales() {
   }
 
   return (
-    <div style={{ maxWidth: 1120, margin: '0 auto', padding: '24px 24px 40px' }}>
+    <div style={{ padding: '24px 28px 40px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
@@ -113,7 +113,7 @@ export default function PlanesComerciales() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(340px, 1.3fr)', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 560px) 1fr', gap: 16, alignItems: 'start' }}>
         {/* Plantilla / reglas */}
         <div style={card}>
           <div style={cardTitle}>Plantilla y reglas de carga</div>
