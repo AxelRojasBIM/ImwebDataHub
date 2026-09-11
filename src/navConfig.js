@@ -1,7 +1,7 @@
 import {
   Stethoscope, Ruler, BarChart3, Search, Calculator, Warehouse,
   LayoutGrid, Database, TrendingUp, PieChart, Package, Truck,
-  MapPin, Boxes, Target, Calendar, Factory, Users, ClipboardCheck, FileText,
+  MapPin, Boxes, Target, Calendar, Factory, Users, ClipboardCheck, FileText, Cog,
 } from 'lucide-react'
 
 const nav = [
@@ -17,6 +17,7 @@ const nav = [
     section: 'Planeación',
     items: [
       { to: '/planes-comerciales', label: 'Planes Comerciales', icon: FileText },
+      { to: '/pt-elaborado-produccion', label: 'Producción PT Elaborado', icon: Cog },
     ]
   },
   {
