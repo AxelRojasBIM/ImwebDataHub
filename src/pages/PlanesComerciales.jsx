@@ -38,6 +38,52 @@ function descargarPlantilla() {
 const card = { background: 'var(--surface, #fff)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px' }
 const cardTitle = { fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }
 
+function ResultAlert({ result, onClose }) {
+  if (!result) return null
+  const ok = result.ok
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20, zIndex: 1000,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560,
+        maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 20px 50px rgba(15,23,42,0.25)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '24px 24px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: 34, marginBottom: 8 }}>{ok ? '✅' : '⛔'}</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: ok ? '#065f46' : '#991b1b' }}>
+            {ok ? 'Carga exitosa' : 'Carga negada'}
+          </div>
+          <div style={{ fontSize: 13, color: '#4b5563', marginTop: 6 }}>
+            {ok ? `${fmtNum(result.saved)} registros cargados.` : result.msg}
+          </div>
+        </div>
+
+        {!ok && result.errores?.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border)', background: '#fef2f2', padding: '14px 24px', overflowY: 'auto' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#991b1b', textTransform: 'uppercase',
+              letterSpacing: '0.04em', marginBottom: 8, textAlign: 'center' }}>
+              {result.errores.length} {result.errores.length === 1 ? 'error encontrado' : 'errores encontrados'}
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: '#7f1d1d', lineHeight: 1.7 }}>
+              {result.errores.map((err, i) => <li key={i}>{err}</li>)}
+            </ul>
+          </div>
+        )}
+
+        <div style={{ padding: 16, textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+          <button className="btn primary" onClick={onClose} style={{ padding: '8px 28px', fontWeight: 700 }}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PlanesComerciales() {
   const [file, setFile]         = useState(null)
   const [dragging, setDragging] = useState(false)
@@ -186,35 +232,13 @@ export default function PlanesComerciales() {
           </div>
 
           <button className="btn primary" onClick={handleUpload} disabled={!file || uploading}
-            style={{ padding: '8px 24px', fontWeight: 700, fontSize: 13, marginBottom: 14 }}>
+            style={{ padding: '8px 24px', fontWeight: 700, fontSize: 13 }}>
             {uploading ? '⏳ Cargando…' : '↑ Cargar archivo'}
           </button>
-
-          {result && (
-            <div style={{ padding: '9px 14px', borderRadius: 8, fontSize: 13,
-              background: result.ok ? '#ecfdf5' : '#fef2f2',
-              color: result.ok ? '#065f46' : '#991b1b',
-              border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}` }}>
-              {result.ok ? (
-                `✓ ${fmtNum(result.saved)} registros cargados.`
-              ) : (
-                <div>
-                  <div style={{ fontWeight: 700, marginBottom: result.errores?.length ? 8 : 0 }}>
-                    ✕ Carga negada: {result.msg}
-                  </div>
-                  {result.errores?.length > 0 && (
-                    <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 220, overflowY: 'auto' }}>
-                      {result.errores.map((err, i) => (
-                        <li key={i} style={{ marginBottom: 4 }}>{err}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
+
+      <ResultAlert result={result} onClose={() => setResult(null)} />
 
       {/* Historial */}
       <div style={{ ...card, marginTop: 16 }}>
