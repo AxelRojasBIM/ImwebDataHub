@@ -20,7 +20,7 @@ const DELETE_URL  = '/api/pt-elaborado-produccion/batches'
 const REGLAS = [
   'Ninguna columna puede quedar vacía.',
   'Los campos numéricos (production_value, scrappieces, scrap_value, per_scrap, cost_per_unit, tons_produced) deben ser números válidos — el cero es un valor normal.',
-  'No se permiten filas duplicadas por anio + semana + ORG + planta + item_number.',
+  'No se permiten filas duplicadas por anio + semana + ORG + work_area_name + planta + item_number.',
 ]
 
 function fmtDT(val) {
