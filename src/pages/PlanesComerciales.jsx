@@ -142,20 +142,20 @@ function ConfirmModal({ confirmState, onCancel }) {
       padding: 20, zIndex: 1000,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 420,
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 400,
         boxShadow: '0 20px 50px rgba(15,23,42,0.25)', overflow: 'hidden',
       }}>
-        <div style={{ padding: '24px 24px 18px', textAlign: 'center' }}>
+        <div style={{ padding: '28px 24px 20px', textAlign: 'center' }}>
           <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}>
-            <HelpCircle size={36} strokeWidth={1.75} color="#2563eb" />
+            <HelpCircle size={32} strokeWidth={1.75} color="#2563eb" />
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{confirmState.message}</div>
+          <div style={{ fontSize: 13, color: '#4b5563' }}>{confirmState.message}</div>
         </div>
-        <div style={{ display: 'flex', gap: 10, padding: 16, borderTop: '1px solid var(--border)' }}>
-          <button className="btn" onClick={onCancel} style={{ flex: 1, fontWeight: 600 }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', padding: '0 24px 24px' }}>
+          <button className="btn" onClick={onCancel} style={{ padding: '8px 22px', fontWeight: 600 }}>
             Cancelar
           </button>
-          <button className="btn primary" onClick={confirmState.onConfirm} style={{ flex: 1, fontWeight: 700 }}>
+          <button className="btn primary" onClick={confirmState.onConfirm} style={{ padding: '8px 22px', fontWeight: 700 }}>
             Aceptar
           </button>
         </div>
