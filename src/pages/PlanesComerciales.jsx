@@ -251,9 +251,6 @@ export default function PlanesComerciales() {
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
             Planes Comerciales
           </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>
-            Carga de metas comerciales por CeVe, canal e ítem.
-          </p>
         </div>
         <button className="btn" onClick={descargarPlantilla} style={{ fontSize: 12.5 }}>
           ⬇ Descargar plantilla CSV

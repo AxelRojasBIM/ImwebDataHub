@@ -255,9 +255,6 @@ export default function PtElaboradoProduccion() {
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
             Producción PT Elaborado
           </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>
-            Carga de producción, merma y costo por item, línea y planta.
-          </p>
         </div>
         <button className="btn" onClick={descargarPlantilla} style={{ fontSize: 12.5 }}>
           ⬇ Descargar plantilla CSV
