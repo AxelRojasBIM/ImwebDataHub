@@ -28,7 +28,7 @@ export default function Login() {
         padding: '32px 30px', width: 320, boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       }}>
         <div style={{ fontSize: 19, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
-          <span style={{ color: '#4f8cff' }}>CeVe</span>Data
+          <span style={{ color: '#4f8cff' }}>Data</span> Logistic
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 22 }}>Inicia sesión para continuar</div>
 

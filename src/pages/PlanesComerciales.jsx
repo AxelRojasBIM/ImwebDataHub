@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { CheckCircle2, XCircle, HelpCircle } from 'lucide-react'
 import { API } from '../App'
+import { useAuth } from '../AuthContext'
 
 const COLS = [
   'anio', 'semana', 'plan_comercial', 'canal', 'region', 'gerencia', 'cod_ceve',
@@ -21,9 +23,18 @@ const REGLAS = [
 
 function fmtDT(val) {
   if (!val) return '—'
-  return new Date(val).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })
+  return new Date(val).toLocaleString('es-MX', {
+    dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mexico_City',
+  }) + ' CDMX'
 }
 function fmtNum(n) { return n == null ? '—' : n.toLocaleString('es-MX') }
+function fmtDur(ms) {
+  if (ms == null) return '—'
+  if (ms < 1000) return `${ms} ms`
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s} s`
+  return `${Math.floor(s / 60)}m ${s % 60}s`
+}
 
 function descargarPlantilla() {
   const csv = `${COLS.join(',')}\n${EJEMPLO.join(',')}\n`
@@ -31,6 +42,40 @@ function descargarPlantilla() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url; a.download = 'plantilla_planes_comerciales.csv'
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const ROWS_COLS = [
+  ['anio', 'anio'], ['semana', 'semana'], ['planComercial', 'plan_comercial'], ['canal', 'canal'],
+  ['region', 'region'], ['gerencia', 'gerencia'], ['codCeve', 'cod_ceve'], ['item', 'item'],
+  ['producto', 'producto'], ['categoria', 'categoria'], ['marca', 'marca'],
+  ['metaPzs', 'meta_pzs'], ['metaImporte', 'meta_importe'], ['metaDist', 'meta_dist'],
+]
+
+async function exportarBatchExcel(batchId, nombreArchivo) {
+  const r = await fetch(`${API}${BATCHES_URL}/${batchId}/rows`)
+  if (!r.ok) throw new Error(`No se pudieron obtener los registros (HTTP ${r.status}).`)
+  const rows = await r.json()
+
+  // Import diferido: ExcelJS pesa ~900kb minificado, solo se carga al exportar.
+  const { default: ExcelJS } = await import('exceljs')
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Planes Comerciales', { views: [{ state: 'frozen', ySplit: 1 }] })
+
+  const headerRow = ws.addRow(ROWS_COLS.map(([, label]) => label))
+  headerRow.eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } }
+    cell.font = { bold: true, color: { argb: 'FF3730A3' } }
+  })
+  for (const row of rows) ws.addRow(ROWS_COLS.map(([key]) => row[key]))
+  ws.columns.forEach(col => { col.width = 16 })
+
+  const buf = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `${(nombreArchivo || 'planes_comerciales').replace(/\.csv$/i, '')}.xlsx`
   document.body.appendChild(a); a.click(); document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
@@ -53,7 +98,11 @@ function ResultAlert({ result, onClose }) {
         boxShadow: '0 20px 50px rgba(15,23,42,0.25)', overflow: 'hidden',
       }}>
         <div style={{ padding: '24px 24px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: 34, marginBottom: 8 }}>{ok ? '✅' : '⛔'}</div>
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}>
+            {ok
+              ? <CheckCircle2 size={40} strokeWidth={1.75} color="#16a34a" />
+              : <XCircle size={40} strokeWidth={1.75} color="#dc2626" />}
+          </div>
           <div style={{ fontSize: 16, fontWeight: 800, color: ok ? '#065f46' : '#991b1b' }}>
             {ok ? 'Carga exitosa' : 'Carga negada'}
           </div>
@@ -84,7 +133,39 @@ function ResultAlert({ result, onClose }) {
   )
 }
 
+function ConfirmModal({ confirmState, onCancel }) {
+  if (!confirmState) return null
+  return (
+    <div onClick={onCancel} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20, zIndex: 1000,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 420,
+        boxShadow: '0 20px 50px rgba(15,23,42,0.25)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '24px 24px 18px', textAlign: 'center' }}>
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}>
+            <HelpCircle size={36} strokeWidth={1.75} color="#2563eb" />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{confirmState.message}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, padding: 16, borderTop: '1px solid var(--border)' }}>
+          <button className="btn" onClick={onCancel} style={{ flex: 1, fontWeight: 600 }}>
+            Cancelar
+          </button>
+          <button className="btn primary" onClick={confirmState.onConfirm} style={{ flex: 1, fontWeight: 700 }}>
+            Aceptar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PlanesComerciales() {
+  const { usuario } = useAuth()
   const [file, setFile]         = useState(null)
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -92,6 +173,8 @@ export default function PlanesComerciales() {
   const [batches, setBatches]   = useState([])
   const [loadingB, setLoadingB] = useState(true)
   const [deleting, setDeleting] = useState(null)
+  const [exporting, setExporting] = useState(null)
+  const [confirmState, setConfirmState] = useState(null)
   const inputRef = useRef(null)
 
   async function loadBatches() {
@@ -112,12 +195,17 @@ export default function PlanesComerciales() {
     else alert('Solo se aceptan archivos .csv')
   }
 
-  async function handleUpload() {
+  function handleUploadClick() {
     if (!file) return
-    if (!confirm(`¿Cargar "${file.name}"?`)) return
+    setConfirmState({ message: `¿Cargar "${file.name}"?`, onConfirm: doUpload })
+  }
+
+  async function doUpload() {
+    setConfirmState(null)
     setUploading(true); setResult(null)
     const form = new FormData()
     form.append('file', file)
+    form.append('usuario', usuario?.nombreCompleto || '')
     try {
       const r = await fetch(`${API}${UPLOAD_URL}`, { method: 'POST', body: form })
       const text = await r.text()
@@ -134,13 +222,26 @@ export default function PlanesComerciales() {
     } finally { setUploading(false) }
   }
 
-  async function handleDelete(batchId, nombre) {
-    if (!confirm(`¿Eliminar la carga "${nombre}"?`)) return
+  function handleDeleteClick(batchId, nombre) {
+    setConfirmState({ message: `¿Eliminar la carga "${nombre}"?`, onConfirm: () => doDelete(batchId) })
+  }
+
+  async function doDelete(batchId) {
+    setConfirmState(null)
     setDeleting(batchId)
     try {
       await fetch(`${API}${DELETE_URL}/${batchId}`, { method: 'DELETE' })
       await loadBatches()
     } finally { setDeleting(null) }
+  }
+
+  async function handleExport(batchId, nombreArchivo) {
+    setExporting(batchId)
+    try {
+      await exportarBatchExcel(batchId, nombreArchivo)
+    } catch (e) {
+      alert('No se pudo exportar: ' + e.message)
+    } finally { setExporting(null) }
   }
 
   return (
@@ -231,7 +332,7 @@ export default function PlanesComerciales() {
             )}
           </div>
 
-          <button className="btn primary" onClick={handleUpload} disabled={!file || uploading}
+          <button className="btn primary" onClick={handleUploadClick} disabled={!file || uploading}
             style={{ padding: '8px 24px', fontWeight: 700, fontSize: 13 }}>
             {uploading ? '⏳ Cargando…' : '↑ Cargar archivo'}
           </button>
@@ -239,6 +340,7 @@ export default function PlanesComerciales() {
       </div>
 
       <ResultAlert result={result} onClose={() => setResult(null)} />
+      <ConfirmModal confirmState={confirmState} onCancel={() => setConfirmState(null)} />
 
       {/* Historial */}
       <div style={{ ...card, marginTop: 16 }}>
@@ -253,7 +355,7 @@ export default function PlanesComerciales() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
-                  {['Archivo', 'Registros', 'Cargado el', ''].map(h => (
+                  {['Archivo', 'Registros', 'Usuario', 'Cargado el', 'Tiempo de proceso', ''].map(h => (
                     <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600,
                       color: '#374151', borderBottom: '1px solid var(--border)' }}>{h}</th>
                   ))}
@@ -271,9 +373,16 @@ export default function PlanesComerciales() {
                       {b.nombreArchivo}
                     </td>
                     <td style={{ padding: '8px 14px', fontWeight: 600 }}>{fmtNum(b.totalFilas)}</td>
-                    <td style={{ padding: '8px 14px' }}>{fmtDT(b.cargadoEn)}</td>
-                    <td style={{ padding: '8px 14px', textAlign: 'right' }}>
-                      <button className="btn" onClick={() => handleDelete(b.batchId, b.nombreArchivo)}
+                    <td style={{ padding: '8px 14px' }}>{b.usuario || '—'}</td>
+                    <td style={{ padding: '8px 14px', whiteSpace: 'nowrap' }}>{fmtDT(b.cargadoEn)}</td>
+                    <td style={{ padding: '8px 14px' }}>{fmtDur(b.duracionMs)}</td>
+                    <td style={{ padding: '8px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button className="btn" onClick={() => handleExport(b.batchId, b.nombreArchivo)}
+                        disabled={exporting === b.batchId}
+                        style={{ fontSize: 12, padding: '3px 10px', marginRight: 6 }}>
+                        {exporting === b.batchId ? '…' : '⬇ Exportar Excel'}
+                      </button>
+                      <button className="btn" onClick={() => handleDeleteClick(b.batchId, b.nombreArchivo)}
                         disabled={deleting === b.batchId}
                         style={{ fontSize: 12, padding: '3px 10px', color: '#dc2626', borderColor: '#fca5a5' }}>
                         {deleting === b.batchId ? '…' : '🗑 Eliminar'}

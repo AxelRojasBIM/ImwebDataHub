@@ -107,7 +107,7 @@ function AppShell({ usuario, logout }) {
             <>
               <div className="logo-icon-chip"><Boxes size={17} strokeWidth={2} /></div>
               <div>
-                <div className="logo-title"><span className="logo-title-accent">CeVe</span>Data</div>
+                <div className="logo-title"><span className="logo-title-accent">Data</span> Logistic</div>
                 <div className="logo-sub">Gestión e indicadores</div>
               </div>
               <button className="sidebar-collapse-btn" onClick={toggleCollapsed} title="Contraer menú">
