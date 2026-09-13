@@ -25,6 +25,7 @@ import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
 import SeguimientoServicios from './pages/SeguimientoServicios'
 import PlanesComerciales from './pages/PlanesComerciales'
 import PtElaboradoProduccion from './pages/PtElaboradoProduccion'
+import VentaComercial from './pages/VentaComercial'
 import Login from './pages/Login'
 import Administracion from './pages/admin/Administracion'
 import { useEffect, useState } from 'react'
@@ -190,6 +191,7 @@ function AppShell({ usuario, logout }) {
           <Route path="/seguimiento-servicios" element={<Guarded path="/seguimiento-servicios" rol={rol}><SeguimientoServicios /></Guarded>} />
           <Route path="/planes-comerciales" element={<Guarded path="/planes-comerciales" rol={rol}><PlanesComerciales /></Guarded>} />
           <Route path="/pt-elaborado-produccion" element={<Guarded path="/pt-elaborado-produccion" rol={rol}><PtElaboradoProduccion /></Guarded>} />
+          <Route path="/venta-comercial" element={<Guarded path="/venta-comercial" rol={rol}><VentaComercial /></Guarded>} />
           <Route path="/admin/usuarios" element={<Guarded path="/admin/usuarios" rol={rol}><Administracion /></Guarded>} />
         </Routes>
       </main>
