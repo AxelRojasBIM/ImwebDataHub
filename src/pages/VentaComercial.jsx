@@ -28,6 +28,7 @@ const REGLAS = [
   'Los campos numéricos (devolucion_piezas_anio_actual, devolucion_piezas_anio_anterior, venta_bruta_piezas_anio_actual, venta_bruta_piezas_anio_anterior, venta_neta_comercial_anio_actual, venta_neta_comercial_anio_anterior, venta_bruta_piezas_presupuesto, venta_neta_comercial_presupuesto, venta_bruta_presupuesto, venta_bruta_anio_actual, venta_bruta_anio_anterior) deben ser números válidos — el cero es un valor normal.',
   'No se permiten filas duplicadas por semana + agencia_id + canal + producto_id (fecha no se considera para esta validación).',
   'Solo se cargan agencias (agencia_id) dentro del rango 20009–25769; las filas fuera de ese rango se descartan automáticamente y no se almacenan.',
+  'El campo canal debe ser uno de: CONVENIENCIA, AUTOSERVICIOS, DETALLE, CANALES ESPECIALES o AUTOVEND. A partir de este valor se calcula y guarda automáticamente su código (Cod_canal: 574, 561, 560, 570 y 564 respectivamente); cualquier otro valor se rechaza.',
 ]
 
 function fmtDT(val) {
@@ -56,7 +57,7 @@ function descargarPlantilla() {
 }
 
 const ROWS_COLS = [
-  ['semana', 'semana'], ['agenciaId', 'agencia_id'], ['canal', 'canal'], ['productoId', 'producto_id'],
+  ['semana', 'semana'], ['agenciaId', 'agencia_id'], ['canal', 'canal'], ['codCanal', 'cod_canal'], ['productoId', 'producto_id'],
   ['fecha', 'fecha'],
   ['devolucionPiezasAnioActual', 'devolucion_piezas_anio_actual'],
   ['devolucionPiezasAnioAnterior', 'devolucion_piezas_anio_anterior'],
