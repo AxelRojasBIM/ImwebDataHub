@@ -12,7 +12,7 @@ const COLS = [
   'venta_bruta_presupuesto', 'venta_bruta_anio_actual', 'venta_bruta_anio_anterior',
 ]
 const EJEMPLO = [
-  '3', 'AG001', 'Detalle', '10001', '2026-01-19',
+  '3', '20500', 'Detalle', '10001', '2026-01-19',
   '120', '110',
   '1000', '950',
   '25000', '23500',
@@ -24,9 +24,10 @@ const BATCHES_URL = '/api/venta-comercial/batches'
 const DELETE_URL  = '/api/venta-comercial/batches'
 
 const REGLAS = [
-  'Ninguna columna puede quedar vacía.',
+  'Ninguna columna puede quedar vacía, excepto fecha, que puede ir en blanco.',
   'Los campos numéricos (devolucion_piezas_anio_actual, devolucion_piezas_anio_anterior, venta_bruta_piezas_anio_actual, venta_bruta_piezas_anio_anterior, venta_neta_comercial_anio_actual, venta_neta_comercial_anio_anterior, venta_bruta_piezas_presupuesto, venta_neta_comercial_presupuesto, venta_bruta_presupuesto, venta_bruta_anio_actual, venta_bruta_anio_anterior) deben ser números válidos — el cero es un valor normal.',
-  'No se permiten filas duplicadas por semana + agencia_id + canal + producto_id + fecha.',
+  'No se permiten filas duplicadas por semana + agencia_id + canal + producto_id (fecha no se considera para esta validación).',
+  'Solo se cargan agencias (agencia_id) dentro del rango 20009–25769; las filas fuera de ese rango se descartan automáticamente y no se almacenan.',
 ]
 
 function fmtDT(val) {
