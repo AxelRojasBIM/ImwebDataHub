@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { API } from '../../App'
 
 function fmtDT(val) {
@@ -179,6 +179,129 @@ function UploadCard({ cols, uploadUrl, batchesUrl, deleteUrl, tableHeaders, rowR
   )
 }
 
+// ── Catálogo actual: vista deduplicada (última versión por clave) con edición
+// de campo por clic, mismo patrón que la pestaña "CeVes cargados" del Catálogo
+// de CEVEs. La columna clave (Ceve CPT / HW) no es editable; el resto sí.
+async function saveCatOracleCampo(apiPath, id, campo, valor) {
+  await fetch(`${API}${apiPath}/${id}/campo`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ campo, valor: valor || null }),
+  })
+}
+
+function EditableTextCell({ apiPath, row, campo, field, value, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value ?? '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { setVal(value ?? '') }, [value])
+
+  async function save() {
+    setEditing(false)
+    if ((val || '') === (value ?? '')) return
+    setSaving(true)
+    try {
+      await saveCatOracleCampo(apiPath, row.id, campo, val)
+      onSaved(row.id, field, val)
+    } catch { setVal(value ?? '') }
+    finally { setSaving(false) }
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={val}
+        disabled={saving}
+        onChange={e => setVal(e.target.value)}
+        onBlur={save}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') { setVal(value ?? ''); setEditing(false) }
+        }}
+        style={{ width: '100%', padding: '4px 7px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, background: '#fff' }}
+      />
+    )
+  }
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      title="Clic para editar"
+      className={'editable-cell' + (value ? '' : ' empty')}
+      style={{ opacity: saving ? 0.5 : 1 }}
+    >
+      {value || '— editar —'}
+    </span>
+  )
+}
+
+function ActualTab({ apiPath, keyLabel, keyField, editableCols }) {
+  const [rows, setRows]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch(`${API}${apiPath}/actuales`)
+      setRows(r.ok ? await r.json() : [])
+    } catch { setRows([]) }
+    finally { setLoading(false) }
+  }, [apiPath])
+
+  useEffect(() => { load() }, [load])
+
+  function handleSaved(id, field, value) {
+    setRows(rs => rs.map(r => r.id === id ? { ...r, [field]: value } : r))
+  }
+
+  const q = search.trim().toLowerCase()
+  const filtered = q ? rows.filter(r => (r[keyField] || '').toLowerCase().includes(q)) : rows
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Buscar ${keyLabel}...`}
+          style={{ flex: '0 1 280px', padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, outline: 'none' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, color: '#6b7280' }}>{filtered.length.toLocaleString()} registros · versión más reciente de cada uno</span>
+          <button className="btn" onClick={load}>↻ Actualizar</button>
+        </div>
+      </div>
+
+      <div className="table-wrap" style={{ maxHeight: 520, overflow: 'auto' }}>
+        <table>
+          <thead>
+            <tr>
+              <th>{keyLabel}</th>
+              {editableCols.map(c => <th key={c.field}>{c.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={editableCols.length + 1} className="loading">Cargando...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={editableCols.length + 1} className="empty">
+                {rows.length === 0 ? 'Aún no hay registros cargados.' : 'Sin resultados para ese filtro.'}
+              </td></tr>
+            ) : filtered.map(r => (
+              <tr key={r.id}>
+                <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{r[keyField]}</td>
+                {editableCols.map(c => (
+                  <td key={c.field}>
+                    <EditableTextCell apiPath={apiPath} row={r} campo={c.campo} field={c.field}
+                      value={r[c.field]} onSaved={handleSaved} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 const TABS = [
   {
@@ -189,6 +312,16 @@ const TABS = [
     uploadUrl: '/api/cat-oracle/ceves/upload',
     batchesUrl: '/api/cat-oracle/ceves/batches',
     deleteUrl: '/api/cat-oracle/ceves/batches',
+    actualApiPath: '/api/cat-oracle/ceves',
+    actualKeyLabel: 'Ceve CPT',
+    actualKeyField: 'ceveCPT',
+    actualEditableCols: [
+      { field: 'bd', campo: 'bd', label: 'Bd' },
+      { field: 'ceve', campo: 'ceve', label: 'Ceve' },
+      { field: 'region', campo: 'region', label: 'Región' },
+      { field: 'piloto', campo: 'piloto', label: 'Piloto' },
+      { field: 'organizacion', campo: 'organizacion', label: 'Organización' },
+    ],
   },
   {
     id: 'facilities',
@@ -198,15 +331,30 @@ const TABS = [
     uploadUrl: '/api/cat-oracle/facilities/upload',
     batchesUrl: '/api/cat-oracle/facilities/batches',
     deleteUrl: '/api/cat-oracle/facilities/batches',
+    actualApiPath: '/api/cat-oracle/facilities',
+    actualKeyLabel: 'HW',
+    actualKeyField: 'hw',
+    actualEditableCols: [
+      { field: 'sigla', campo: 'sigla', label: 'Sigla' },
+      { field: 'planta', campo: 'planta', label: 'Planta' },
+      { field: 'nombre', campo: 'nombre', label: 'Nombre' },
+      { field: 'sigla2', campo: 'sigla2', label: 'Sigla (col E)' },
+    ],
   },
+]
+
+const SUB_TABS = [
+  { key: 'carga', label: 'Carga', icon: '⬆' },
+  { key: 'actual', label: 'Catálogo actual', icon: '📍' },
 ]
 
 export default function CatalogoOracleCeves() {
   const [tab, setTab] = useState('ceves')
+  const [subTab, setSubTab] = useState('carga')
   const active = TABS.find(t => t.id === tab)
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '28px 24px' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 24px' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
           Catálogos Oracle
@@ -217,7 +365,7 @@ export default function CatalogoOracleCeves() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 22, borderBottom: '2px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8, borderBottom: '2px solid var(--border)' }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{
@@ -232,16 +380,40 @@ export default function CatalogoOracleCeves() {
         ))}
       </div>
 
-      {/* Panel */}
-      <div style={{ background: '#f8faff', border: '1px solid #c7d7fd', borderRadius: 14, padding: '20px 22px' }}>
-        <UploadCard
-          key={active.id}
-          cols={active.cols}
-          uploadUrl={active.uploadUrl}
-          batchesUrl={active.batchesUrl}
-          deleteUrl={active.deleteUrl}
-        />
+      {/* Sub-tabs: Carga / Catálogo actual */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
+        {SUB_TABS.map(s => (
+          <button key={s.key} onClick={() => setSubTab(s.key)} style={{
+            padding: '8px 16px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: 'none',
+            borderBottom: subTab === s.key ? '2px solid #475569' : '2px solid transparent',
+            marginBottom: -1, background: 'transparent',
+            color: subTab === s.key ? '#475569' : '#9ca3af', transition: 'color 0.15s',
+          }}>
+            <span style={{ marginRight: 5 }}>{s.icon}</span>{s.label}
+          </button>
+        ))}
       </div>
+
+      {/* Panel */}
+      {subTab === 'carga' ? (
+        <div style={{ background: '#f8faff', border: '1px solid #c7d7fd', borderRadius: 14, padding: '20px 22px' }}>
+          <UploadCard
+            key={active.id}
+            cols={active.cols}
+            uploadUrl={active.uploadUrl}
+            batchesUrl={active.batchesUrl}
+            deleteUrl={active.deleteUrl}
+          />
+        </div>
+      ) : (
+        <ActualTab
+          key={active.id}
+          apiPath={active.actualApiPath}
+          keyLabel={active.actualKeyLabel}
+          keyField={active.actualKeyField}
+          editableCols={active.actualEditableCols}
+        />
+      )}
     </div>
   )
 }
