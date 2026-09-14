@@ -24,7 +24,7 @@ const REGLAS = [
   'Solo se valida que el encabezado coincida con las 21 columnas esperadas (si no coincide, se rechaza la carga completa).',
   'Una fila con menos columnas de las esperadas se omite en silencio, sin rechazar el resto del archivo.',
   'Los campos numéricos y de fecha se guardan con su tipo real; si un valor puntual no se puede convertir, esa columna se guarda vacía sin afectar el resto de la fila (se acepta formato moneda para números).',
-  'Se calcula automáticamente una columna "Planta": si Destination Facility coincide con un HW del catálogo Oracle de Destination Facility, se toma su Planta; si Destination Facility viene vacío, se usa Cust Name como CeVe y se busca su Bd en el catálogo de CeVes Oracle. Si no hay coincidencia en ninguno de los dos, queda vacía.',
+  'Se calcula automáticamente una columna "Planta" (guarda el cod_ceve/Bd), encadenando dos búsquedas: 1) Destination Facility se busca en HW del catálogo Oracle de Destination Facility para obtener su Planta (si Destination Facility viene vacío, se usa Cust Name como CeVe en su lugar); 2) ese valor se busca en CeveCPT del catálogo de CeVes Oracle para obtener su Bd, que es el resultado final. Si algún paso de la cadena no encuentra coincidencia, la columna queda vacía.',
 ]
 
 function fmtDT(val) {
