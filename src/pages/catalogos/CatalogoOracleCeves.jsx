@@ -235,10 +235,61 @@ function EditableTextCell({ apiPath, row, campo, field, value, onSaved }) {
   )
 }
 
-function ActualTab({ apiPath, keyLabel, keyField, editableCols }) {
+function AddRowForm({ apiPath, keyLabel, keyField, keyProp, editableCols, onAdded, onCancel }) {
+  const [key, setKey] = useState('')
+  const [vals, setVals] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function handleAdd() {
+    if (!key.trim()) { setError(`'${keyLabel}' es obligatorio.`); return }
+    setSaving(true); setError(null)
+    try {
+      // Arma el body con los nombres de campo que espera el backend (PascalCase)
+      const payload = { [keyProp]: key.trim() }
+      editableCols.forEach(c => { payload[c.campo.charAt(0).toUpperCase() + c.campo.slice(1)] = vals[c.field] || null })
+      const r = await fetch(`${API}${apiPath}/actuales`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      onAdded()
+    } catch (e) {
+      setError(e.message)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <tr style={{ background: '#eff6ff' }}>
+      <td>
+        <input autoFocus value={key} onChange={e => setKey(e.target.value)} placeholder={keyLabel}
+          style={{ width: '100%', padding: '4px 7px', borderRadius: 6, border: '1px solid #93c5fd', fontSize: 13 }} />
+      </td>
+      {editableCols.map(c => (
+        <td key={c.field}>
+          <input value={vals[c.field] || ''} onChange={e => setVals(v => ({ ...v, [c.field]: e.target.value }))}
+            placeholder={c.label}
+            style={{ width: '100%', padding: '4px 7px', borderRadius: 6, border: '1px solid #93c5fd', fontSize: 13 }} />
+        </td>
+      ))}
+      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+        {error && <span style={{ color: '#991b1b', fontSize: 11, marginRight: 8 }}>{error}</span>}
+        <button className="btn primary" onClick={handleAdd} disabled={saving}
+          style={{ fontSize: 12, padding: '3px 10px', marginRight: 6 }}>
+          {saving ? '…' : 'Guardar'}
+        </button>
+        <button className="btn" onClick={onCancel} style={{ fontSize: 12, padding: '3px 10px' }}>Cancelar</button>
+      </td>
+    </tr>
+  )
+}
+
+function ActualTab({ apiPath, keyLabel, keyField, keyProp, editableCols }) {
   const [rows, setRows]     = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [deleting, setDeleting] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -255,6 +306,15 @@ function ActualTab({ apiPath, keyLabel, keyField, editableCols }) {
     setRows(rs => rs.map(r => r.id === id ? { ...r, [field]: value } : r))
   }
 
+  async function handleDelete(id, label) {
+    if (!confirm(`¿Eliminar el registro "${label}"?`)) return
+    setDeleting(id)
+    try {
+      await fetch(`${API}${apiPath}/actuales/${id}`, { method: 'DELETE' })
+      await load()
+    } finally { setDeleting(null) }
+  }
+
   const q = search.trim().toLowerCase()
   const filtered = q ? rows.filter(r => (r[keyField] || '').toLowerCase().includes(q)) : rows
 
@@ -265,6 +325,8 @@ function ActualTab({ apiPath, keyLabel, keyField, editableCols }) {
           style={{ flex: '0 1 280px', padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, outline: 'none' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12, color: '#6b7280' }}>{filtered.length.toLocaleString()} registros · versión más reciente de cada uno</span>
+          <button className="btn primary" onClick={() => setAdding(true)} disabled={adding}
+            style={{ fontSize: 12.5 }}>+ Agregar registro</button>
           <button className="btn" onClick={load}>↻ Actualizar</button>
         </div>
       </div>
@@ -275,13 +337,18 @@ function ActualTab({ apiPath, keyLabel, keyField, editableCols }) {
             <tr>
               <th>{keyLabel}</th>
               {editableCols.map(c => <th key={c.field}>{c.label}</th>)}
+              <th></th>
             </tr>
           </thead>
           <tbody>
+            {adding && (
+              <AddRowForm apiPath={apiPath} keyLabel={keyLabel} keyField={keyField} keyProp={keyProp} editableCols={editableCols}
+                onAdded={() => { setAdding(false); load() }} onCancel={() => setAdding(false)} />
+            )}
             {loading ? (
-              <tr><td colSpan={editableCols.length + 1} className="loading">Cargando...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={editableCols.length + 1} className="empty">
+              <tr><td colSpan={editableCols.length + 2} className="loading">Cargando...</td></tr>
+            ) : filtered.length === 0 && !adding ? (
+              <tr><td colSpan={editableCols.length + 2} className="empty">
                 {rows.length === 0 ? 'Aún no hay registros cargados.' : 'Sin resultados para ese filtro.'}
               </td></tr>
             ) : filtered.map(r => (
@@ -293,6 +360,13 @@ function ActualTab({ apiPath, keyLabel, keyField, editableCols }) {
                       value={r[c.field]} onSaved={handleSaved} />
                   </td>
                 ))}
+                <td style={{ textAlign: 'right' }}>
+                  <button className="btn" onClick={() => handleDelete(r.id, r[keyField])}
+                    disabled={deleting === r.id}
+                    style={{ fontSize: 12, padding: '3px 10px', color: '#dc2626', borderColor: '#fca5a5' }}>
+                    {deleting === r.id ? '…' : '🗑'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -315,6 +389,7 @@ const TABS = [
     actualApiPath: '/api/cat-oracle/ceves',
     actualKeyLabel: 'Ceve CPT',
     actualKeyField: 'ceveCPT',
+    actualKeyProp: 'CeveCPT',
     actualEditableCols: [
       { field: 'bd', campo: 'bd', label: 'Bd' },
       { field: 'ceve', campo: 'ceve', label: 'Ceve' },
@@ -334,6 +409,7 @@ const TABS = [
     actualApiPath: '/api/cat-oracle/facilities',
     actualKeyLabel: 'HW',
     actualKeyField: 'hw',
+    actualKeyProp: 'HW',
     actualEditableCols: [
       { field: 'sigla', campo: 'sigla', label: 'Sigla' },
       { field: 'planta', campo: 'planta', label: 'Planta' },
@@ -411,6 +487,7 @@ export default function CatalogoOracleCeves() {
           apiPath={active.actualApiPath}
           keyLabel={active.actualKeyLabel}
           keyField={active.actualKeyField}
+          keyProp={active.actualKeyProp}
           editableCols={active.actualEditableCols}
         />
       )}
