@@ -24,7 +24,7 @@ const REGLAS = [
   'Solo se valida que el encabezado coincida con las 21 columnas esperadas (si no coincide, se rechaza la carga completa).',
   'Una fila con menos columnas de las esperadas se omite en silencio, sin rechazar el resto del archivo.',
   'Los campos numéricos y de fecha se guardan con su tipo real; si un valor puntual no se puede convertir, esa columna se guarda vacía sin afectar el resto de la fila (se acepta formato moneda para números).',
-  'Se calcula automáticamente una columna "Planta" (guarda el cod_ceve/Bd), encadenando dos búsquedas: 1) Destination Facility se busca en HW del catálogo Oracle de Destination Facility para obtener su Planta (si Destination Facility viene vacío, se usa Cust Name como CeVe en su lugar); 2) ese valor se busca en CeveCPT del catálogo de CeVes Oracle para obtener su Bd, que es el resultado final. Si algún paso de la cadena no encuentra coincidencia, la columna queda vacía.',
+  'Se calcula automáticamente una columna "Cod_CeVe", encadenando dos búsquedas: 1) Destination Facility se busca en HW del catálogo Oracle de Destination Facility para obtener su Planta (si Destination Facility viene vacío, se usa Cust Name como CeVe en su lugar; los ceros a la izquierda no afectan la búsqueda); 2) ese valor se busca en CeveCPT del catálogo de CeVes Oracle para obtener su Bd, que es el resultado final. Si algún paso de la cadena no encuentra coincidencia, la columna queda vacía.',
 ]
 
 function fmtDT(val) {
@@ -60,7 +60,7 @@ const ROWS_COLS = [
   ['requiredShipDate', 'Required Ship Date'], ['custName', 'Cust Name'], ['orderDate', 'Order Date'],
   ['shipDate', 'Ship Date'], ['destinationFacility', 'Destination Facility'], ['facility', 'Facility'],
   ['orderDtlStatus', 'orderdtlstatus'], ['estado', 'Estado'], ['semana', 'Semana'],
-  ['planta', 'Planta'],
+  ['codCeve', 'Cod_CeVe'],
 ]
 
 async function exportarBatchExcel(batchId, nombreArchivo) {
