@@ -17,7 +17,7 @@ const DELETE_URL  = '/api/planes-comerciales/batches'
 
 const REGLAS = [
   'Ninguna columna puede quedar vacía.',
-  '\'meta_pzs\' y \'meta_dist\' deben ser mayores a cero.',
+  '\'meta_pzs\' debe ser mayor a cero (\'meta_dist\' sí puede ser 0).',
   'No se permiten filas duplicadas por anio + semana + numero_cido + canal + cod_ceve + item.',
   'Cada fila cargada se guarda automáticamente con Estatus "Activo" (no es una columna del CSV).',
 ]
