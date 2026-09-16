@@ -19,6 +19,7 @@ const REGLAS = [
   'Ninguna columna puede quedar vacía.',
   '\'meta_pzs\' y \'meta_dist\' deben ser mayores a cero.',
   'No se permiten filas duplicadas por anio + semana + numero_cido + canal + cod_ceve + item.',
+  'Cada fila cargada se guarda automáticamente con Estatus "Activo" (no es una columna del CSV).',
 ]
 
 function fmtDT(val) {
@@ -50,7 +51,7 @@ const ROWS_COLS = [
   ['anio', 'anio'], ['semana', 'semana'], ['numeroCido', 'numero_cido'], ['planComercial', 'plan_comercial'], ['canal', 'canal'],
   ['region', 'region'], ['gerencia', 'gerencia'], ['codCeve', 'cod_ceve'], ['item', 'item'],
   ['producto', 'producto'], ['categoria', 'categoria'], ['marca', 'marca'],
-  ['metaPzs', 'meta_pzs'], ['metaImporte', 'meta_importe'], ['metaDist', 'meta_dist'],
+  ['metaPzs', 'meta_pzs'], ['metaImporte', 'meta_importe'], ['metaDist', 'meta_dist'], ['estatus', 'estatus'],
 ]
 
 async function exportarBatchExcel(batchId, nombreArchivo) {
