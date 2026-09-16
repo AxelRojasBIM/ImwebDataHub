@@ -237,7 +237,12 @@ export default function PlanesComerciales() {
         const r = await fetchWithRetry(`${API}${UPLOAD_URL}/chunk?uploadId=${uploadId}&expectedOffset=${offset}`, {
           method: 'POST', body: chunk,
         })
-        if (!r.ok) throw new Error(`HTTP ${r.status} al subir el archivo (byte ${offset})`)
+        if (!r.ok) {
+          const t = await r.text().catch(() => '')
+          let detail = ''
+          try { detail = t ? JSON.parse(t).error : '' } catch { detail = t }
+          throw new Error(`HTTP ${r.status} al subir el archivo (byte ${offset})${detail ? `: ${detail}` : ''}`)
+        }
         setUploadPct(Math.round(Math.min(offset + CHUNK_SIZE, file.size) / file.size * 100))
       }
 
