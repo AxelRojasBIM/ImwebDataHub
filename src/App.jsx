@@ -28,6 +28,7 @@ import PtElaboradoProduccion from './pages/PtElaboradoProduccion'
 import VentaComercial from './pages/VentaComercial'
 import FillrateVendedor from './pages/FillrateVendedor'
 import FRPlantaCedisAjustado from './pages/FRPlantaCedisAjustado'
+import PlanUnico from './pages/PlanUnico'
 import Login from './pages/Login'
 import Administracion from './pages/admin/Administracion'
 import { useEffect, useState } from 'react'
@@ -196,6 +197,7 @@ function AppShell({ usuario, logout }) {
           <Route path="/venta-comercial" element={<Guarded path="/venta-comercial" rol={rol}><VentaComercial /></Guarded>} />
           <Route path="/fillrate-vendedor" element={<Guarded path="/fillrate-vendedor" rol={rol}><FillrateVendedor /></Guarded>} />
           <Route path="/fr-planta-cedis-ajustado" element={<Guarded path="/fr-planta-cedis-ajustado" rol={rol}><FRPlantaCedisAjustado /></Guarded>} />
+          <Route path="/plan-unico" element={<Guarded path="/plan-unico" rol={rol}><PlanUnico /></Guarded>} />
           <Route path="/admin/usuarios" element={<Guarded path="/admin/usuarios" rol={rol}><Administracion /></Guarded>} />
         </Routes>
       </main>

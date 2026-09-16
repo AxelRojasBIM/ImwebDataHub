@@ -17,6 +17,7 @@ const nav = [
     section: 'Planeación',
     items: [
       { to: '/planes-comerciales', label: 'Planes Comerciales', icon: FileText },
+      { to: '/plan-unico', label: 'Plan Único', icon: Target },
       { to: '/pt-elaborado-produccion', label: 'Producción PT Elaborado', icon: Cog },
       { to: '/venta-comercial', label: 'Venta Comercial', icon: ShoppingCart },
       { to: '/fillrate-vendedor', label: 'Fillrate Vendedor', icon: Activity },
