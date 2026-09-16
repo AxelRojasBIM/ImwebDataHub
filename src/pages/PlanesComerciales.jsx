@@ -176,6 +176,7 @@ export default function PlanesComerciales() {
   const [deleting, setDeleting] = useState(null)
   const [exporting, setExporting] = useState(null)
   const [confirmState, setConfirmState] = useState(null)
+  const [uploadPct, setUploadPct] = useState(null)
   const inputRef = useRef(null)
 
   async function loadBatches() {
@@ -201,18 +202,50 @@ export default function PlanesComerciales() {
     setConfirmState({ message: `¿Cargar "${file.name}"?`, onConfirm: doUpload })
   }
 
+  // El archivo puede traer 500k+ filas (decenas/cientos de MB) -- un solo POST se
+  // pasa del timeout de request de Azure aunque el servidor procese rápido, así
+  // que se sube en trozos y solo hasta /complete se valida e inserta todo junto.
+  const CHUNK_SIZE = 32 * 1024 * 1024
+  const MAX_RETRIES = 4
+
+  async function fetchWithRetry(url, opts) {
+    let lastErr
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await fetch(url, opts)
+      } catch (e) {
+        lastErr = e
+        if (attempt < MAX_RETRIES) await new Promise(res => setTimeout(res, 1000 * attempt))
+      }
+    }
+    throw lastErr
+  }
+
   async function doUpload() {
     setConfirmState(null)
-    setUploading(true); setResult(null)
-    const form = new FormData()
-    form.append('file', file)
-    form.append('usuario', usuario?.nombreCompleto || '')
+    setUploading(true); setResult(null); setUploadPct(0)
     try {
-      const r = await fetch(`${API}${UPLOAD_URL}`, { method: 'POST', body: form })
-      const text = await r.text()
+      const usuarioNombre = usuario?.nombreCompleto || ''
+      const initR = await fetchWithRetry(
+        `${API}${UPLOAD_URL}/init?fileName=${encodeURIComponent(file.name)}&usuario=${encodeURIComponent(usuarioNombre)}`,
+        { method: 'POST' })
+      if (!initR.ok) throw new Error(`HTTP ${initR.status} al iniciar la subida`)
+      const { uploadId } = await initR.json()
+
+      for (let offset = 0; offset < file.size; offset += CHUNK_SIZE) {
+        const chunk = file.slice(offset, offset + CHUNK_SIZE)
+        const r = await fetchWithRetry(`${API}${UPLOAD_URL}/chunk?uploadId=${uploadId}&expectedOffset=${offset}`, {
+          method: 'POST', body: chunk,
+        })
+        if (!r.ok) throw new Error(`HTTP ${r.status} al subir el archivo (byte ${offset})`)
+        setUploadPct(Math.round(Math.min(offset + CHUNK_SIZE, file.size) / file.size * 100))
+      }
+
+      const compR = await fetchWithRetry(`${API}${UPLOAD_URL}/complete?uploadId=${uploadId}`, { method: 'POST' })
+      const text = await compR.text()
       const d = text ? JSON.parse(text) : {}
-      if (!r.ok) {
-        setResult({ ok: false, msg: d.error || `HTTP ${r.status}`, errores: d.errores ?? [] })
+      if (!compR.ok) {
+        setResult({ ok: false, msg: d.error || `HTTP ${compR.status}`, errores: d.errores ?? [] })
         return
       }
       setResult({ ok: true, saved: d.saved })
@@ -220,7 +253,7 @@ export default function PlanesComerciales() {
       await loadBatches()
     } catch (e) {
       setResult({ ok: false, msg: e.message, errores: [] })
-    } finally { setUploading(false) }
+    } finally { setUploading(false); setUploadPct(null) }
   }
 
   function handleDeleteClick(batchId, nombre) {
@@ -332,7 +365,9 @@ export default function PlanesComerciales() {
 
           <button className="btn primary" onClick={handleUploadClick} disabled={!file || uploading}
             style={{ padding: '8px 24px', fontWeight: 700, fontSize: 13 }}>
-            {uploading ? '⏳ Cargando…' : '↑ Cargar archivo'}
+            {uploading
+              ? (uploadPct != null ? `⏳ Subiendo… ${uploadPct}%` : '⏳ Procesando…')
+              : '↑ Cargar archivo'}
           </button>
         </div>
       </div>
