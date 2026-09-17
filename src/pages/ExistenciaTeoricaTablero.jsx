@@ -199,11 +199,12 @@ function HeaderCell({ col, width, active, sortDir, onSort, layout, stickyLeft, i
 }
 
 export default function ExistenciaTeoricaTablero() {
-  const [filtros, setFiltros] = useState({ ceves: [], categorias: [], fechas: [], organizaciones: [] })
+  const [filtros, setFiltros] = useState({ ceves: [], categorias: [], categoriasComerciales: [], fechas: [], organizaciones: [] })
   const [fechaVenta, setFechaVenta] = useState('')
   const [organizacion, setOrganizacion] = useState('')
   const [codigoCeve, setCodigoCeve] = useState('')
   const [categoria, setCategoria] = useState('')
+  const [categoriaComercial, setCategoriaComercial] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState(null)
@@ -232,7 +233,7 @@ export default function ExistenciaTeoricaTablero() {
     fetch(`${API}/api/existencia-teorica/tablero-filtros`)
       .then(r => r.ok ? r.json() : {})
       .then(d => {
-        setFiltros({ ceves: [], categorias: [], fechas: [], organizaciones: [], ...d })
+        setFiltros({ ceves: [], categorias: [], categoriasComerciales: [], fechas: [], organizaciones: [], ...d })
         setFechaVenta(prev => prev || d?.fechas?.[0] || '')
       })
       .catch(() => {})
@@ -248,6 +249,7 @@ export default function ExistenciaTeoricaTablero() {
       if (organizacion) params.set('organizacion', organizacion)
       if (codigoCeve) params.set('codigoCeve', codigoCeve)
       if (categoria)  params.set('categoria', categoria)
+      if (categoriaComercial) params.set('categoriaComercial', categoriaComercial)
       if (search)     params.set('search', search)
       if (sortBy)     { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
 
@@ -261,7 +263,7 @@ export default function ExistenciaTeoricaTablero() {
       setLoadError(e.message)
       setData({ total: 0, ejecucionId: null, rows: [], totals: null })
     } finally { setLoading(false) }
-  }, [fechaVenta, organizacion, codigoCeve, categoria, search, sortBy, sortDir, page])
+  }, [fechaVenta, organizacion, codigoCeve, categoria, categoriaComercial, search, sortBy, sortDir, page])
 
   // Página y orden sí recargan solos, pero solo después de haber analizado al
   // menos una vez — cambiar de página no debería exigir un nuevo clic.
@@ -283,10 +285,11 @@ export default function ExistenciaTeoricaTablero() {
   const updateOrganizacion  = updateFilter(setOrganizacion)
   const updateCodigoCeve    = updateFilter(setCodigoCeve)
   const updateCategoria     = updateFilter(setCategoria)
+  const updateCategoriaComercial = updateFilter(setCategoriaComercial)
   const updateSearch        = updateFilter(setSearch)
 
   function handleLimpiar() {
-    setOrganizacion(''); setCodigoCeve(''); setCategoria(''); setSearch('')
+    setOrganizacion(''); setCodigoCeve(''); setCategoria(''); setCategoriaComercial(''); setSearch('')
     setSortBy(null); setSortDir('desc'); setPage(1); setHasAnalyzed(false)
   }
   function handleSort(key) {
@@ -325,6 +328,7 @@ export default function ExistenciaTeoricaTablero() {
       if (organizacion) params.set('organizacion', organizacion)
       if (codigoCeve)   params.set('codigoCeve', codigoCeve)
       if (categoria)    params.set('categoria', categoria)
+      if (categoriaComercial) params.set('categoriaComercial', categoriaComercial)
       if (search)       params.set('search', search)
       if (sortBy)       { params.set('sortBy', sortBy); params.set('sortDir', sortDir) }
       const r = await fetch(`${API}/api/existencia-teorica/tablero?${params}`)
@@ -332,6 +336,7 @@ export default function ExistenciaTeoricaTablero() {
       const sourceRows = (await r.json()).rows
 
       const headers = layout.orderedColumns.map(c => c.label)
+      headers.push('Categoría Comercial')
       diaCols.forEach(dayIdx => DIA_METRICS.forEach(metric => {
         headers.push(`${fmtDiaCompleto(diaDates[dayIdx]) || `Día ${dayIdx + 1}`} ${metric}`)
       }))
@@ -352,6 +357,7 @@ export default function ExistenciaTeoricaTablero() {
 
       const rows = sourceRows.map(row => {
         const vals = layout.orderedColumns.map(col => rawValue(col, row))
+        vals.push(row.categoriaComercial ?? '')
         diaCols.forEach(dayIdx => {
           vals.push(row.pedidoFabrica?.[dayIdx] ?? '')
           vals.push(row.cargaProm?.[dayIdx] ?? '')
@@ -467,6 +473,15 @@ export default function ExistenciaTeoricaTablero() {
               style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160, textTransform: 'none', fontWeight: 400 }}>
               <option value="">Todas</option>
               {filtros.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
+            color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Categoría Comercial
+            <select value={categoriaComercial} onChange={e => updateCategoriaComercial(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160, textTransform: 'none', fontWeight: 400 }}>
+              <option value="">Todas</option>
+              {filtros.categoriasComerciales.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
