@@ -70,10 +70,10 @@ const GROUPS = [
   {
     key: 'comcon', label: 'Comercial-Consumidor',
     cols: [
-      { k: 'venta', l: 'Venta', item: r => r.comercialConsumidor?.venta, ceve: null },
-      { k: 'ventaAnt', l: 'Venta Ant.', item: r => r.comercialConsumidor?.ventaAnterior, ceve: null },
-      { k: 'ppto', l: 'Ppto', item: r => r.comercialConsumidor?.ppto, ceve: null },
-      { k: 'alcPpto', l: 'Alc. Ppto', fr: true, item: r => r.comercialConsumidor?.alcPpto, ceve: null },
+      { k: 'venta', l: 'Venta', item: r => r.comercialConsumidor?.venta, ceve: r => r.comercialConsumidor?.venta },
+      { k: 'ventaAnt', l: 'Venta Ant.', item: r => r.comercialConsumidor?.ventaAnterior, ceve: r => r.comercialConsumidor?.ventaAnterior },
+      { k: 'ppto', l: 'Ppto', item: r => r.comercialConsumidor?.ppto, ceve: r => r.comercialConsumidor?.ppto },
+      { k: 'alcPpto', l: 'Alc. Ppto', fr: true, item: r => r.comercialConsumidor?.alcPpto, ceve: r => r.comercialConsumidor?.alcPpto },
     ],
   },
 ]
