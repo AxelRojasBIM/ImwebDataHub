@@ -229,9 +229,6 @@ export default function CascadaFR() {
     <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ marginBottom: 16, flexShrink: 0 }}>
         <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: TEXT_MAIN }}>Cascada FR</h1>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: MUTED_GRAY }}>
-          Fill Rate de extremo a extremo: Producción → Dist. Primaria → Primaria-Secundaria → Secundaria-Comercial → Comercial-Consumidor.
-        </p>
       </div>
 
       {/* Filtros */}
@@ -388,7 +385,7 @@ export default function CascadaFR() {
                         ) : detalle?.ceves?.map(ceveRow => (
                           <tr key={row.item + '-' + ceveRow.codCeve} style={{ background: '#fafafe' }}>
                             <td style={{ position: 'sticky', left: 0, zIndex: 1, background: '#fafafe', padding: '6px 10px 6px 28px', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', color: MUTED_GRAY, fontSize: 12 }}>
-                              CeVe {ceveRow.codCeve}
+                              {ceveRow.codCeve}{ceveRow.nombreCeve ? ` - ${ceveRow.nombreCeve}` : ''}
                             </td>
                             <td style={{ position: 'sticky', left: 340, zIndex: 1, background: '#fafafe', borderRight: '2px solid var(--border-strong, #d3d3e3)', borderBottom: '1px solid var(--border)', boxShadow: '2px 0 4px rgba(0,0,0,0.06)' }} />
                             <RowCells row={ceveRow} mode="ceve" />
