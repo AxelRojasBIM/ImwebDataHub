@@ -390,10 +390,10 @@ export default function ExistenciaTeoricaTablero() {
     { key: 'ceve', label: 'CeVe', width: 210, align: 'left' },
     { key: 'producto', label: 'Producto', width: 190, align: 'left' },
     { key: 'frecuencia', label: 'Frecuencia', width: 85, align: 'left', sortable: false },
-    { key: 'existenciaAut', label: 'Existencia Aut', width: 100, align: 'right' },
-    { key: 'existenciaMan', label: 'Existencia Man', width: 100, align: 'right' },
+    { key: 'existenciaAut', label: data.existenciaAutFecha ? `Existencia Aut ${data.existenciaAutFecha}` : 'Existencia Aut', width: 130, align: 'right' },
+    { key: 'existenciaMan', label: data.existenciaManFecha ? `Existencia Man ${data.existenciaManFecha}` : 'Existencia Man', width: 130, align: 'right' },
     { key: 'diferencia', label: 'Diferencia', width: 90, align: 'right' },
-  ], [])
+  ], [data.existenciaAutFecha, data.existenciaManFecha])
 
   const layout = useColumnLayout(columnsBase)
   const stickyLeft = useMemo(
