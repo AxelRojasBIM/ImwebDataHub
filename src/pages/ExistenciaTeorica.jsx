@@ -12,6 +12,7 @@ function fmtDur(ms) {
 export default function ExistenciaTeorica() {
   const today = new Date().toISOString().slice(0, 10)
   const [fechaSel, setFechaSel]     = useState(today)
+  const [baseExistencia, setBaseExistencia] = useState('Aut')
   const [running, setRunning]       = useState(false)
   const [estado, setEstado]         = useState(null)
   const [result, setResult]         = useState(null)
@@ -61,14 +62,15 @@ export default function ExistenciaTeorica() {
 
   async function handleEjecutar() {
     if (!fechaSel) return
-    if (!confirm(`¿Ejecutar existencia teórica para la fecha de venta ${fechaSel}?`)) return
+    const baseLabel = baseExistencia === 'Man' ? 'Manual (Existencia CeVe Manual)' : 'Automática (inventario_resumen / Ivy)'
+    if (!confirm(`¿Ejecutar existencia teórica para la fecha de venta ${fechaSel} usando existencia ${baseLabel}?`)) return
 
     setRunning(true); setResult(null)
     try {
       const r = await fetch(`${API}/api/existencia-teorica/ejecutar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fechaSel, usuario: 'axel.rojas' }),
+        body: JSON.stringify({ fechaSel, usuario: 'axel.rojas', baseExistencia }),
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
@@ -122,6 +124,14 @@ export default function ExistenciaTeorica() {
           <div style={{ fontSize: 12, color: '#6b7280', paddingBottom: 8 }}>
             Fecha de proceso (existencia física) se calcula automático: 7 días antes.
           </div>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#374151' }}>
+            Existencia base
+            <select value={baseExistencia} disabled={running} onChange={e => setBaseExistencia(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }}>
+              <option value="Aut">Automática (inventario_resumen / Ivy)</option>
+              <option value="Man">Manual (Existencia CeVe Manual)</option>
+            </select>
+          </label>
           <button className="btn primary" onClick={handleEjecutar}
             disabled={running || !fechaSel}
             style={{ padding: '9px 28px', fontWeight: 700, fontSize: 14, height: 38 }}>
@@ -165,7 +175,7 @@ export default function ExistenciaTeorica() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--surface-2)' }}>
-                {['Fecha venta','Fecha proceso','Ejecutado por','Ejecutado el','Duración','Filas','Estado',''].map(h => (
+                {['Fecha venta','Fecha proceso','Base','Ejecutado por','Ejecutado el','Duración','Filas','Estado',''].map(h => (
                   <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontWeight: 600,
                     color: 'var(--text-2)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
@@ -180,6 +190,7 @@ export default function ExistenciaTeorica() {
                   <tr key={row.ejecucionId ?? i} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '10px 16px' }}>{row.fechaSel}</td>
                     <td style={{ padding: '10px 16px' }}>{row.fechaProceso}</td>
+                    <td style={{ padding: '10px 16px' }}>{row.baseExistencia === 'Man' ? 'Manual' : 'Automática'}</td>
                     <td style={{ padding: '10px 16px' }}>{row.usuario ?? '—'}</td>
                     <td style={{ padding: '10px 16px' }}>{dt ? dt.toLocaleString('es-MX') : '—'}</td>
                     <td style={{ padding: '10px 16px' }}>{fmtDur(row.duracionMs)}</td>
