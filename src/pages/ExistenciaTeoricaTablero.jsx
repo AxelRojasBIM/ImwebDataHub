@@ -229,15 +229,66 @@ export default function ExistenciaTeoricaTablero() {
     })
   }
 
-  useEffect(() => {
-    fetch(`${API}/api/existencia-teorica/tablero-filtros`)
+  function cargarFiltros() {
+    return fetch(`${API}/api/existencia-teorica/tablero-filtros`)
       .then(r => r.ok ? r.json() : {})
       .then(d => {
         setFiltros({ ceves: [], categorias: [], categoriasComerciales: [], fechas: [], organizaciones: [], ...d })
         setFechaVenta(prev => prev || d?.fechas?.[0] || '')
+        return d
       })
       .catch(() => {})
-  }, [])
+  }
+
+  useEffect(() => { cargarFiltros() }, [])
+
+  // Ejecutar el cálculo directo desde el tablero (sin ir a la pantalla de
+  // "Ejecutar" aparte) -- reusa fechaVenta como fecha a calcular.
+  const [baseExistencia, setBaseExistencia] = useState('Aut')
+  const [ejecutando, setEjecutando] = useState(false)
+  const [ejecucionMsg, setEjecucionMsg] = useState(null)
+  const ejecutarPollRef = useRef(null)
+
+  async function checkEjecucionEstado() {
+    try {
+      const r = await fetch(`${API}/api/existencia-teorica/estado`)
+      if (!r.ok) return
+      const d = await r.json()
+      if (d.estado === 'completado' || d.estado === 'error') {
+        clearInterval(ejecutarPollRef.current)
+        setEjecutando(false)
+        if (d.estado === 'completado') {
+          setEjecucionMsg({ ok: true, texto: `Listo: ${d.resultado?.totalFilas?.toLocaleString() ?? 0} filas (Fecha Proceso ${d.resultado?.fechaProceso?.slice(0, 10) ?? '—'})` })
+          const nuevosFiltros = await cargarFiltros()
+          if (nuevosFiltros?.fechas?.includes(fechaVenta)) { setPage(1); setHasAnalyzed(true); load(1) }
+        } else {
+          setEjecucionMsg({ ok: false, texto: d.error || 'Error al ejecutar.' })
+        }
+      }
+    } catch {}
+  }
+
+  async function handleEjecutarDesdeTablero() {
+    if (!fechaVenta) return
+    const baseLabel = baseExistencia === 'Man' ? 'Manual (Existencia CeVe Manual)' : 'Automática (inventario_resumen / Ivy)'
+    if (!confirm(`¿Ejecutar existencia teórica para la fecha de venta ${fechaVenta} usando existencia ${baseLabel}?`)) return
+    setEjecutando(true); setEjecucionMsg(null)
+    try {
+      const r = await fetch(`${API}/api/existencia-teorica/ejecutar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fechaSel: fechaVenta, usuario: 'axel.rojas', baseExistencia }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
+      ejecutarPollRef.current = setInterval(checkEjecucionEstado, 3000)
+    } catch (e) {
+      setEjecutando(false)
+      setEjecucionMsg({ ok: false, texto: e.message })
+    }
+  }
+
+  useEffect(() => () => clearInterval(ejecutarPollRef.current), [])
 
   const load = useCallback(async (pageOverride) => {
     if (!fechaVenta) { setData({ total: 0, ejecucionId: null, rows: [], totals: null }); return }
@@ -512,6 +563,31 @@ export default function ExistenciaTeoricaTablero() {
               cursor: (hasAnalyzed && data.rows.length > 0 && !exporting) ? 'pointer' : 'default' }}>
             {exporting ? '⏳ Exportando…' : '⬇ Exportar'}
           </button>
+        </div>
+
+        {/* Ejecutar el cálculo para la fecha de venta seleccionada arriba, sin salir
+            de esta pantalla -- antes solo se podía desde "Ejecución Proceso". */}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600,
+            color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Existencia base
+            <select value={baseExistencia} disabled={ejecutando} onChange={e => setBaseExistencia(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 220, textTransform: 'none', fontWeight: 400 }}>
+              <option value="Aut">Automática (inventario_resumen / Ivy)</option>
+              <option value="Man">Manual (Existencia CeVe Manual)</option>
+            </select>
+          </label>
+          <button onClick={handleEjecutarDesdeTablero} disabled={!fechaVenta || ejecutando}
+            style={{ padding: '8px 20px', height: 36, fontSize: 13, fontWeight: 600, borderRadius: 8,
+              background: '#fff', border: `1px solid ${BLUE_PRIMARY}`, color: BLUE_PRIMARY,
+              cursor: (fechaVenta && !ejecutando) ? 'pointer' : 'default', opacity: (fechaVenta && !ejecutando) ? 1 : 0.5 }}>
+            {ejecutando ? '⏳ Ejecutando…' : `▶ Ejecutar para ${fechaVenta || '—'}`}
+          </button>
+          {ejecucionMsg && (
+            <div style={{ fontSize: 12, color: ejecucionMsg.ok ? '#047857' : '#991b1b' }}>
+              {ejecucionMsg.ok ? '✓ ' : '✕ '}{ejecucionMsg.texto}
+            </div>
+          )}
         </div>
       </div>
 
