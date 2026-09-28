@@ -26,7 +26,25 @@ function TabFillRate() {
   const [historial, setHistorial]     = useState([])
   const [loadingH, setLoadingH]       = useState(true)
   const [deletingId, setDeletingId]   = useState(null)
+  const [fechaEmbarque, setFechaEmbarque] = useState(today)
+  const [eliminandoEmb, setEliminandoEmb] = useState(false)
+  const [embResult, setEmbResult]         = useState(null)
   const pollRef = useRef(null)
+
+  async function handleEliminarEmbarques() {
+    if (!fechaEmbarque) return
+    if (!confirm(`¿Estás seguro de eliminar todos los registros de Embarques (RemisionesProductosCEQ) con fecha de cierre de embarque ${fechaEmbarque}? Esta acción no se puede deshacer.`)) return
+    setEliminandoEmb(true); setEmbResult(null)
+    try {
+      const r = await fetch(`${API}/api/remisiones/productos/por-fecha?fecha=${encodeURIComponent(fechaEmbarque)}`, { method: 'DELETE' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`)
+      alert(`Se eliminaron ${d.deleted.toLocaleString()} registro(s).`)
+      setEmbResult({ ok: true, deleted: d.deleted })
+    } catch (e) {
+      setEmbResult({ ok: false, msg: e.message })
+    } finally { setEliminandoEmb(false) }
+  }
 
   async function loadHistorial() {
     setLoadingH(true)
@@ -171,6 +189,43 @@ function TabFillRate() {
             </div>
           )
         })()}
+      </div>
+
+      <div style={{
+        background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 14,
+        padding: '20px 24px', marginBottom: 28,
+      }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#991b1b', marginBottom: 4 }}>
+          Eliminar registros de Embarques (RemisionesProductosCEQ)
+        </div>
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>
+          Borra todos los registros cuya fecha de cierre de embarque coincida con la fecha seleccionada.
+        </div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#374151' }}>
+            Fecha de cierre de embarque
+            <input type="date" value={fechaEmbarque} disabled={eliminandoEmb}
+              onChange={e => setFechaEmbarque(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }} />
+          </label>
+          <button onClick={handleEliminarEmbarques} disabled={eliminandoEmb || !fechaEmbarque}
+            style={{
+              padding: '9px 22px', fontWeight: 700, fontSize: 13, height: 38, borderRadius: 8,
+              border: '1px solid #dc2626', background: eliminandoEmb ? '#fca5a5' : '#dc2626', color: '#fff',
+              cursor: eliminandoEmb ? 'default' : 'pointer',
+            }}>
+            {eliminandoEmb ? '⏳ Eliminando…' : '🗑 Eliminar registros'}
+          </button>
+        </div>
+
+        {embResult && !embResult.ok && (
+          <div style={{
+            marginTop: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13,
+            background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5',
+          }}>
+            ✕ {embResult.msg}
+          </div>
+        )}
       </div>
 
       <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 12 }}>
