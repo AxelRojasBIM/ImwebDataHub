@@ -898,7 +898,7 @@ export default function PlanesComerciales() {
   const [tab, setTab] = useState('cargar')
 
   return (
-    <div style={{ padding: '24px 28px 40px' }}>
+    <div style={{ padding: '24px 28px 40px', flex: 1, minHeight: 0, overflowY: 'auto' }}>
       <div style={{ marginBottom: 18 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
           Planes Comerciales
