@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { CheckCircle2, XCircle, HelpCircle } from 'lucide-react'
 import { API } from '../App'
 import { useAuth } from '../AuthContext'
@@ -22,6 +22,48 @@ const REGLAS = [
   'No se permiten filas duplicadas por anio + semana + numero_cido + canal + cod_ceve + item.',
   'Cada fila cargada se guarda automáticamente con Estatus "Activo" (no es una columna del CSV).',
 ]
+
+const TABS = [
+  { id: 'cargar',      label: '📤 Cargar' },
+  { id: 'administrar', label: '🗂 Administrar Planes' },
+]
+
+const ESTATUS_OPTIONS = ['Activo', 'Pausado', 'Cancelado']
+const ESTATUS_STYLE = {
+  Activo:    { bg: '#dcfce7', color: '#166534' },
+  Pausado:   { bg: '#fef3c7', color: '#92400e' },
+  Cancelado: { bg: '#fee2e2', color: '#991b1b' },
+  Mixto:     { bg: '#e0e7ff', color: '#3730a3' },
+}
+
+function EstatusBadge({ estatus }) {
+  const s = ESTATUS_STYLE[estatus] || { bg: '#f3f4f6', color: '#374151' }
+  return (
+    <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+      background: s.bg, color: s.color, whiteSpace: 'nowrap' }}>
+      {estatus || '—'}
+    </span>
+  )
+}
+
+function EstatusSelector({ value, busy, onApply }) {
+  const initial = ESTATUS_OPTIONS.includes(value) ? value : ESTATUS_OPTIONS[0]
+  const [sel, setSel] = useState(initial)
+  useEffect(() => { setSel(ESTATUS_OPTIONS.includes(value) ? value : ESTATUS_OPTIONS[0]) }, [value])
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <select value={sel} onChange={e => setSel(e.target.value)} disabled={busy}
+        style={{ fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff' }}>
+        {ESTATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <button onClick={() => onApply(sel)} disabled={busy || sel === value}
+        style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: '1px solid #93b4fd', color: '#1d4ed8',
+          background: 'none', cursor: (busy || sel === value) ? 'default' : 'pointer', opacity: (busy || sel === value) ? 0.5 : 1 }}>
+        {busy ? '…' : 'Aplicar'}
+      </button>
+    </div>
+  )
+}
 
 function fmtDT(val) {
   if (!val) return '—'
@@ -167,7 +209,7 @@ function ConfirmModal({ confirmState, onCancel }) {
   )
 }
 
-export default function PlanesComerciales() {
+function TabCargar() {
   const { usuario } = useAuth()
   const [file, setFile]         = useState(null)
   const [dragging, setDragging] = useState(false)
@@ -286,13 +328,8 @@ export default function PlanesComerciales() {
   }
 
   return (
-    <div style={{ padding: '24px 28px 40px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
-            Planes Comerciales
-          </h1>
-        </div>
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <button className="btn" onClick={descargarPlantilla} style={{ fontSize: 12.5 }}>
           ⬇ Descargar plantilla CSV
         </button>
@@ -435,6 +472,300 @@ export default function PlanesComerciales() {
           </div>
         )}
       </div>
+    </>
+  )
+}
+
+// ── Tab: Administrar Planes (filtrar por CIDO, ver contenido, cambiar Estatus) ──
+function PlanDetalle({ data, loading, page, totalPages, busyRowId, onPageChange, onRowEstatus }) {
+  if (loading && !data) return <div style={{ padding: 16, color: '#9ca3af', fontSize: 12.5 }}>Cargando filas…</div>
+  if (!data || data.rows.length === 0) return <div style={{ padding: 16, color: '#9ca3af', fontSize: 12.5 }}>Sin filas.</div>
+  return (
+    <div style={{ paddingTop: 10 }}>
+      <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid var(--border)', background: '#fff' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f3f4f6' }}>
+              {['Semana', 'Canal', 'Región', 'Gerencia', 'CeVe', 'Item', 'Producto', 'Categoría', 'Marca',
+                'Meta Pzs', 'Meta Importe', 'Meta Dist', 'Estatus', 'Cambiar a'].map(h => (
+                <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600,
+                  color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map(r => (
+              <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '6px 10px' }}>{r.semana}</td>
+                <td style={{ padding: '6px 10px' }}>{r.canal}</td>
+                <td style={{ padding: '6px 10px' }}>{r.region}</td>
+                <td style={{ padding: '6px 10px' }}>{r.gerencia}</td>
+                <td style={{ padding: '6px 10px', fontWeight: 600 }}>{r.codCeve}</td>
+                <td style={{ padding: '6px 10px', fontFamily: 'monospace' }}>{r.item}</td>
+                <td style={{ padding: '6px 10px' }}>{r.producto}</td>
+                <td style={{ padding: '6px 10px' }}>{r.categoria}</td>
+                <td style={{ padding: '6px 10px' }}>{r.marca}</td>
+                <td style={{ padding: '6px 10px' }}>{fmtNum(r.metaPzs)}</td>
+                <td style={{ padding: '6px 10px' }}>{r.metaImporte != null ? fmtNum(r.metaImporte) : '—'}</td>
+                <td style={{ padding: '6px 10px' }}>{r.metaDist != null ? fmtNum(r.metaDist) : '—'}</td>
+                <td style={{ padding: '6px 10px' }}><EstatusBadge estatus={r.estatus} /></td>
+                <td style={{ padding: '6px 10px' }}>
+                  <EstatusSelector value={r.estatus} busy={busyRowId === r.id} onApply={nuevo => onRowEstatus(r, nuevo)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'center' }}>
+          <button onClick={() => onPageChange(page - 1)} disabled={page === 1}
+            style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 11 }}>‹</button>
+          <span style={{ padding: '3px 10px', fontSize: 11, color: '#6b7280' }}>Página {page} / {totalPages}</span>
+          <button onClick={() => onPageChange(page + 1)} disabled={page >= totalPages}
+            style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 11 }}>›</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabAdministrar() {
+  const PAGE_SIZE = 25
+  const ROWS_PAGE_SIZE = 50
+
+  const [search, setSearch] = useState('')
+  const [searchInp, setSearchInp] = useState('')
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [confirmState, setConfirmState] = useState(null)
+  const [busyCido, setBusyCido] = useState(null)
+  const [msg, setMsg] = useState(null)
+
+  const [expanded, setExpanded] = useState(null)
+  const [rowsData, setRowsData] = useState(null)
+  const [rowsPage, setRowsPage] = useState(1)
+  const [loadingRows, setLoadingRows] = useState(false)
+  const [busyRowId, setBusyRowId] = useState(null)
+
+  async function load(p, s) {
+    setLoading(true)
+    try {
+      const r = await fetch(`${API}/api/planes-comerciales/planes?search=${encodeURIComponent(s)}&page=${p}&pageSize=${PAGE_SIZE}`)
+      if (r.ok) setData(await r.json())
+    } catch {} finally { setLoading(false) }
+  }
+
+  useEffect(() => { load(1, '') }, [])
+
+  function handleSearch(e) {
+    e.preventDefault()
+    setSearch(searchInp); setPage(1); setExpanded(null); setRowsData(null)
+    load(1, searchInp)
+  }
+
+  function changePage(p) {
+    setPage(p); setExpanded(null); setRowsData(null)
+    load(p, search)
+  }
+
+  async function loadRows(numeroCido, p) {
+    setLoadingRows(true)
+    try {
+      const r = await fetch(`${API}/api/planes-comerciales/planes/${encodeURIComponent(numeroCido)}/rows?page=${p}&pageSize=${ROWS_PAGE_SIZE}`)
+      if (r.ok) setRowsData(await r.json())
+    } catch {} finally { setLoadingRows(false) }
+  }
+
+  function toggleExpand(numeroCido) {
+    if (expanded === numeroCido) { setExpanded(null); setRowsData(null); return }
+    setExpanded(numeroCido); setRowsPage(1); setRowsData(null); loadRows(numeroCido, 1)
+  }
+
+  function handleBulkEstatus(plan, nuevo) {
+    setConfirmState({
+      message: `¿Cambiar el estatus de TODO el plan ${plan.numeroCido} (${fmtNum(plan.totalFilas)} filas) a "${nuevo}"?`,
+      onConfirm: () => doBulkEstatus(plan, nuevo),
+    })
+  }
+
+  async function doBulkEstatus(plan, nuevo) {
+    setConfirmState(null)
+    setBusyCido(plan.numeroCido)
+    try {
+      const r = await fetch(`${API}/api/planes-comerciales/planes/${encodeURIComponent(plan.numeroCido)}/estatus`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estatus: nuevo }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      setMsg({ ok: true, text: `${fmtNum(d.updated)} fila(s) de ${plan.numeroCido} actualizadas a "${nuevo}".` })
+      await load(page, search)
+      if (expanded === plan.numeroCido) await loadRows(plan.numeroCido, rowsPage)
+    } catch (e) {
+      setMsg({ ok: false, text: e.message })
+    } finally { setBusyCido(null) }
+  }
+
+  function handleRowEstatus(row, nuevo) {
+    setConfirmState({
+      message: `¿Cambiar el estatus de esta fila (CeVe ${row.codCeve}, Item ${row.item}) a "${nuevo}"?`,
+      onConfirm: () => doRowEstatus(row, nuevo),
+    })
+  }
+
+  async function doRowEstatus(row, nuevo) {
+    setConfirmState(null)
+    setBusyRowId(row.id)
+    try {
+      const r = await fetch(`${API}/api/planes-comerciales/rows/${row.id}/estatus`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estatus: nuevo }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      setMsg({ ok: true, text: 'Fila actualizada a "' + nuevo + '".' })
+      await loadRows(expanded, rowsPage)
+      await load(page, search)
+    } catch (e) {
+      setMsg({ ok: false, text: e.message })
+    } finally { setBusyRowId(null) }
+  }
+
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
+  const rowsTotalPages = rowsData ? Math.max(1, Math.ceil(rowsData.total / ROWS_PAGE_SIZE)) : 1
+
+  return (
+    <>
+      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <input
+          value={searchInp}
+          onChange={e => setSearchInp(e.target.value)}
+          placeholder="Buscar por número de CIDO o nombre del plan…"
+          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', outline: 'none' }}
+        />
+        <button type="submit" className="btn primary" style={{ padding: '8px 20px', fontSize: 13 }}>Buscar</button>
+      </form>
+
+      {msg && (
+        <div style={{
+          marginBottom: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13,
+          background: msg.ok ? '#ecfdf5' : '#fef2f2', color: msg.ok ? '#065f46' : '#991b1b',
+          border: `1px solid ${msg.ok ? '#6ee7b7' : '#fca5a5'}`,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span>{msg.ok ? '✓' : '✕'} {msg.text}</span>
+          <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: 14 }}>✕</button>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ color: '#9ca3af', fontSize: 13 }}>Cargando…</div>
+      ) : !data || data.rows.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14,
+          border: '1px dashed var(--border)', borderRadius: 12 }}>
+          No se encontraron planes.
+        </div>
+      ) : (
+        <>
+          <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f9fafb' }}>
+                  {['', 'CIDO', 'Plan comercial', 'Año', 'Semanas', 'Filas', 'Estatus', 'Cambiar a'].map(h => (
+                    <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600,
+                      color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((p, i) => (
+                  <Fragment key={p.numeroCido || i}>
+                    <tr style={{ borderBottom: expanded === p.numeroCido ? 'none' : '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ padding: '8px 10px' }}>
+                        <button onClick={() => toggleExpand(p.numeroCido)}
+                          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 12 }}>
+                          {expanded === p.numeroCido ? '▾' : '▸'}
+                        </button>
+                      </td>
+                      <td style={{ padding: '8px 12px', fontWeight: 600, fontFamily: 'monospace' }}>{p.numeroCido || '—'}</td>
+                      <td style={{ padding: '8px 12px' }}>{p.planComercial}</td>
+                      <td style={{ padding: '8px 12px' }}>{p.anio}</td>
+                      <td style={{ padding: '8px 12px' }}>{p.semanaMin === p.semanaMax ? p.semanaMin : `${p.semanaMin}–${p.semanaMax}`}</td>
+                      <td style={{ padding: '8px 12px', fontWeight: 600 }}>{fmtNum(p.totalFilas)}</td>
+                      <td style={{ padding: '8px 12px' }}><EstatusBadge estatus={p.estatus} /></td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <EstatusSelector value={p.estatus} busy={busyCido === p.numeroCido}
+                          onApply={nuevo => handleBulkEstatus(p, nuevo)} />
+                      </td>
+                    </tr>
+                    {expanded === p.numeroCido && (
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td colSpan={8} style={{ padding: '0 12px 16px', background: '#fafbff' }}>
+                          <PlanDetalle
+                            data={rowsData} loading={loadingRows} page={rowsPage} totalPages={rowsTotalPages}
+                            busyRowId={busyRowId}
+                            onPageChange={p2 => { setRowsPage(p2); loadRows(expanded, p2) }}
+                            onRowEstatus={handleRowEstatus}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 12, justifyContent: 'center' }}>
+              <button onClick={() => changePage(1)} disabled={page === 1}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>««</button>
+              <button onClick={() => changePage(page - 1)} disabled={page === 1}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>‹</button>
+              <span style={{ padding: '4px 12px', fontSize: 12, color: '#6b7280' }}>Página {page} / {totalPages}</span>
+              <button onClick={() => changePage(page + 1)} disabled={page >= totalPages}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>›</button>
+              <button onClick={() => changePage(totalPages)} disabled={page >= totalPages}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>»»</button>
+            </div>
+          )}
+        </>
+      )}
+
+      <ConfirmModal confirmState={confirmState} onCancel={() => setConfirmState(null)} />
+    </>
+  )
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+export default function PlanesComerciales() {
+  const [tab, setTab] = useState('cargar')
+
+  return (
+    <div style={{ padding: '24px 28px 40px' }}>
+      <div style={{ marginBottom: 18 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
+          Planes Comerciales
+        </h1>
+      </div>
+
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{
+              padding: '9px 20px', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              color: tab === t.id ? '#2563eb' : '#6b7280',
+              borderBottom: tab === t.id ? '2px solid #2563eb' : '2px solid transparent',
+              marginBottom: -1, transition: 'all .15s',
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'cargar' && <TabCargar />}
+      {tab === 'administrar' && <TabAdministrar />}
     </div>
   )
 }
