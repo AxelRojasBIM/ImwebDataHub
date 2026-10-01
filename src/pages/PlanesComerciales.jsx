@@ -688,6 +688,18 @@ function TabAdministrar() {
         </div>
       ) : (
         <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>{fmtNum(data.total)} plan(es) encontrados</span>
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button onClick={() => changePage(page - 1)} disabled={page === 1}
+                  style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 11 }}>‹</button>
+                <span style={{ fontSize: 12, color: '#6b7280' }}>Página {page} de {totalPages}</span>
+                <button onClick={() => changePage(page + 1)} disabled={page >= totalPages}
+                  style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 11 }}>›</button>
+              </div>
+            )}
+          </div>
           <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
