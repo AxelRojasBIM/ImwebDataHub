@@ -4,11 +4,12 @@ import { API } from '../App'
 import { useAuth } from '../AuthContext'
 
 const COLS = [
-  'anio', 'semana', 'numero_cido', 'plan_comercial', 'canal', 'region', 'gerencia', 'cod_ceve',
-  'item', 'producto', 'categoria', 'marca', 'meta_pzs', 'meta_importe', 'meta_dist',
+  'anio', 'semana', 'numero_cido', 'plan_comercial', 'tipo_iniciativa', 'semana_inicio', 'semana_fin',
+  'canal', 'region', 'gerencia', 'cod_ceve', 'item', 'producto', 'categoria', 'marca',
+  'meta_pzs', 'meta_importe', 'meta_dist',
 ]
 const EJEMPLO = [
-  '2026', '3', 'CIDO-231-2026', 'PlanQ1', 'Detalle', 'Centro', 'Gerencia Centro', '20279',
+  '2026', '3', 'CIDO-231-2026', 'PlanQ1', 'Lanzamiento', '3', '6', 'Detalle', 'Centro', 'Gerencia Centro', '20279',
   '12345', 'Pan Blanco Grande', 'Panes', 'Bimbo', '1000', '18500.00', '50',
 ]
 const UPLOAD_URL  = '/api/planes-comerciales/upload'
@@ -48,7 +49,8 @@ function descargarPlantilla() {
 }
 
 const ROWS_COLS = [
-  ['anio', 'anio'], ['semana', 'semana'], ['numeroCido', 'numero_cido'], ['planComercial', 'plan_comercial'], ['canal', 'canal'],
+  ['anio', 'anio'], ['semana', 'semana'], ['numeroCido', 'numero_cido'], ['planComercial', 'plan_comercial'],
+  ['tipoIniciativa', 'tipo_iniciativa'], ['semanaInicio', 'semana_inicio'], ['semanaFin', 'semana_fin'], ['canal', 'canal'],
   ['region', 'region'], ['gerencia', 'gerencia'], ['codCeve', 'cod_ceve'], ['item', 'item'],
   ['producto', 'producto'], ['categoria', 'categoria'], ['marca', 'marca'],
   ['metaPzs', 'meta_pzs'], ['metaImporte', 'meta_importe'], ['metaDist', 'meta_dist'], ['estatus', 'estatus'],
