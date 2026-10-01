@@ -26,7 +26,24 @@ const REGLAS = [
 const TABS = [
   { id: 'cargar',      label: '📤 Cargar' },
   { id: 'administrar', label: '🗂 Administrar Planes' },
+  { id: 'bitacora',    label: '📜 Bitácora' },
 ]
+
+const ACCION_INFO = {
+  carga:        { label: 'Carga',          bg: '#dbeafe', color: '#1d4ed8' },
+  eliminacion:  { label: 'Eliminación',    bg: '#fee2e2', color: '#991b1b' },
+  estatus_cido: { label: 'Estatus (CIDO)', bg: '#ede9fe', color: '#6d28d9' },
+  estatus_fila: { label: 'Estatus (fila)', bg: '#e0e7ff', color: '#3730a3' },
+}
+function AccionBadge({ accion }) {
+  const a = ACCION_INFO[accion] || { label: accion, bg: '#f3f4f6', color: '#374151' }
+  return (
+    <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+      background: a.bg, color: a.color, whiteSpace: 'nowrap' }}>
+      {a.label}
+    </span>
+  )
+}
 
 const ESTATUS_OPTIONS = ['Activo', 'Pausado', 'Cancelado']
 const ESTATUS_STYLE = {
@@ -313,7 +330,8 @@ function TabCargar() {
     setConfirmState(null)
     setDeleting(batchId)
     try {
-      await fetch(`${API}${DELETE_URL}/${batchId}`, { method: 'DELETE' })
+      const usuarioNombre = usuario?.nombreCompleto || ''
+      await fetch(`${API}${DELETE_URL}/${batchId}?usuario=${encodeURIComponent(usuarioNombre)}`, { method: 'DELETE' })
       await loadBatches()
     } finally { setDeleting(null) }
   }
@@ -531,6 +549,7 @@ function PlanDetalle({ data, loading, page, totalPages, busyRowId, onPageChange,
 }
 
 function TabAdministrar() {
+  const { usuario } = useAuth()
   const PAGE_SIZE = 25
   const ROWS_PAGE_SIZE = 50
 
@@ -595,7 +614,8 @@ function TabAdministrar() {
     setBusyCido(plan.numeroCido)
     try {
       const r = await fetch(`${API}/api/planes-comerciales/planes/${encodeURIComponent(plan.numeroCido)}/estatus`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estatus: nuevo }),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estatus: nuevo, usuario: usuario?.nombreCompleto || '' }),
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
@@ -619,7 +639,8 @@ function TabAdministrar() {
     setBusyRowId(row.id)
     try {
       const r = await fetch(`${API}/api/planes-comerciales/rows/${row.id}/estatus`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estatus: nuevo }),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estatus: nuevo, usuario: usuario?.nombreCompleto || '' }),
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
@@ -737,6 +758,129 @@ function TabAdministrar() {
   )
 }
 
+// ── Tab: Bitácora (historial de cargas, eliminaciones y cambios de Estatus) ────
+const ACCION_FILTROS = [
+  { value: '', label: 'Todas las acciones' },
+  { value: 'carga', label: 'Carga' },
+  { value: 'eliminacion', label: 'Eliminación' },
+  { value: 'estatus_cido', label: 'Estatus (CIDO)' },
+  { value: 'estatus_fila', label: 'Estatus (fila)' },
+]
+
+function fmtFechaBitacora(val) {
+  if (!val) return '—'
+  return new Date(val).toLocaleString('es-MX', {
+    dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mexico_City',
+  }) + ' CDMX'
+}
+
+function TabBitacora() {
+  const PAGE_SIZE = 50
+  const [search, setSearch] = useState('')
+  const [searchInp, setSearchInp] = useState('')
+  const [accion, setAccion] = useState('')
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  async function load(p, s, a) {
+    setLoading(true)
+    try {
+      const r = await fetch(`${API}/api/planes-comerciales/bitacora?search=${encodeURIComponent(s)}&accion=${encodeURIComponent(a)}&page=${p}&pageSize=${PAGE_SIZE}`)
+      if (r.ok) setData(await r.json())
+    } catch {} finally { setLoading(false) }
+  }
+
+  useEffect(() => { load(1, '', '') }, [])
+
+  function handleSearch(e) {
+    e.preventDefault()
+    setSearch(searchInp); setPage(1)
+    load(1, searchInp, accion)
+  }
+
+  function handleAccionChange(v) {
+    setAccion(v); setPage(1)
+    load(1, search, v)
+  }
+
+  function changePage(p) {
+    setPage(p)
+    load(p, search, accion)
+  }
+
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
+
+  return (
+    <>
+      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <input
+          value={searchInp}
+          onChange={e => setSearchInp(e.target.value)}
+          placeholder="Buscar por CIDO, usuario o detalle…"
+          style={{ flex: 1, minWidth: 220, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', outline: 'none' }}
+        />
+        <select value={accion} onChange={e => handleAccionChange(e.target.value)}
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }}>
+          {ACCION_FILTROS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+        <button type="submit" className="btn primary" style={{ padding: '8px 20px', fontSize: 13 }}>Buscar</button>
+      </form>
+
+      {loading ? (
+        <div style={{ color: '#9ca3af', fontSize: 13 }}>Cargando…</div>
+      ) : !data || data.rows.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14,
+          border: '1px dashed var(--border)', borderRadius: 12 }}>
+          Sin movimientos registrados.
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{fmtNum(data.total)} movimiento(s)</div>
+          <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f9fafb' }}>
+                  {['Fecha', 'Usuario', 'Acción', 'CIDO', 'Detalle', 'Filas'].map(h => (
+                    <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600,
+                      color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((b, i) => (
+                  <tr key={b.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{fmtFechaBitacora(b.fecha)}</td>
+                    <td style={{ padding: '8px 12px' }}>{b.usuario || '—'}</td>
+                    <td style={{ padding: '8px 12px' }}><AccionBadge accion={b.accion} /></td>
+                    <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{b.numeroCido || '—'}</td>
+                    <td style={{ padding: '8px 12px' }}>{b.detalle || '—'}</td>
+                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{b.filasAfectadas != null ? fmtNum(b.filasAfectadas) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 12, justifyContent: 'center' }}>
+              <button onClick={() => changePage(1)} disabled={page === 1}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>««</button>
+              <button onClick={() => changePage(page - 1)} disabled={page === 1}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>‹</button>
+              <span style={{ padding: '4px 12px', fontSize: 12, color: '#6b7280' }}>Página {page} / {totalPages}</span>
+              <button onClick={() => changePage(page + 1)} disabled={page >= totalPages}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>›</button>
+              <button onClick={() => changePage(totalPages)} disabled={page >= totalPages}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}>»»</button>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function PlanesComerciales() {
   const [tab, setTab] = useState('cargar')
@@ -766,6 +910,7 @@ export default function PlanesComerciales() {
 
       {tab === 'cargar' && <TabCargar />}
       {tab === 'administrar' && <TabAdministrar />}
+      {tab === 'bitacora' && <TabBitacora />}
     </div>
   )
 }
