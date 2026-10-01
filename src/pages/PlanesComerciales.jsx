@@ -550,7 +550,7 @@ function PlanDetalle({ data, loading, page, totalPages, busyRowId, onPageChange,
 
 function TabAdministrar() {
   const { usuario } = useAuth()
-  const PAGE_SIZE = 25
+  const PAGE_SIZE = 15
   const ROWS_PAGE_SIZE = 50
 
   const [search, setSearch] = useState('')
