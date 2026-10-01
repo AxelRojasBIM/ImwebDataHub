@@ -700,7 +700,7 @@ function TabAdministrar() {
               </div>
             )}
           </div>
-          <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ overflowX: 'auto', overflowY: 'hidden', borderRadius: 12, border: '1px solid var(--border)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
@@ -849,7 +849,7 @@ function TabBitacora() {
       ) : (
         <>
           <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{fmtNum(data.total)} movimiento(s)</div>
-          <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ overflowX: 'auto', overflowY: 'hidden', borderRadius: 12, border: '1px solid var(--border)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
