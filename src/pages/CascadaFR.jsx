@@ -100,7 +100,7 @@ function currentIsoWeek() {
   return { anio: d.getUTCFullYear(), semana: Math.ceil((((d - yearStart) / 86400000) + 1) / 7) }
 }
 
-export default function CascadaFR() {
+function TabResumen() {
   const initWeek = currentIsoWeek()
   const [anio, setAnio] = useState(initWeek.anio)
   const [semana, setSemana] = useState(initWeek.semana)
@@ -226,11 +226,7 @@ export default function CascadaFR() {
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ marginBottom: 16, flexShrink: 0 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: TEXT_MAIN }}>Cascada FR</h1>
-      </div>
-
+    <div style={{ width: '100%', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Filtros */}
       <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 22px', marginBottom: 16, flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -415,6 +411,162 @@ export default function CascadaFR() {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+function csvField(v) {
+  if (v == null) return ''
+  const s = String(v)
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+}
+
+function TabExtractor() {
+  const initWeek = currentIsoWeek()
+  const [anio, setAnio] = useState(initWeek.anio)
+  const [semana, setSemana] = useState(initWeek.semana)
+  const [search, setSearch] = useState('')
+  const [categoria, setCategoria] = useState('')
+  const [categorias, setCategorias] = useState([])
+  const [exporting, setExporting] = useState(false)
+  const [result, setResult] = useState(null)
+
+  useEffect(() => {
+    fetch(`${API}/api/cascada-fr/categorias`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setCategorias)
+      .catch(() => {})
+  }, [])
+
+  async function handleExportar() {
+    setExporting(true); setResult(null)
+    try {
+      const params = new URLSearchParams({ anio: String(anio), semana: String(semana) })
+      if (search) params.set('search', search)
+      if (categoria) params.set('categoria', categoria)
+      const r = await fetch(`${API}/api/cascada-fr/items/export?${params}`)
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.detail || d.title || `HTTP ${r.status}`)
+      }
+      const { items } = await r.json()
+      if (!items.length) { setResult({ ok: false, msg: 'Sin datos para exportar con estos filtros.' }); return }
+
+      const header = ['Item', 'Descripción', 'Categoría',
+        ...GROUPS.flatMap(g => g.cols.map(c => `${g.label} - ${c.l}`))]
+      const lines = [header.map(csvField).join(',')]
+      for (const row of items) {
+        const vals = [row.item, row.descripcion, row.categoria,
+          ...GROUPS.flatMap(g => g.cols.map(c => c.item ? c.item(row) : null))]
+        lines.push(vals.map(csvField).join(','))
+      }
+      const csv = lines.join('\n')
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `cascada_fr_${anio}_s${semana}.csv`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setResult({ ok: true, msg: `${items.length.toLocaleString()} registro(s) exportado(s).` })
+    } catch (e) {
+      setResult({ ok: false, msg: e.message })
+    } finally { setExporting(false) }
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 22px', maxWidth: 640 }}>
+      <div style={{ fontSize: 13, color: MUTED_GRAY, marginBottom: 16 }}>
+        Exporta a CSV los datos de la cascada (Producción, Dist. Primaria, Primaria-Secundaria,
+        Secundaria-Comercial, Comercial-Consumidor) para la semana y filtros seleccionados — el
+        mismo universo de items que arma la pestaña Resumen, sin paginar.
+      </div>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Año
+          <input type="number" value={anio} onChange={e => setAnio(Number(e.target.value))}
+            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 90, textTransform: 'none', fontWeight: 400 }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Semana
+          <input type="number" min={1} max={53} value={semana} onChange={e => setSemana(Number(e.target.value))}
+            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 80, textTransform: 'none', fontWeight: 400 }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Buscar item
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Item o descripción…"
+            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 200, textTransform: 'none', fontWeight: 400 }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Categoría
+          <select value={categoria} onChange={e => setCategoria(e.target.value)}
+            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160, textTransform: 'none', fontWeight: 400 }}>
+            <option value="">Todas</option>
+            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+      </div>
+      <button onClick={handleExportar} disabled={exporting || !anio || !semana}
+        style={{ padding: '9px 24px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: BLUE_PRIMARY, border: 'none', color: '#fff',
+          cursor: (exporting || !anio || !semana) ? 'default' : 'pointer', opacity: (exporting || !anio || !semana) ? 0.6 : 1 }}>
+        {exporting ? '⏳ Exportando…' : '⬇ Exportar CSV'}
+      </button>
+
+      {result && (
+        <div style={{
+          marginTop: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13,
+          background: result.ok ? '#ecfdf5' : '#fef2f2', color: result.ok ? '#065f46' : '#991b1b',
+          border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}`,
+        }}>
+          {result.ok ? '✓' : '✕'} {result.msg}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabKpis() {
+  return (
+    <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14,
+      border: '1px dashed var(--border)', borderRadius: 12 }}>
+      Próximamente.
+    </div>
+  )
+}
+
+const TABS = [
+  { id: 'resumen', label: 'Resumen' },
+  { id: 'extractor', label: 'Extractor' },
+  { id: 'kpis', label: 'Kpis' },
+]
+
+export default function CascadaFR() {
+  const [tab, setTab] = useState('resumen')
+  return (
+    <div style={{ width: '100%', height: '100%', padding: '20px 28px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ marginBottom: 16, flexShrink: 0 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: TEXT_MAIN }}>Planes Comerciales KPI</h1>
+      </div>
+
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{
+              padding: '9px 20px', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              color: tab === t.id ? '#2563eb' : '#6b7280',
+              borderBottom: tab === t.id ? '2px solid #2563eb' : '2px solid transparent',
+              marginBottom: -1, transition: 'all .15s',
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: tab === 'resumen' ? 'hidden' : 'auto' }}>
+        {tab === 'resumen' && <TabResumen />}
+        {tab === 'extractor' && <TabExtractor />}
+        {tab === 'kpis' && <TabKpis />}
+      </div>
     </div>
   )
 }

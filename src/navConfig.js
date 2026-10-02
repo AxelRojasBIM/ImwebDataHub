@@ -11,7 +11,7 @@ const nav = [
       { to: '/causas-recorte-tablero', label: 'Causas Recorte', icon: Stethoscope },
       { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: Ruler },
       { to: '/seguimiento-servicios', label: 'Seguimiento Servicios', icon: ClipboardCheck },
-      { to: '/cascada-fr', label: 'Cascada FR', icon: Waypoints },
+      { to: '/cascada-fr', label: 'Planes Comerciales KPI', icon: Waypoints },
     ]
   },
   {
