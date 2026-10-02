@@ -1,65 +1,80 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../AuthContext'
 
-// Fondo de puntos que solo se "revelan" cerca del cursor -- mismo efecto que
-// vimos en Vortex. Canvas casero en vez de una librería de partículas para no
-// sumar peso al bundle por un detalle puramente decorativo del login.
-function ParticleBackground() {
+// Chispas de colores que salen disparadas del cursor al moverlo (gravedad +
+// desvanecido + glow). Mismo mecanismo que usa el login de Vortex, con
+// nuestra propia paleta de azules para "Cauce".
+const CAUCE_PALETTE = ['#0b3f96', '#1a56db', '#4f8cff', '#ffffff', '#7eb8ff', '#b3d4ff']
+
+function CauceBackground() {
   const canvasRef = useRef(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
-    let raf, w, h
-    const mouse = { x: -9999, y: -9999 }
+    let raf, timeoutId
+    let particles = []
+    const mouse = { x: 0, y: 0 }
+    let moving = false
 
     function resize() {
-      w = canvas.width = window.innerWidth
-      h = canvas.height = window.innerHeight
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    function onMove(e) {
+      mouse.x = e.clientX; mouse.y = e.clientY
+      moving = true
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => { moving = false }, 80)
     }
     resize()
-
-    const DOT_COUNT = 90
-    const dots = Array.from({ length: DOT_COUNT }, () => ({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      r: 1 + Math.random() * 1.8,
-      vx: (Math.random() - 0.5) * 0.15,
-      vy: (Math.random() - 0.5) * 0.15,
-    }))
-
-    const REVEAL_RADIUS = 180
-    function tick() {
-      ctx.clearRect(0, 0, w, h)
-      for (const d of dots) {
-        d.x += d.vx; d.y += d.vy
-        if (d.x < 0) d.x = w; else if (d.x > w) d.x = 0
-        if (d.y < 0) d.y = h; else if (d.y > h) d.y = 0
-
-        const dist = Math.hypot(d.x - mouse.x, d.y - mouse.y)
-        const near = Math.max(0, 1 - dist / REVEAL_RADIUS)
-        const alpha = 0.04 + near * 0.55
-        const radius = d.r + near * 2.2
-
-        ctx.beginPath()
-        ctx.arc(d.x, d.y, radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(79, 140, 255, ${alpha})`
-        ctx.fill()
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    tick()
-
-    function onMove(e) { mouse.x = e.clientX; mouse.y = e.clientY }
-    function onLeave() { mouse.x = -9999; mouse.y = -9999 }
     window.addEventListener('resize', resize)
     window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseleave', onLeave)
+
+    function loop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      if (moving) {
+        for (let i = 0; i < 4; i++) {
+          const angle = Math.random() * Math.PI * 2
+          const speed = 2 * Math.random() + 0.5
+          particles.push({
+            x: mouse.x + (Math.random() - 0.5) * 8,
+            y: mouse.y + (Math.random() - 0.5) * 8,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 1.2,
+            r: 2.5 * Math.random() + 1,
+            alpha: 1,
+            decay: 0.018 * Math.random() + 0.012,
+            color: CAUCE_PALETTE[Math.floor(Math.random() * CAUCE_PALETTE.length)],
+          })
+        }
+      }
+      particles = particles.filter(p => p.alpha > 0 && p.r > 0.2)
+      for (const p of particles) {
+        p.vy += 0.04
+        p.x += p.vx
+        p.y += p.vy
+        p.r *= 0.98
+        p.alpha -= p.decay
+        ctx.save()
+        ctx.globalAlpha = Math.max(0, p.alpha)
+        ctx.shadowBlur = 8
+        ctx.shadowColor = p.color
+        ctx.fillStyle = p.color
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    loop()
+
     return () => {
       cancelAnimationFrame(raf)
+      clearTimeout(timeoutId)
       window.removeEventListener('resize', resize)
       window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseleave', onLeave)
     }
   }, [])
 
@@ -92,7 +107,12 @@ export default function Login() {
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'var(--bg)', position: 'relative', overflow: 'hidden',
     }}>
-      <ParticleBackground />
+      <div style={{
+        position: 'fixed', inset: 0, opacity: 0.03, pointerEvents: 'none', zIndex: 0,
+        backgroundImage: 'linear-gradient(rgba(79,140,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(79,140,255,1) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+      }} />
+      <CauceBackground />
       <form onSubmit={handleSubmit} style={{
         background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
         padding: '32px 30px', width: 320, boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
