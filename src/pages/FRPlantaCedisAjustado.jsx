@@ -277,8 +277,14 @@ export default function FRPlantaCedisAjustado() {
     setConfirmState(null)
     setDeleting(batchId)
     try {
-      await fetch(`${API}${DELETE_URL}/${batchId}`, { method: 'DELETE' })
+      const r = await fetch(`${API}${DELETE_URL}/${batchId}`, { method: 'DELETE' })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.detail || d.title || `HTTP ${r.status}`)
+      }
       await loadBatches()
+    } catch (e) {
+      setResult({ ok: false, msg: `No se pudo eliminar la carga: ${e.message}`, errores: [] })
     } finally { setDeleting(null) }
   }
 
