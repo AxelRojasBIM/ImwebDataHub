@@ -436,6 +436,11 @@ const DIMENSIONES = [
   { key: 'dim.descripcion', label: 'Descripción', get: r => r.descripcion },
   { key: 'dim.categoria', label: 'Categoría', get: r => r.categoria },
   { key: 'dim.planta', label: 'Planta', get: r => r.produccion?.planta },
+  // Estas tres solo existen a nivel Item+CeVe (no a nivel Item) -- al elegir cualquiera,
+  // el Extractor cambia de endpoint y la exportación pasa a traer una fila por Item+CeVe.
+  { key: 'dim.codceve', label: 'CeVe (código)', ceveLevel: true, get: r => r.codCeve },
+  { key: 'dim.nombreceve', label: 'Nombre CeVe', ceveLevel: true, get: r => r.nombreCeve },
+  { key: 'dim.regionceve', label: 'Región CeVe', ceveLevel: true, get: r => r.regionCeve },
 ]
 
 function TabExtractor() {
@@ -484,6 +489,7 @@ function TabExtractor() {
   const activeFacts = factGroups().flatMap(g => g.cols.map(c => ({ group: g, col: c, key: colKey(g, c) })))
     .filter(x => selectedCols.has(x.key))
   const totalSelected = activeDims.length + activeFacts.length
+  const needsCeveLevel = activeDims.some(d => d.ceveLevel)
 
   function buildHeader() {
     return [...activeDims.map(d => d.label), ...activeFacts.map(x => `${x.group.label} - ${x.col.l}`)]
@@ -496,7 +502,11 @@ function TabExtractor() {
     const params = new URLSearchParams({ anio: String(anio), semana: String(semana) })
     if (search) params.set('search', search)
     if (categoria) params.set('categoria', categoria)
-    const r = await fetch(`${API}/api/cascada-fr/items/export?${params}`)
+    // Nombre/Región/código de CeVe no existen a nivel Item -- si se pidió alguna, hay que
+    // usar el endpoint que arma una fila por Item+CeVe en vez del de solo Item (más pesado,
+    // por eso solo se usa cuando hace falta).
+    const endpoint = needsCeveLevel ? 'export-ceve' : 'export'
+    const r = await fetch(`${API}/api/cascada-fr/items/${endpoint}?${params}`)
     if (!r.ok) {
       const d = await r.json().catch(() => ({}))
       throw new Error(d.detail || d.title || `HTTP ${r.status}`)
@@ -578,6 +588,11 @@ function TabExtractor() {
         <input value={colSearch} onChange={e => setColSearch(e.target.value)} placeholder="Buscar campo…"
           style={{ ...inputStyle, marginBottom: 10 }} />
         <div style={{ fontSize: 11.5, color: MUTED_GRAY, marginBottom: 10 }}>{totalSelected} campo(s) seleccionados</div>
+        {needsCeveLevel && (
+          <div style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '6px 9px', marginBottom: 10 }}>
+            Con campos de CeVe, la exportación trae una fila por Item+CeVe (más filas, más lenta).
+          </div>
+        )}
 
         <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
           {/* Dimensiones */}
