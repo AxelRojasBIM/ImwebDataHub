@@ -421,6 +421,9 @@ function csvField(v) {
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
 }
 
+function colKey(group, col) { return `${group.key}.${col.k}` }
+function allColKeys() { return GROUPS.flatMap(g => g.cols.map(c => colKey(g, c))) }
+
 function TabExtractor() {
   const initWeek = currentIsoWeek()
   const [anio, setAnio] = useState(initWeek.anio)
@@ -428,7 +431,11 @@ function TabExtractor() {
   const [search, setSearch] = useState('')
   const [categoria, setCategoria] = useState('')
   const [categorias, setCategorias] = useState([])
+  const [colSearch, setColSearch] = useState('')
+  const [selectedCols, setSelectedCols] = useState(() => new Set(allColKeys()))
   const [exporting, setExporting] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
+  const [preview, setPreview] = useState(null)
   const [result, setResult] = useState(null)
 
   useEffect(() => {
@@ -438,28 +445,64 @@ function TabExtractor() {
       .catch(() => {})
   }, [])
 
+  function toggleCol(key) {
+    setSelectedCols(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+  function toggleGroupCols(group) {
+    const keys = group.cols.map(c => colKey(group, c))
+    const allSelected = keys.every(k => selectedCols.has(k))
+    setSelectedCols(prev => {
+      const next = new Set(prev)
+      keys.forEach(k => allSelected ? next.delete(k) : next.add(k))
+      return next
+    })
+  }
+
+  const activeCols = GROUPS.flatMap(g => g.cols.map(c => ({ group: g, col: c, key: colKey(g, c) })))
+    .filter(x => selectedCols.has(x.key))
+
+  function buildHeader() {
+    return ['Item', 'Descripción', 'Categoría', ...activeCols.map(x => `${x.group.label} - ${x.col.l}`)]
+  }
+  function buildRow(row) {
+    return [row.item, row.descripcion, row.categoria, ...activeCols.map(x => x.col.item ? x.col.item(row) : null)]
+  }
+
+  async function fetchItems() {
+    const params = new URLSearchParams({ anio: String(anio), semana: String(semana) })
+    if (search) params.set('search', search)
+    if (categoria) params.set('categoria', categoria)
+    const r = await fetch(`${API}/api/cascada-fr/items/export?${params}`)
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}))
+      throw new Error(d.detail || d.title || `HTTP ${r.status}`)
+    }
+    return (await r.json()).items
+  }
+
+  async function handlePreview() {
+    setPreviewing(true); setResult(null); setPreview(null)
+    try {
+      const items = await fetchItems()
+      setPreview({ rows: items.slice(0, 100), total: items.length })
+    } catch (e) {
+      setResult({ ok: false, msg: e.message })
+    } finally { setPreviewing(false) }
+  }
+
   async function handleExportar() {
     setExporting(true); setResult(null)
     try {
-      const params = new URLSearchParams({ anio: String(anio), semana: String(semana) })
-      if (search) params.set('search', search)
-      if (categoria) params.set('categoria', categoria)
-      const r = await fetch(`${API}/api/cascada-fr/items/export?${params}`)
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}))
-        throw new Error(d.detail || d.title || `HTTP ${r.status}`)
-      }
-      const { items } = await r.json()
+      const items = await fetchItems()
       if (!items.length) { setResult({ ok: false, msg: 'Sin datos para exportar con estos filtros.' }); return }
 
-      const header = ['Item', 'Descripción', 'Categoría',
-        ...GROUPS.flatMap(g => g.cols.map(c => `${g.label} - ${c.l}`))]
+      const header = buildHeader()
       const lines = [header.map(csvField).join(',')]
-      for (const row of items) {
-        const vals = [row.item, row.descripcion, row.categoria,
-          ...GROUPS.flatMap(g => g.cols.map(c => c.item ? c.item(row) : null))]
-        lines.push(vals.map(csvField).join(','))
-      }
+      for (const row of items) lines.push(buildRow(row).map(csvField).join(','))
       const csv = lines.join('\n')
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
@@ -473,53 +516,140 @@ function TabExtractor() {
     } finally { setExporting(false) }
   }
 
-  return (
-    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 22px', maxWidth: 640 }}>
-      <div style={{ fontSize: 13, color: MUTED_GRAY, marginBottom: 16 }}>
-        Exporta a CSV los datos de la cascada (Producción, Dist. Primaria, Primaria-Secundaria,
-        Secundaria-Comercial, Comercial-Consumidor) para la semana y filtros seleccionados — el
-        mismo universo de items que arma la pestaña Resumen, sin paginar.
-      </div>
-      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          Año
-          <input type="number" value={anio} onChange={e => setAnio(Number(e.target.value))}
-            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 90, textTransform: 'none', fontWeight: 400 }} />
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          Semana
-          <input type="number" min={1} max={53} value={semana} onChange={e => setSemana(Number(e.target.value))}
-            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 80, textTransform: 'none', fontWeight: 400 }} />
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          Buscar item
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Item o descripción…"
-            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 200, textTransform: 'none', fontWeight: 400 }} />
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          Categoría
-          <select value={categoria} onChange={e => setCategoria(e.target.value)}
-            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, background: '#fff', minWidth: 160, textTransform: 'none', fontWeight: 400 }}>
-            <option value="">Todas</option>
-            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </label>
-      </div>
-      <button onClick={handleExportar} disabled={exporting || !anio || !semana}
-        style={{ padding: '9px 24px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: BLUE_PRIMARY, border: 'none', color: '#fff',
-          cursor: (exporting || !anio || !semana) ? 'default' : 'pointer', opacity: (exporting || !anio || !semana) ? 0.6 : 1 }}>
-        {exporting ? '⏳ Exportando…' : '⬇ Exportar CSV'}
-      </button>
+  const colGroupsFiltered = colSearch
+    ? GROUPS.map(g => ({ ...g, cols: g.cols.filter(c => c.l.toLowerCase().includes(colSearch.toLowerCase())) }))
+        .filter(g => g.cols.length > 0)
+    : GROUPS
 
-      {result && (
-        <div style={{
-          marginTop: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13,
-          background: result.ok ? '#ecfdf5' : '#fef2f2', color: result.ok ? '#065f46' : '#991b1b',
-          border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}`,
-        }}>
-          {result.ok ? '✓' : '✕'} {result.msg}
+  const labelStyle = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }
+  const inputStyle = { padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, textTransform: 'none', fontWeight: 400 }
+
+  return (
+    <div style={{ display: 'flex', gap: 16, height: '100%', minHeight: 0 }}>
+      {/* Selector de columnas */}
+      <div style={{
+        width: 270, flexShrink: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 14,
+        padding: '16px', display: 'flex', flexDirection: 'column', minHeight: 0,
+      }}>
+        <input value={colSearch} onChange={e => setColSearch(e.target.value)} placeholder="Buscar campo…"
+          style={{ ...inputStyle, marginBottom: 10 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 11.5 }}>
+          <button onClick={() => setSelectedCols(new Set(allColKeys()))}
+            style={{ background: 'none', border: 'none', color: BLUE_PRIMARY, cursor: 'pointer', padding: 0, fontWeight: 700 }}>Todos</button>
+          <button onClick={() => setSelectedCols(new Set())}
+            style={{ background: 'none', border: 'none', color: MUTED_GRAY, cursor: 'pointer', padding: 0 }}>Ninguno</button>
+          <span style={{ marginLeft: 'auto', color: MUTED_GRAY }}>{selectedCols.size} campo(s)</span>
         </div>
-      )}
+        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+          {colGroupsFiltered.map(g => {
+            const keys = g.cols.map(c => colKey(g, c))
+            const allSel = keys.length > 0 && keys.every(k => selectedCols.has(k))
+            return (
+              <div key={g.key} style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: GROUP_STYLE[g.key].color, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{g.label}</span>
+                  <button onClick={() => toggleGroupCols(g)}
+                    style={{ background: 'none', border: 'none', color: MUTED_GRAY, fontSize: 10.5, cursor: 'pointer', padding: 0 }}>
+                    {allSel ? 'Quitar' : 'Todos'}
+                  </button>
+                </div>
+                {g.cols.map(c => {
+                  const key = colKey(g, c)
+                  return (
+                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0', fontSize: 12.5, color: TEXT_MAIN, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={selectedCols.has(key)} onChange={() => toggleCol(key)} />
+                      {c.l}
+                    </label>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Filtros, acciones y previsualización */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}>
+        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 22px', marginBottom: 16, flexShrink: 0 }}>
+          <div style={{ fontSize: 13, color: MUTED_GRAY, marginBottom: 16 }}>
+            Elegí los campos a la izquierda, ajustá los filtros y previsualizá antes de exportar —
+            el mismo universo de items que arma la pestaña Resumen, sin paginar.
+          </div>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
+            <label style={labelStyle}>
+              Año
+              <input type="number" value={anio} onChange={e => setAnio(Number(e.target.value))} style={{ ...inputStyle, width: 90 }} />
+            </label>
+            <label style={labelStyle}>
+              Semana
+              <input type="number" min={1} max={53} value={semana} onChange={e => setSemana(Number(e.target.value))} style={{ ...inputStyle, width: 80 }} />
+            </label>
+            <label style={labelStyle}>
+              Buscar item
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Item o descripción…" style={{ ...inputStyle, minWidth: 200 }} />
+            </label>
+            <label style={labelStyle}>
+              Categoría
+              <select value={categoria} onChange={e => setCategoria(e.target.value)} style={{ ...inputStyle, background: '#fff', minWidth: 160 }}>
+                <option value="">Todas</option>
+                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handlePreview} disabled={previewing || exporting || !anio || !semana || selectedCols.size === 0}
+              style={{ padding: '9px 20px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: '#fff', border: `1px solid ${BLUE_PRIMARY}`, color: BLUE_PRIMARY,
+                cursor: (previewing || exporting || !anio || !semana || selectedCols.size === 0) ? 'default' : 'pointer', opacity: (previewing || exporting || !anio || !semana || selectedCols.size === 0) ? 0.5 : 1 }}>
+              {previewing ? '⏳ Cargando…' : '👁 Previsualizar'}
+            </button>
+            <button onClick={handleExportar} disabled={exporting || previewing || !anio || !semana || selectedCols.size === 0}
+              style={{ padding: '9px 24px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: BLUE_PRIMARY, border: 'none', color: '#fff',
+                cursor: (exporting || previewing || !anio || !semana || selectedCols.size === 0) ? 'default' : 'pointer', opacity: (exporting || previewing || !anio || !semana || selectedCols.size === 0) ? 0.6 : 1 }}>
+              {exporting ? '⏳ Exportando…' : '⬇ Exportar CSV'}
+            </button>
+          </div>
+
+          {result && (
+            <div style={{
+              marginTop: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13,
+              background: result.ok ? '#ecfdf5' : '#fef2f2', color: result.ok ? '#065f46' : '#991b1b',
+              border: `1px solid ${result.ok ? '#6ee7b7' : '#fca5a5'}`,
+            }}>
+              {result.ok ? '✓' : '✕'} {result.msg}
+            </div>
+          )}
+        </div>
+
+        {preview && (
+          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 12, color: MUTED_GRAY, marginBottom: 8, flexShrink: 0 }}>
+              Mostrando {preview.rows.length.toLocaleString()} de {preview.total.toLocaleString()} fila(s)
+            </div>
+            <div style={{ overflow: 'auto', flex: 1, minHeight: 0, borderRadius: 10, border: '1px solid var(--border)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr style={{ background: '#f9fafb' }}>
+                    {buildHeader().map(h => (
+                      <th key={h} style={{ position: 'sticky', top: 0, background: '#f9fafb', padding: '7px 10px', textAlign: 'left', fontWeight: 600, color: TEXT_MAIN, borderBottom: '1px solid var(--border)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.rows.map((row, i) => (
+                    <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      {buildRow(row).map((v, j) => (
+                        <td key={j} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', color: MUTED_GRAY }}>
+                          {v == null ? '—' : v}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
