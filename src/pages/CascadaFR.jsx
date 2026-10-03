@@ -422,7 +422,21 @@ function csvField(v) {
 }
 
 function colKey(group, col) { return `${group.key}.${col.k}` }
-function allColKeys() { return GROUPS.flatMap(g => g.cols.map(c => colKey(g, c))) }
+// Facts: los mismos grupos/columnas numéricas de la cascada, salvo las de texto
+// (esas se muestran como Dimensión en vez de Fact).
+function factGroups() {
+  return GROUPS.map(g => ({ ...g, cols: g.cols.filter(c => !c.txt) })).filter(g => g.cols.length > 0)
+}
+function allFactKeys() { return factGroups().flatMap(g => g.cols.map(c => colKey(g, c))) }
+
+// Dimensiones: campos identificadores/de agrupación (no numéricos). "Item" es
+// obligatorio -- sin él las filas del CSV no se podrían identificar.
+const DIMENSIONES = [
+  { key: 'dim.item', label: 'Item', forced: true, get: r => r.item },
+  { key: 'dim.descripcion', label: 'Descripción', get: r => r.descripcion },
+  { key: 'dim.categoria', label: 'Categoría', get: r => r.categoria },
+  { key: 'dim.planta', label: 'Planta', get: r => r.produccion?.planta },
+]
 
 function TabExtractor() {
   const initWeek = currentIsoWeek()
@@ -432,7 +446,11 @@ function TabExtractor() {
   const [categoria, setCategoria] = useState('')
   const [categorias, setCategorias] = useState([])
   const [colSearch, setColSearch] = useState('')
-  const [selectedCols, setSelectedCols] = useState(() => new Set(allColKeys()))
+  const [selectedCols, setSelectedCols] = useState(() => new Set([
+    ...DIMENSIONES.map(d => d.key), ...allFactKeys(),
+  ]))
+  const [dimOpen, setDimOpen] = useState(true)
+  const [factOpen, setFactOpen] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   const [preview, setPreview] = useState(null)
@@ -462,14 +480,16 @@ function TabExtractor() {
     })
   }
 
-  const activeCols = GROUPS.flatMap(g => g.cols.map(c => ({ group: g, col: c, key: colKey(g, c) })))
+  const activeDims = DIMENSIONES.filter(d => d.forced || selectedCols.has(d.key))
+  const activeFacts = factGroups().flatMap(g => g.cols.map(c => ({ group: g, col: c, key: colKey(g, c) })))
     .filter(x => selectedCols.has(x.key))
+  const totalSelected = activeDims.length + activeFacts.length
 
   function buildHeader() {
-    return ['Item', 'Descripción', 'Categoría', ...activeCols.map(x => `${x.group.label} - ${x.col.l}`)]
+    return [...activeDims.map(d => d.label), ...activeFacts.map(x => `${x.group.label} - ${x.col.l}`)]
   }
   function buildRow(row) {
-    return [row.item, row.descripcion, row.categoria, ...activeCols.map(x => x.col.item ? x.col.item(row) : null)]
+    return [...activeDims.map(d => d.get(row)), ...activeFacts.map(x => x.col.item ? x.col.item(row) : null)]
   }
 
   async function fetchItems() {
@@ -516,36 +536,86 @@ function TabExtractor() {
     } finally { setExporting(false) }
   }
 
-  const colGroupsFiltered = colSearch
-    ? GROUPS.map(g => ({ ...g, cols: g.cols.filter(c => c.l.toLowerCase().includes(colSearch.toLowerCase())) }))
+  const dimsFiltered = colSearch
+    ? DIMENSIONES.filter(d => d.label.toLowerCase().includes(colSearch.toLowerCase()))
+    : DIMENSIONES
+  const factGroupsFiltered = colSearch
+    ? factGroups().map(g => ({ ...g, cols: g.cols.filter(c => c.l.toLowerCase().includes(colSearch.toLowerCase())) }))
         .filter(g => g.cols.length > 0)
-    : GROUPS
+    : factGroups()
+
+  const dimKeysToggleable = DIMENSIONES.filter(d => !d.forced).map(d => d.key)
+  const allDimsSel = dimKeysToggleable.every(k => selectedCols.has(k))
+  const allFactsSel = allFactKeys().every(k => selectedCols.has(k))
+
+  function toggleAllDims() {
+    setSelectedCols(prev => {
+      const next = new Set(prev)
+      dimKeysToggleable.forEach(k => allDimsSel ? next.delete(k) : next.add(k))
+      return next
+    })
+  }
+  function toggleAllFacts() {
+    const keys = allFactKeys()
+    setSelectedCols(prev => {
+      const next = new Set(prev)
+      keys.forEach(k => allFactsSel ? next.delete(k) : next.add(k))
+      return next
+    })
+  }
 
   const labelStyle = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: MUTED_GRAY, textTransform: 'uppercase', letterSpacing: '0.04em' }
   const inputStyle = { padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, textTransform: 'none', fontWeight: 400 }
+  const sectionHeaderStyle = { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none', padding: '6px 0' }
 
   return (
     <div style={{ display: 'flex', gap: 16, height: '100%', minHeight: 0 }}>
-      {/* Selector de columnas */}
+      {/* Selector de columnas: Dimensiones + Facts */}
       <div style={{
         width: 270, flexShrink: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 14,
         padding: '16px', display: 'flex', flexDirection: 'column', minHeight: 0,
       }}>
         <input value={colSearch} onChange={e => setColSearch(e.target.value)} placeholder="Buscar campo…"
           style={{ ...inputStyle, marginBottom: 10 }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 11.5 }}>
-          <button onClick={() => setSelectedCols(new Set(allColKeys()))}
-            style={{ background: 'none', border: 'none', color: BLUE_PRIMARY, cursor: 'pointer', padding: 0, fontWeight: 700 }}>Todos</button>
-          <button onClick={() => setSelectedCols(new Set())}
-            style={{ background: 'none', border: 'none', color: MUTED_GRAY, cursor: 'pointer', padding: 0 }}>Ninguno</button>
-          <span style={{ marginLeft: 'auto', color: MUTED_GRAY }}>{selectedCols.size} campo(s)</span>
-        </div>
+        <div style={{ fontSize: 11.5, color: MUTED_GRAY, marginBottom: 10 }}>{totalSelected} campo(s) seleccionados</div>
+
         <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
-          {colGroupsFiltered.map(g => {
+          {/* Dimensiones */}
+          <div style={sectionHeaderStyle} onClick={() => setDimOpen(o => !o)}>
+            <span style={{ fontSize: 9, color: MUTED_GRAY }}>{dimOpen ? '▾' : '▸'}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: TEXT_MAIN }}>DIMENSIONES ({DIMENSIONES.length})</span>
+            <button onClick={e => { e.stopPropagation(); toggleAllDims() }}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: BLUE_PRIMARY, fontSize: 10.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              TODOS
+            </button>
+          </div>
+          {dimOpen && (
+            <div style={{ marginBottom: 14, paddingLeft: 4 }}>
+              {dimsFiltered.map(d => (
+                <label key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0', fontSize: 12.5,
+                  color: d.forced ? MUTED_GRAY : TEXT_MAIN, cursor: d.forced ? 'default' : 'pointer' }}>
+                  <input type="checkbox" checked={d.forced || selectedCols.has(d.key)} disabled={d.forced}
+                    onChange={() => toggleCol(d.key)} />
+                  {d.label}{d.forced ? ' (obligatorio)' : ''}
+                </label>
+              ))}
+            </div>
+          )}
+
+          {/* Facts */}
+          <div style={sectionHeaderStyle} onClick={() => setFactOpen(o => !o)}>
+            <span style={{ fontSize: 9, color: MUTED_GRAY }}>{factOpen ? '▾' : '▸'}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: TEXT_MAIN }}>FACTS ({allFactKeys().length})</span>
+            <button onClick={e => { e.stopPropagation(); toggleAllFacts() }}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: BLUE_PRIMARY, fontSize: 10.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              TODOS
+            </button>
+          </div>
+          {factOpen && factGroupsFiltered.map(g => {
             const keys = g.cols.map(c => colKey(g, c))
             const allSel = keys.length > 0 && keys.every(k => selectedCols.has(k))
             return (
-              <div key={g.key} style={{ marginBottom: 14 }}>
+              <div key={g.key} style={{ marginBottom: 14, paddingLeft: 4 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                   <span style={{ fontSize: 10.5, fontWeight: 700, color: GROUP_STYLE[g.key].color, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{g.label}</span>
                   <button onClick={() => toggleGroupCols(g)}
@@ -597,14 +667,14 @@ function TabExtractor() {
             </label>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={handlePreview} disabled={previewing || exporting || !anio || !semana || selectedCols.size === 0}
+            <button onClick={handlePreview} disabled={previewing || exporting || !anio || !semana}
               style={{ padding: '9px 20px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: '#fff', border: `1px solid ${BLUE_PRIMARY}`, color: BLUE_PRIMARY,
-                cursor: (previewing || exporting || !anio || !semana || selectedCols.size === 0) ? 'default' : 'pointer', opacity: (previewing || exporting || !anio || !semana || selectedCols.size === 0) ? 0.5 : 1 }}>
+                cursor: (previewing || exporting || !anio || !semana) ? 'default' : 'pointer', opacity: (previewing || exporting || !anio || !semana) ? 0.5 : 1 }}>
               {previewing ? '⏳ Cargando…' : '👁 Previsualizar'}
             </button>
-            <button onClick={handleExportar} disabled={exporting || previewing || !anio || !semana || selectedCols.size === 0}
+            <button onClick={handleExportar} disabled={exporting || previewing || !anio || !semana}
               style={{ padding: '9px 24px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: BLUE_PRIMARY, border: 'none', color: '#fff',
-                cursor: (exporting || previewing || !anio || !semana || selectedCols.size === 0) ? 'default' : 'pointer', opacity: (exporting || previewing || !anio || !semana || selectedCols.size === 0) ? 0.6 : 1 }}>
+                cursor: (exporting || previewing || !anio || !semana) ? 'default' : 'pointer', opacity: (exporting || previewing || !anio || !semana) ? 0.6 : 1 }}>
               {exporting ? '⏳ Exportando…' : '⬇ Exportar CSV'}
             </button>
           </div>
