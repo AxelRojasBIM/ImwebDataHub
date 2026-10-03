@@ -21,6 +21,7 @@ const REGLAS = [
   '\'meta_pzs\' debe ser mayor a cero. \'meta_importe\' y \'meta_dist\' pueden ser 0 o quedar vacío/nulo.',
   'No se permiten filas duplicadas por anio + semana + numero_cido + canal + cod_ceve + item.',
   'Cada fila cargada se guarda automáticamente con Estatus "Activo" (no es una columna del CSV).',
+  '\'canal\' solo acepta: Conveniencia, Autoservicios, Detalle, Canales Especiales o Autovend. A partir de este valor se calcula y guarda automáticamente su código (Cod_canal: 574, 561, 560, 570 y 564 respectivamente); cualquier otro valor se rechaza.',
 ]
 
 const TABS = [
@@ -110,7 +111,7 @@ function descargarPlantilla() {
 const ROWS_COLS = [
   ['anio', 'anio'], ['semana', 'semana'], ['numeroCido', 'numero_cido'], ['planComercial', 'plan_comercial'],
   ['tipoIniciativa', 'tipo_iniciativa'], ['semanaInicio', 'semana_inicio'], ['semanaFin', 'semana_fin'], ['canal', 'canal'],
-  ['region', 'region'], ['gerencia', 'gerencia'], ['codCeve', 'cod_ceve'], ['item', 'item'],
+  ['codCanal', 'cod_canal'], ['region', 'region'], ['gerencia', 'gerencia'], ['codCeve', 'cod_ceve'], ['item', 'item'],
   ['producto', 'producto'], ['categoria', 'categoria'], ['marca', 'marca'],
   ['metaPzs', 'meta_pzs'], ['metaImporte', 'meta_importe'], ['metaDist', 'meta_dist'], ['estatus', 'estatus'],
 ]
@@ -504,7 +505,7 @@ function PlanDetalle({ data, loading, page, totalPages, busyRowId, onPageChange,
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: '#f3f4f6' }}>
-              {['Semana', 'Canal', 'Región', 'Gerencia', 'CeVe', 'Item', 'Producto', 'Categoría', 'Marca',
+              {['Semana', 'Canal', 'Cod Canal', 'Región', 'Gerencia', 'CeVe', 'Item', 'Producto', 'Categoría', 'Marca',
                 'Meta Pzs', 'Meta Importe', 'Meta Dist', 'Estatus', 'Cambiar a'].map(h => (
                 <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600,
                   color: '#374151', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
@@ -516,6 +517,7 @@ function PlanDetalle({ data, loading, page, totalPages, busyRowId, onPageChange,
               <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '6px 10px' }}>{r.semana}</td>
                 <td style={{ padding: '6px 10px' }}>{r.canal}</td>
+                <td style={{ padding: '6px 10px' }}>{r.codCanal}</td>
                 <td style={{ padding: '6px 10px' }}>{r.region}</td>
                 <td style={{ padding: '6px 10px' }}>{r.gerencia}</td>
                 <td style={{ padding: '6px 10px', fontWeight: 600 }}>{r.codCeve}</td>
