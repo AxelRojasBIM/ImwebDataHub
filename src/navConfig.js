@@ -1,7 +1,7 @@
 import {
   Stethoscope, Ruler, BarChart3, Search, Calculator, Warehouse,
   LayoutGrid, Database, TrendingUp, PieChart, Package, Truck,
-  MapPin, Boxes, Target, Calendar, Factory, Users, ClipboardCheck, FileText, Cog, ShoppingCart, Activity, ClipboardList, Waypoints,
+  MapPin, Boxes, Target, Calendar, Factory, Users, ClipboardCheck, Waypoints,
 } from 'lucide-react'
 
 const nav = [
@@ -12,17 +12,6 @@ const nav = [
       { to: '/existencia-teorica-tablero', label: 'Existencia Teórica', icon: Ruler },
       { to: '/seguimiento-servicios', label: 'Seguimiento Servicios', icon: ClipboardCheck },
       { to: '/cascada-fr', label: 'Planes Comerciales KPI', icon: Waypoints },
-    ]
-  },
-  {
-    section: 'Planeación',
-    items: [
-      { to: '/planes-comerciales', label: 'Planes Comerciales', icon: FileText },
-      { to: '/plan-unico', label: 'Plan Único', icon: Target },
-      { to: '/pt-elaborado-produccion', label: 'Producción PT Elaborado', icon: Cog },
-      { to: '/venta-comercial', label: 'Venta Comercial', icon: ShoppingCart },
-      { to: '/fillrate-vendedor', label: 'Fillrate Vendedor', icon: Activity },
-      { to: '/fr-planta-cedis-ajustado', label: 'FR Planta/Cedis Ajustado', icon: ClipboardList },
     ]
   },
   {

@@ -23,12 +23,6 @@ import CausasRecorte from './pages/CausasRecorte'
 import CausasRecorteTablero from './pages/CausasRecorteTablero'
 import ExistenciaTeoricaTablero from './pages/ExistenciaTeoricaTablero'
 import SeguimientoServicios from './pages/SeguimientoServicios'
-import PlanesComerciales from './pages/PlanesComerciales'
-import PtElaboradoProduccion from './pages/PtElaboradoProduccion'
-import VentaComercial from './pages/VentaComercial'
-import FillrateVendedor from './pages/FillrateVendedor'
-import FRPlantaCedisAjustado from './pages/FRPlantaCedisAjustado'
-import PlanUnico from './pages/PlanUnico'
 import CascadaFR from './pages/CascadaFR'
 import Login from './pages/Login'
 import Administracion from './pages/admin/Administracion'
@@ -193,12 +187,6 @@ function AppShell({ usuario, logout }) {
           <Route path="/causas-recorte-tablero" element={<Guarded path="/causas-recorte-tablero" rol={rol}><CausasRecorteTablero /></Guarded>} />
           <Route path="/existencia-teorica-tablero" element={<Guarded path="/existencia-teorica-tablero" rol={rol}><ExistenciaTeoricaTablero /></Guarded>} />
           <Route path="/seguimiento-servicios" element={<Guarded path="/seguimiento-servicios" rol={rol}><SeguimientoServicios /></Guarded>} />
-          <Route path="/planes-comerciales" element={<Guarded path="/planes-comerciales" rol={rol}><PlanesComerciales /></Guarded>} />
-          <Route path="/pt-elaborado-produccion" element={<Guarded path="/pt-elaborado-produccion" rol={rol}><PtElaboradoProduccion /></Guarded>} />
-          <Route path="/venta-comercial" element={<Guarded path="/venta-comercial" rol={rol}><VentaComercial /></Guarded>} />
-          <Route path="/fillrate-vendedor" element={<Guarded path="/fillrate-vendedor" rol={rol}><FillrateVendedor /></Guarded>} />
-          <Route path="/fr-planta-cedis-ajustado" element={<Guarded path="/fr-planta-cedis-ajustado" rol={rol}><FRPlantaCedisAjustado /></Guarded>} />
-          <Route path="/plan-unico" element={<Guarded path="/plan-unico" rol={rol}><PlanUnico /></Guarded>} />
           <Route path="/cascada-fr" element={<Guarded path="/cascada-fr" rol={rol}><CascadaFR /></Guarded>} />
           <Route path="/admin/usuarios" element={<Guarded path="/admin/usuarios" rol={rol}><Administracion /></Guarded>} />
         </Routes>
