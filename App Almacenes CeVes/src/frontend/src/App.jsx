@@ -1,28 +1,102 @@
 import { useEffect, useState } from 'react'
 
-const COLS = [
+const CEVES_COLS = [
   ['codCeve', 'Cod. CeVe'], ['nombre', 'Nombre'], ['region', 'Región'], ['organizacion', 'Organización'],
   ['areaNegocio', 'Área Negocio'], ['gerente', 'Gerente'], ['subgerente', 'Subgerente'],
   ['coordinador', 'Coordinador'], ['turnoLaboral', 'Turno'],
 ]
 
+const CATALOGOS = [
+  { key: 'ceves', label: 'CeVes', fuente: 'CEVEs', carpeta: 'Catalogos/CEVEs' },
+  { key: 'productos-hub', label: 'Productos HubPedidos', fuente: 'Productos HubPedidos', carpeta: 'Catalogos/ProductosHubPedidos' },
+  { key: 'rtm', label: 'Productos RTM', fuente: 'Productos RTM', carpeta: 'Catalogos/ProductosHubPedidos/RTM' },
+  { key: 'calendario', label: 'Calendario', fuente: 'Calendario', carpeta: 'Catalogos/Calendario' },
+  { key: 'oracle-ceves', label: 'Catálogo CeVes Oracle', fuente: 'Catálogo CeVes Oracle', carpeta: 'Catalogos/CatalogosOracle/CeVes' },
+  { key: 'oracle-facilities', label: 'Catálogo Facilities Oracle', fuente: 'Catálogo Destination Facility Oracle', carpeta: 'Catalogos/CatalogosOracle/Facilities' },
+  { key: 'plantas', label: 'Plantas / Cedis', fuente: 'Plantas / Cedis', carpeta: 'Catalogos/Plantas' },
+]
+
+function GenericTable({ apiPath }) {
+  const [rows, setRows] = useState(null)
+
+  useEffect(() => {
+    setRows(null)
+    fetch(apiPath).then(r => r.json()).then(setRows)
+  }, [apiPath])
+
+  if (rows === null) return <p>Cargando…</p>
+  const cols = rows.length ? Object.keys(rows[0]) : []
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <strong>{rows.length.toLocaleString('es-MX')} filas</strong>
+        <span className={`badge ${rows.length ? 'badge-ok' : 'badge-warn'}`}>
+          {rows.length ? 'Catálogo cargado' : 'Sin datos todavía'}
+        </span>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
+function CevesTable() {
+  const [ceves, setCeves] = useState(null)
+  useEffect(() => { fetch('/api/ceves/actuales').then(r => r.json()).then(setCeves) }, [])
+  if (ceves === null) return <p>Cargando…</p>
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <strong>{ceves.length} CeVes</strong>
+        <span className={`badge ${ceves.length ? 'badge-ok' : 'badge-warn'}`}>
+          {ceves.length ? 'Catálogo cargado' : 'Sin datos — deposita un CSV en Datos/Catalogos/CEVEs'}
+        </span>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr>{CEVES_COLS.map(([k, l]) => <th key={k}>{l}</th>)}</tr></thead>
+          <tbody>
+            {ceves.map(c => (
+              <tr key={c.codCeve}>{CEVES_COLS.map(([k]) => <td key={k}>{c[k]}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
+const API_PATHS = {
+  'productos-hub': '/api/catalogos/productos-hub',
+  rtm: '/api/catalogos/rtm',
+  calendario: '/api/catalogos/calendario',
+  'oracle-ceves': '/api/catalogos/oracle-ceves',
+  'oracle-facilities': '/api/catalogos/oracle-facilities',
+  plantas: '/api/catalogos/plantas',
+}
+
 export default function App() {
-  const [ceves, setCeves] = useState([])
+  const [tab, setTab] = useState('ceves')
   const [estado, setEstado] = useState(null)
   const [recargando, setRecargando] = useState(false)
   const [mensaje, setMensaje] = useState(null)
-
-  async function cargarCeves() {
-    const r = await fetch('/api/ceves/actuales')
-    setCeves(await r.json())
-  }
+  const [refreshKey, setRefreshKey] = useState(0)
 
   async function cargarEstado() {
     const r = await fetch('/api/datos/estado')
     setEstado(await r.json())
   }
 
-  useEffect(() => { cargarCeves(); cargarEstado() }, [])
+  useEffect(() => { cargarEstado() }, [])
 
   async function handleRecargar() {
     setRecargando(true); setMensaje(null)
@@ -30,7 +104,8 @@ export default function App() {
       const r = await fetch('/api/datos/recargar', { method: 'POST' })
       const resultados = await r.json()
       setMensaje(resultados.map(x => x.mensaje).join(' · '))
-      await cargarCeves(); await cargarEstado()
+      await cargarEstado()
+      setRefreshKey(k => k + 1)
     } catch (e) {
       setMensaje('Error al recargar: ' + e.message)
     } finally {
@@ -38,61 +113,46 @@ export default function App() {
     }
   }
 
+  const activo = CATALOGOS.find(c => c.key === tab)
+  const estadoFuente = estado?.fuentes?.find(f => f.fuente === activo?.fuente)
+
   return (
     <>
       <div className="topbar">
         <h1>App Almacenes CeVes</h1>
-        <p>Catálogo de CeVes — datos cargados desde Datos/Catalogos/CEVEs (CSV)</p>
+        <p>Catálogos — datos cargados desde la carpeta Datos/ (CSV)</p>
       </div>
 
-      <div className="content">
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <strong>Estado de carga</strong>
-            <button onClick={handleRecargar} disabled={recargando}>
-              {recargando ? 'Recargando…' : 'Recargar datos'}
-            </button>
-          </div>
-          {estado && (
-            <div className="mono">
-              Carpeta de datos: {estado.datosDir}<br />
-              Base local: {estado.dbPath}
+      <div style={{ display: 'flex' }}>
+        <div style={{ width: 220, background: '#fff', borderRight: '1px solid #e5e7eb', minHeight: 'calc(100vh - 64px)' }}>
+          {CATALOGOS.map(c => (
+            <div key={c.key} onClick={() => setTab(c.key)} style={{
+              padding: '12px 18px', cursor: 'pointer', fontSize: 13, fontWeight: tab === c.key ? 700 : 500,
+              background: tab === c.key ? '#eff6ff' : 'transparent', color: tab === c.key ? '#2563eb' : '#374151',
+              borderLeft: tab === c.key ? '3px solid #2563eb' : '3px solid transparent',
+            }}>
+              {c.label}
             </div>
-          )}
-          {estado?.fuentes?.length > 0 && (
-            <table style={{ marginTop: 10 }}>
-              <thead><tr><th>Fuente</th><th>Archivo</th><th>Filas</th><th>Cargado</th></tr></thead>
-              <tbody>
-                {estado.fuentes.map(f => (
-                  <tr key={f.fuente}>
-                    <td>{f.fuente}</td><td>{f.archivo}</td><td>{f.filas.toLocaleString('es-MX')}</td>
-                    <td className="mono">{f.cargadoEn?.slice(0, 16).replace('T', ' ')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {mensaje && <p>{mensaje}</p>}
+          ))}
         </div>
 
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <strong>CeVes ({ceves.length})</strong>
-            <span className={`badge ${ceves.length ? 'badge-ok' : 'badge-warn'}`}>
-              {ceves.length ? 'Catálogo cargado' : 'Sin datos — deposita un CSV en Datos/Catalogos/CEVEs'}
-            </span>
+        <div className="content" style={{ flex: 1 }}>
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <strong>Estado de carga — {activo?.label}</strong>
+              <button onClick={handleRecargar} disabled={recargando}>
+                {recargando ? 'Recargando…' : 'Recargar datos'}
+              </button>
+            </div>
+            <div className="mono">
+              Archivo esperado en: Datos/{activo?.carpeta}/*.csv
+              {estadoFuente && <> — último cargado: {estadoFuente.archivo} ({estadoFuente.filas.toLocaleString('es-MX')} filas, {estadoFuente.cargadoEn?.slice(0, 16).replace('T', ' ')})</>}
+            </div>
+            {mensaje && <p>{mensaje}</p>}
           </div>
-          <div className="table-wrap">
-            <table>
-              <thead><tr>{COLS.map(([k, l]) => <th key={k}>{l}</th>)}</tr></thead>
-              <tbody>
-                {ceves.map(c => (
-                  <tr key={c.codCeve}>
-                    {COLS.map(([k]) => <td key={k}>{c[k]}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="card" key={refreshKey}>
+            {tab === 'ceves' ? <CevesTable /> : <GenericTable apiPath={API_PATHS[tab]} />}
           </div>
         </div>
       </div>
