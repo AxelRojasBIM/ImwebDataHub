@@ -131,7 +131,7 @@ void EnsureSchema()
         CREATE INDEX IF NOT EXISTS IX_InventarioResumen_Fecha ON InventarioResumen (FechaCaptura);
         -- Extracto de Synapse: promedio/desviación histórica de pedido por CeVe+Item+Día.
         CREATE TABLE IF NOT EXISTS PedidoVendedorPromedios (
-            CodCeve TEXT, Item TEXT, Dia TEXT, PromedioFinalPedido REAL, DesviacionStdPedido REAL
+            CodCeve TEXT, Item TEXT, Dia TEXT, PromedioFinalPedido REAL, DesviacionStdPedido REAL, PromedioFinalCarga REAL
         );
         -- Extracto de OrderTowerDB: lead time y frecuencia de pedido por CeVe+Item+Día.
         CREATE TABLE IF NOT EXISTS FrecuenciasConsolidadas (
@@ -193,6 +193,39 @@ void EnsurePostMortemSchema()
     cmd.ExecuteNonQuery();
 }
 EnsurePostMortemSchema();
+
+// Causas Recorte: igual patrón que Post-Mortem (nombres de columna generados
+// en código, no a mano).
+List<string> ColumnasCausasRecorte()
+{
+    var cols = new List<string> {
+        "Codigo_CeVe", "CeVe", "RegionLogistica", "Fecha_Venta", "NombreDia", "Semana", "Item",
+        "DescripcionProducto", "CategoriaResumida", "Marca", "NombreCanal", "Cupo", "Precio",
+        "PedidoPzs", "PedidoUSD", "CargoPzs", "CargoUSD", "CargoSinAumentoPzs", "CargoSinAumentoUSD", "RecortePzs", "RecorteUSD",
+        "Causa_Principal", "Causa_Secundaria", "Resumen", "Envs_Planta", "Envs_Consumo", "ExistenciaPzs",
+    };
+    var perDiaCols = new[] { "Fecha_Transito", "Pedido_Fabrica", "Embarque_Real", "Cargo_Real", "Cargo_Promedio" };
+    for (int n = 1; n <= 6; n++) foreach (var c in perDiaCols) cols.Add($"{c}{n}");
+    cols.AddRange(new[] { "Hoy_Pedido", "Hoy_Entregado", "Hoy_PedidoConsumo", "Hoy_CargoPromedioConsumo" });
+    return cols;
+}
+
+void EnsureCausasRecorteSchema()
+{
+    var textCols = new HashSet<string> { "Codigo_CeVe", "CeVe", "RegionLogistica", "NombreDia", "Item", "DescripcionProducto", "CategoriaResumida", "Marca", "NombreCanal", "Causa_Principal", "Causa_Secundaria", "Resumen" };
+    var colDefs = string.Join(", ", ColumnasCausasRecorte().Select(c =>
+        textCols.Contains(c) || c.StartsWith("Fecha_") ? $"[{c}] TEXT" : $"[{c}] REAL"));
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = $"""
+        CREATE TABLE IF NOT EXISTS CausasRecorteResultados ({colDefs});
+        CREATE INDEX IF NOT EXISTS IX_CausasRecorteResultados_Fecha ON CausasRecorteResultados (Fecha_Venta);
+        CREATE TABLE IF NOT EXISTS CausasRecorteEjecuciones (Archivo TEXT PRIMARY KEY, FechaMin TEXT, FechaMax TEXT, Filas INTEGER, EjecutadoEn TEXT);
+        """;
+    cmd.ExecuteNonQuery();
+}
+EnsureCausasRecorteSchema();
 
 // ── Carga de catálogos desde Datos/ ─────────────────────────────────────────
 // Convención v1, simple a propósito: el CSV que esté hoy en la carpeta de cada
@@ -717,7 +750,8 @@ ResultadoCarga CargarRemisiones()
 }
 
 ResultadoCarga CargarPedidoVendedorPromedios() => CargarCatalogoGenerico("Promedios de Pedido (Synapse)", "PedidoVendedorPromedios", "Catalogos/PromediosPedido", new (string, string)[] {
-    ("Cod_CeVe","CodCeve"), ("Item","Item"), ("Dia","Dia"), ("PromedioFinalPedido","PromedioFinalPedido"), ("DesviacionStdPedido","DesviacionStdPedido"),
+    ("Cod_CeVe","CodCeve"), ("Item","Item"), ("Dia","Dia"), ("PromedioFinalPedido","PromedioFinalPedido"),
+    ("DesviacionStdPedido","DesviacionStdPedido"), ("PromedioFinalCarga","PromedioFinalCarga"),
 });
 
 ResultadoCarga CargarFrecuenciasConsolidadas() => CargarCatalogoGenerico("Frecuencias Producto CeVes (OrderTower)", "FrecuenciasConsolidadas", "Catalogos/FrecuenciasProductoCeves", new (string, string)[] {
@@ -1447,6 +1481,310 @@ object EjecutarPostMortem(string fechaVentaStr)
     return new { ok = true, filas, fechaVenta = fvIso, fechaProceso = fpIso };
 }
 
+// ── Causas Recorte ───────────────────────────────────────────────────────
+// A diferencia de los demás procesos (parametrizados por fecha), este parte
+// de un CSV con el detalle de recorte por CeVe+Item+Fecha+Canal (se deposita
+// en Datos/Procesos/CausasRecorte/, igual convención que todo lo demás).
+// Agrupa todo menos el canal para diagnosticar la causa cruzando contra
+// Post-Mortem, Fill Rate, Promedios de Pedido e Inventario Resumen, y guarda
+// el resultado a nivel canal (replicando la causa calculada a nivel
+// CeVe+Item+Fecha en cada fila, para poder filtrar por canal en pantalla).
+object EjecutarCausasRecorte()
+{
+    var carpeta = Path.Combine(datosDir, "Procesos/CausasRecorte");
+    var archivo = UltimoArchivoCsv(carpeta);
+    if (archivo is null) throw new InvalidOperationException("Sin archivo CSV en Datos/Procesos/CausasRecorte. Deposita el extracto antes de ejecutar.");
+
+    var lines = File.ReadAllLines(archivo).Where(l => !string.IsNullOrWhiteSpace(l)).ToArray();
+    if (lines.Length < 2) throw new InvalidOperationException($"'{Path.GetFileName(archivo)}' está vacío.");
+
+    var filas = new List<CrFila>();
+    string? fechaMin = null, fechaMax = null;
+    for (int i = 1; i < lines.Length; i++)
+    {
+        var f = SplitCsvLine(lines[i]);
+        if (f.Length < 21) continue;
+        var fecha = NormalizarFechaIso(f[3]);
+        if (fecha.Length == 0) continue;
+        if (fechaMin is null || string.CompareOrdinal(fecha, fechaMin) < 0) fechaMin = fecha;
+        if (fechaMax is null || string.CompareOrdinal(fecha, fechaMax) > 0) fechaMax = fecha;
+        filas.Add(new CrFila(
+            NormalizarCodigo(f[0]), f[1].Trim(), f[2].Trim(), fecha, f[4].Trim(),
+            int.TryParse(f[5].Trim(), out var sem) ? sem : null,
+            NormalizarCodigo(f[6]), f[7].Trim(), f[8].Trim(), f[9].Trim(), f[10].Trim(),
+            ParseDecN(f[11]), ParseDecN(f[12]), ParseDecN(f[13]), ParseDecN(f[14]), ParseDecN(f[15]),
+            ParseDecN(f[16]), ParseDecN(f[17]), ParseDecN(f[18]), ParseDecN(f[19]), ParseDecN(f[20])));
+    }
+    if (filas.Count == 0 || fechaMin is null || fechaMax is null)
+        throw new InvalidOperationException("El archivo no tiene filas válidas.");
+
+    var fechaMaxMas7 = DateTime.Parse(fechaMax, System.Globalization.CultureInfo.InvariantCulture).AddDays(7).ToString("yyyy-MM-dd");
+
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+
+    var pm = new Dictionary<(string ceve, string item, string fecha), PmRow>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = """
+            SELECT Cod_ceve, Item, Fecha_Venta, Inventario_Optimo,
+                   Fecha_Transito1,Fecha_Transito2,Fecha_Transito3,Fecha_Transito4,Fecha_Transito5,Fecha_Transito6,
+                   Pedido_Fabrica1,Pedido_Fabrica2,Pedido_Fabrica3,Pedido_Fabrica4,Pedido_Fabrica5,Pedido_Fabrica6,
+                   Embarque_Real1,Embarque_Real2,Embarque_Real3,Embarque_Real4,Embarque_Real5,Embarque_Real6,
+                   Cargo_total1,Cargo_total2,Cargo_total3,Cargo_total4,Cargo_total5,Cargo_total6,
+                   CargoPromedio_Transito1,CargoPromedio_Transito2,CargoPromedio_Transito3,CargoPromedio_Transito4,CargoPromedio_Transito5,CargoPromedio_Transito6
+            FROM PostMortemResultados WHERE Fecha_Venta BETWEEN $fi AND $ff
+            """;
+        cmd.Parameters.AddWithValue("$fi", fechaMin); cmd.Parameters.AddWithValue("$ff", fechaMax);
+        using var dr = cmd.ExecuteReader();
+        decimal D(object v) => v is DBNull ? 0 : Convert.ToDecimal(v);
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
+            if (ceve.Length == 0) continue;
+            var row = new PmRow { InventarioOptimo = D(dr.GetValue(3)) };
+            for (int n = 0; n < 6; n++)
+            {
+                row.FechaTransito[n] = dr.IsDBNull(4 + n) ? null : dr.GetString(4 + n);
+                row.PedidoFabrica[n] = D(dr.GetValue(10 + n));
+                row.EmbarqueReal[n] = D(dr.GetValue(16 + n));
+                row.CargoReal[n] = D(dr.GetValue(22 + n));
+                row.CargoPromedio[n] = D(dr.GetValue(28 + n));
+            }
+            pm[(ceve, item, fecha)] = row;
+        }
+    }
+
+    var fr = new Dictionary<(string ceve, string item, string fecha), (decimal recorteEnv, decimal pedidoCeve, decimal embarque, string origen)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodigoCeve, Item, FechaVenta, RecorteEnv, PedidoCeve, EmbarquePlantaCedis, OrigenEmbarque FROM FillRateResultados WHERE FechaVenta BETWEEN $fi AND $ff";
+        cmd.Parameters.AddWithValue("$fi", fechaMin); cmd.Parameters.AddWithValue("$ff", fechaMax);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
+            if (ceve.Length == 0) continue;
+            fr[(ceve, item, fecha)] = (
+                dr.IsDBNull(3) ? 0 : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0 : Convert.ToDecimal(dr.GetValue(4)),
+                dr.IsDBNull(5) ? 0 : Convert.ToDecimal(dr.GetValue(5)), dr.IsDBNull(6) ? "Planta" : dr.GetString(6));
+        }
+    }
+
+    var pedidoFuturo = new Dictionary<(string ceve, string item), List<(string fecha, decimal cantidad)>>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, FechaVenta, Cantidad FROM PedidosCevePlanta WHERE FechaVenta BETWEEN $fi AND $ff2";
+        cmd.Parameters.AddWithValue("$fi", fechaMin); cmd.Parameters.AddWithValue("$ff2", fechaMaxMas7);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
+            var cant = dr.IsDBNull(3) ? 0 : Convert.ToDecimal(dr.GetValue(3));
+            if (ceve.Length == 0 || fecha.Length == 0) continue;
+            var key = (ceve, item);
+            if (!pedidoFuturo.TryGetValue(key, out var list)) pedidoFuturo[key] = list = new();
+            list.Add((fecha, cant));
+        }
+    }
+
+    var pvp = new Dictionary<(string ceve, string item, string dia), (decimal promPedido, decimal promCarga)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Dia, PromedioFinalPedido, PromedioFinalCarga FROM PedidoVendedorPromedios";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
+            if (ceve.Length == 0 || dia.Length == 0) continue;
+            pvp[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0 : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0 : Convert.ToDecimal(dr.GetValue(4)));
+        }
+    }
+
+    var inv = new Dictionary<(string ceve, string item, string fecha), decimal>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CeveNombre, SkuCodigo, CantidadTotal, FechaCaptura FROM InventarioResumen WHERE FechaCaptura BETWEEN $fi AND $ff";
+        cmd.Parameters.AddWithValue("$fi", fechaMin); cmd.Parameters.AddWithValue("$ff", fechaMax);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceveNombre = dr.IsDBNull(0) ? "" : dr.GetString(0);
+            var guion = ceveNombre.IndexOf('-');
+            if (guion <= 0) continue;
+            var ceve = NormalizarCodigo(ceveNombre[..guion]);
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var fecha = dr.IsDBNull(3) ? "" : dr.GetString(3);
+            var cant = dr.IsDBNull(2) ? 0 : Convert.ToDecimal(dr.GetValue(2));
+            if (ceve.Length == 0) continue;
+            var key = (ceve, item, fecha);
+            inv[key] = inv.GetValueOrDefault(key) + cant;
+        }
+    }
+
+    // Agrupa todo menos el canal (una causa por CeVe+Item+Fecha).
+    var grupos = filas.GroupBy(r => (r.Ceve, r.Item, r.Fecha)).ToDictionary(g => g.Key, g => new
+    {
+        NombreDia = g.Select(r => r.NombreDia).FirstOrDefault(n => !string.IsNullOrEmpty(n)) ?? "",
+        Cupo = g.Max(r => r.Cupo),
+        Precio = g.Max(r => r.Precio),
+        PedidoPzsAgg = g.Sum(r => r.PedidoPzs ?? 0),
+        RecortePzsAgg = g.Sum(r => r.RecortePzs ?? 0),
+    });
+
+    var diagnosticos = new Dictionary<(string, string, string), (string causaPrincipal, string? causaSecundaria, string resumen, decimal envsPlanta, decimal envsConsumo, decimal existenciaPzs, decimal cargoPromDiaPzs)>();
+    foreach (var (key, g) in grupos)
+    {
+        var (ceve, item, fecha) = key;
+        bool tienePm = pm.TryGetValue(key, out var pmRow);
+        fr.TryGetValue(key, out var frRow);
+        decimal recorteEnvHoy = frRow.recorteEnv;
+        decimal cupo = g.Cupo ?? 0;
+        decimal recortePzsAgg = g.RecortePzsAgg;
+        decimal pedidoPzsAgg = g.PedidoPzsAgg;
+
+        inv.TryGetValue(key, out var existenciaPzs);
+
+        pvp.TryGetValue((ceve, item, g.NombreDia), out var pvpRow);
+        decimal cargoPromDiaEnv = Math.Max(pvpRow.promPedido, pvpRow.promCarga);
+        decimal cargoPromDiaPzs = cargoPromDiaEnv * cupo;
+
+        decimal envsPlanta = 0;
+        decimal envsConsumo = 0;
+        if (tienePm)
+        {
+            for (int n = 0; n < 6; n++)
+            {
+                var diferenciaEmbarque = pmRow!.EmbarqueReal[n] - pmRow.PedidoFabrica[n];
+                if (diferenciaEmbarque < 0) envsPlanta += -diferenciaEmbarque;
+                var diferenciaCarga = pmRow.CargoReal[n] - pmRow.CargoPromedio[n];
+                if (diferenciaCarga > 0) envsConsumo += diferenciaCarga;
+            }
+        }
+        envsPlanta += recorteEnvHoy;
+        if (recorteEnvHoy > 0 && pedidoPzsAgg > cargoPromDiaPzs && cupo != 0)
+            envsConsumo += (pedidoPzsAgg - cargoPromDiaPzs) / cupo;
+
+        // Pedido ya fincado para los próximos 7 días naturales (para distinguir
+        // "sin pedido" real de "el pedido ya existe, está en tránsito").
+        decimal pedidoFuturoCant = 0;
+        var pedidoFuturoFechas = "";
+        if (pedidoFuturo.TryGetValue((ceve, item), out var futList))
+        {
+            var fechaDt = DateTime.Parse(fecha, System.Globalization.CultureInfo.InvariantCulture);
+            var porFecha = futList.Where(x => string.CompareOrdinal(x.fecha, fecha) > 0 && string.CompareOrdinal(x.fecha, fechaDt.AddDays(7).ToString("yyyy-MM-dd")) <= 0)
+                .GroupBy(x => x.fecha).Select(gf => (fecha: gf.Key, cantidad: gf.Sum(x => x.cantidad))).Where(x => x.cantidad > 0).OrderBy(x => x.fecha).ToList();
+            pedidoFuturoCant = porFecha.Sum(x => x.cantidad);
+            pedidoFuturoFechas = string.Join(", ", porFecha.Select(x => DateTime.Parse(x.fecha, System.Globalization.CultureInfo.InvariantCulture).ToString("dd-MM")));
+        }
+
+        string causaPrincipal =
+            envsPlanta > 0 ? "Recorte Fabrica" :
+            (recortePzsAgg > 0 && cupo > 0 && recortePzsAgg < cupo) ? "Recorte por cupo en Tina" :
+            envsConsumo > 0 ? "Consumo arriba del promedio" :
+            (existenciaPzs > 0 && existenciaPzs >= 0.80m * recortePzsAgg) ? "Existencia CeVe" :
+            !tienePm ? (pedidoFuturoCant > 0 ? "Sin Pedido CeVe Últimos 7 días - Pedido en tránsito" : "Sin Pedido CeVe Últimos 7 días") :
+            "Sin causa identificada";
+
+        string? causaSecundaria = !tienePm ? null : (envsPlanta > 0 && envsConsumo > 0 ? "Consumo arriba del promedio" : null);
+
+        decimal totalPedidoFabrica = 0, totalEmbarqueReal = 0;
+        if (tienePm) for (int n = 0; n < 6; n++) { totalPedidoFabrica += pmRow!.PedidoFabrica[n]; totalEmbarqueReal += pmRow.EmbarqueReal[n]; }
+        decimal? pctCumplimiento = totalPedidoFabrica > 0 ? Math.Min(100m, 100m * totalEmbarqueReal / totalPedidoFabrica) : null;
+
+        string resumen;
+        if (envsPlanta > 0)
+            resumen = $"Recorte Fabrica: {frRow.origen ?? "Planta"} - \"{fecha}\" - {(int)envsPlanta} Env" + (pctCumplimiento.HasValue ? $" ({(int)pctCumplimiento.Value}% cumplimiento)" : "");
+        else if (recortePzsAgg > 0 && cupo > 0 && recortePzsAgg < cupo)
+            resumen = $"Recorte por cupo en Tina: \"{fecha}\"" + (existenciaPzs > 0 && (g.Precio ?? 0) > 0 ? $" - {(int)Math.Floor(existenciaPzs / cupo)} Env de existencia" : "");
+        else if (envsConsumo > 0)
+            resumen = $"Consumo Inv: \"{fecha}\" Consumo: {(int)envsConsumo} env {(cargoPromDiaPzs > 0 ? (int)((pedidoPzsAgg - cargoPromDiaPzs) / cargoPromDiaPzs * 100) : 0)}% Arriba del promedio.";
+        else if (existenciaPzs > 0 && existenciaPzs >= 0.80m * recortePzsAgg)
+            resumen = $"Existencia CeVe: \"{fecha}\" - {(cupo != 0 ? (int)(existenciaPzs / cupo) : 0)} Env ({(recortePzsAgg > 0 ? (int)Math.Min(100m, 100m * existenciaPzs / recortePzsAgg) : 100)}% del recorte)";
+        else if (!tienePm && pedidoFuturoCant > 0)
+            resumen = $"Sin Pedido CeVe Últimos 7 días, pedido tránsito vta ({pedidoFuturoFechas})";
+        else if (!tienePm)
+            resumen = "Sin ejecución de Post-Mortem para esta fecha/item";
+        else
+            resumen = "Sin causa identificada";
+
+        diagnosticos[key] = (causaPrincipal, causaSecundaria, resumen, envsPlanta, envsConsumo, existenciaPzs, cargoPromDiaPzs);
+    }
+
+    var cols = ColumnasCausasRecorte();
+
+    using var tx = conn.BeginTransaction();
+    using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM CausasRecorteResultados WHERE Fecha_Venta BETWEEN $fi AND $ff"; del.Parameters.AddWithValue("$fi", fechaMin); del.Parameters.AddWithValue("$ff", fechaMax); del.ExecuteNonQuery(); }
+
+    using var ins = conn.CreateCommand();
+    ins.Transaction = tx;
+    var paramNames = cols.Select((c, i) => "$p" + i).ToArray();
+    ins.CommandText = $"INSERT INTO CausasRecorteResultados ({string.Join(",", cols.Select(c => $"[{c}]"))}) VALUES ({string.Join(",", paramNames)})";
+    foreach (var pn in paramNames) ins.Parameters.Add(new SqliteParameter(pn, DBNull.Value));
+
+    foreach (var r in filas)
+    {
+        var key = (r.Ceve, r.Item, r.Fecha);
+        pm.TryGetValue(key, out var pmRow);
+        fr.TryGetValue(key, out var frRow);
+        grupos.TryGetValue(key, out var g);
+        diagnosticos.TryGetValue(key, out var diag);
+
+        var row = new Dictionary<string, object?> {
+            ["Codigo_CeVe"] = r.Ceve, ["CeVe"] = r.CeveNombre, ["RegionLogistica"] = r.Region, ["Fecha_Venta"] = r.Fecha,
+            ["NombreDia"] = r.NombreDia, ["Semana"] = r.Semana, ["Item"] = r.Item, ["DescripcionProducto"] = r.Desc,
+            ["CategoriaResumida"] = r.Categoria, ["Marca"] = r.Marca, ["NombreCanal"] = r.Canal, ["Cupo"] = r.Cupo,
+            ["Precio"] = r.Precio, ["PedidoPzs"] = r.PedidoPzs, ["PedidoUSD"] = r.PedidoUsd, ["CargoPzs"] = r.CargoPzs,
+            ["CargoUSD"] = r.CargoUsd, ["CargoSinAumentoPzs"] = r.CargoSinAumentoPzs, ["CargoSinAumentoUSD"] = r.CargoSinAumentoUsd,
+            ["RecortePzs"] = r.RecortePzs, ["RecorteUSD"] = r.RecorteUsd,
+            ["Causa_Principal"] = diag.causaPrincipal, ["Causa_Secundaria"] = diag.causaSecundaria, ["Resumen"] = diag.resumen,
+            ["Envs_Planta"] = diag.envsPlanta, ["Envs_Consumo"] = diag.envsConsumo, ["ExistenciaPzs"] = diag.existenciaPzs,
+            ["Hoy_Pedido"] = frRow.pedidoCeve, ["Hoy_Entregado"] = frRow.embarque,
+            ["Hoy_PedidoConsumo"] = g?.PedidoPzsAgg ?? 0, ["Hoy_CargoPromedioConsumo"] = diag.cargoPromDiaPzs,
+        };
+        for (int n = 1; n <= 6; n++)
+        {
+            row[$"Fecha_Transito{n}"] = pmRow?.FechaTransito[n - 1];
+            row[$"Pedido_Fabrica{n}"] = pmRow?.PedidoFabrica[n - 1] ?? 0;
+            row[$"Embarque_Real{n}"] = pmRow?.EmbarqueReal[n - 1] ?? 0;
+            row[$"Cargo_Real{n}"] = pmRow?.CargoReal[n - 1] ?? 0;
+            row[$"Cargo_Promedio{n}"] = pmRow?.CargoPromedio[n - 1] ?? 0;
+        }
+
+        for (int c = 0; c < cols.Count; c++) ins.Parameters[c].Value = row.TryGetValue(cols[c], out var v) ? (v ?? DBNull.Value) : DBNull.Value;
+        ins.ExecuteNonQuery();
+    }
+
+    using (var log = conn.CreateCommand())
+    {
+        log.Transaction = tx;
+        log.CommandText = "INSERT OR REPLACE INTO CausasRecorteEjecuciones (Archivo, FechaMin, FechaMax, Filas, EjecutadoEn) VALUES ($a,$fi,$ff,$n,$c)";
+        log.Parameters.AddWithValue("$a", Path.GetFileName(archivo));
+        log.Parameters.AddWithValue("$fi", fechaMin);
+        log.Parameters.AddWithValue("$ff", fechaMax);
+        log.Parameters.AddWithValue("$n", filas.Count);
+        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+        log.ExecuteNonQuery();
+    }
+    tx.Commit();
+
+    var procesadosDir = Path.Combine(datosDir, "_Procesados", "Procesos/CausasRecorte");
+    Directory.CreateDirectory(procesadosDir);
+    var destino = Path.Combine(procesadosDir, Path.GetFileName(archivo));
+    if (File.Exists(destino)) File.Delete(destino);
+    File.Move(archivo, destino);
+
+    return new { ok = true, filas = filas.Count, fechaMin, fechaMax, archivo = Path.GetFileName(archivo) };
+}
+
 // ── App web ──────────────────────────────────────────────────────────────
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://127.0.0.1:5255");
@@ -1616,6 +1954,38 @@ app.MapGet("/api/procesos/post-mortem/resultados", (string? fecha) =>
     return Results.Ok(rows);
 });
 
+app.MapPost("/api/procesos/causas-recorte/ejecutar", () =>
+{
+    try { return Results.Ok(EjecutarCausasRecorte()); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (Exception ex) { return Results.Problem(ex.Message); }
+});
+app.MapGet("/api/procesos/causas-recorte/ejecuciones", () => Results.Ok(LeerTabla("CausasRecorteEjecuciones", "EjecutadoEn DESC")));
+app.MapGet("/api/procesos/causas-recorte/resultados", (string? fecha) =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    if (string.IsNullOrWhiteSpace(fecha))
+    {
+        cmd.CommandText = "SELECT * FROM CausasRecorteResultados ORDER BY Fecha_Venta DESC, Codigo_CeVe, Item LIMIT 500";
+    }
+    else
+    {
+        cmd.CommandText = "SELECT * FROM CausasRecorteResultados WHERE Fecha_Venta = $f ORDER BY Codigo_CeVe, Item, NombreCanal";
+        cmd.Parameters.AddWithValue("$f", fecha);
+    }
+    using var dr = cmd.ExecuteReader();
+    var rows = new List<Dictionary<string, object?>>();
+    while (dr.Read())
+    {
+        var row = new Dictionary<string, object?>();
+        for (int i = 0; i < dr.FieldCount; i++) row[dr.GetName(i)] = dr.IsDBNull(i) ? null : dr.GetValue(i);
+        rows.Add(row);
+    }
+    return Results.Ok(rows);
+});
+
 app.MapPost("/api/datos/recargar", () => Results.Ok(RecargarTodo().Select(r => new { r.Ok, r.Mensaje, r.Filas })));
 
 app.MapGet("/api/datos/estado", () =>
@@ -1642,3 +2012,19 @@ readonly record struct ResultadoCarga(bool Ok, string Mensaje, int Filas);
 record FillRateRequest(string FechaInicio, string FechaFin);
 record ExistenciaTeoricaRequest(string FechaSel, string? BaseExistencia);
 record PostMortemRequest(string FechaVenta);
+
+record CrFila(
+    string Ceve, string CeveNombre, string Region, string Fecha, string NombreDia, int? Semana, string Item,
+    string Desc, string Categoria, string Marca, string Canal, decimal? Cupo, decimal? Precio,
+    decimal? PedidoPzs, decimal? PedidoUsd, decimal? CargoPzs, decimal? CargoUsd,
+    decimal? CargoSinAumentoPzs, decimal? CargoSinAumentoUsd, decimal? RecortePzs, decimal? RecorteUsd);
+
+sealed class PmRow
+{
+    public decimal InventarioOptimo;
+    public string?[] FechaTransito = new string?[6];
+    public decimal[] PedidoFabrica = new decimal[6];
+    public decimal[] EmbarqueReal = new decimal[6];
+    public decimal[] CargoReal = new decimal[6];
+    public decimal[] CargoPromedio = new decimal[6];
+}
