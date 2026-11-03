@@ -14,6 +14,11 @@ const CATALOGOS = [
   { key: 'oracle-ceves', label: 'Catálogo CeVes Oracle', fuente: 'Catálogo CeVes Oracle', carpeta: 'Catalogos/CatalogosOracle/CeVes' },
   { key: 'oracle-facilities', label: 'Catálogo Facilities Oracle', fuente: 'Catálogo Destination Facility Oracle', carpeta: 'Catalogos/CatalogosOracle/Facilities' },
   { key: 'plantas', label: 'Plantas / Cedis', fuente: 'Plantas / Cedis', carpeta: 'Catalogos/Plantas' },
+  { key: 'pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', fuente: 'Pedido CeVe a Planta/Cedis', carpeta: 'Cargas/PedidoCevePlanta' },
+  { key: 'pedido-oracle', label: 'Pedido Oracle', fuente: 'Pedido Oracle', carpeta: 'Cargas/PedidoOracle' },
+  { key: 'existencia-ceve-manual', label: 'Existencia CeVe Manual', fuente: 'Existencia CeVe Manual', carpeta: 'Cargas/ExistenciaCeveManual' },
+  { key: 'pedido-vs-cargo-real', label: 'PedidoVSCargo Real', fuente: 'PedidoVSCargo Real', carpeta: 'Cargas/PedidoVsCargoReal' },
+  { key: 'participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', fuente: 'Participación - Tipo Movimiento', carpeta: 'Cargas/ParticipacionTipoMovimiento' },
 ]
 
 function GenericTable({ apiPath }) {
@@ -82,6 +87,11 @@ const API_PATHS = {
   'oracle-ceves': '/api/catalogos/oracle-ceves',
   'oracle-facilities': '/api/catalogos/oracle-facilities',
   plantas: '/api/catalogos/plantas',
+  'pedido-ceve-planta': '/api/cargas/pedido-ceve-planta',
+  'pedido-oracle': '/api/cargas/pedido-oracle',
+  'existencia-ceve-manual': '/api/cargas/existencia-ceve-manual',
+  'pedido-vs-cargo-real': '/api/cargas/pedido-vs-cargo-real',
+  'participacion-tipo-movimiento': '/api/cargas/participacion-tipo-movimiento',
 }
 
 export default function App() {

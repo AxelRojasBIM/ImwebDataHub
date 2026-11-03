@@ -68,6 +68,31 @@ void EnsureSchema()
         CREATE TABLE IF NOT EXISTS CatPlantasCedis (
             Planta TEXT, Codigo TEXT, WH TEXT, CustomerName TEXT
         );
+        CREATE TABLE IF NOT EXISTS PedidosCevePlanta (
+            CodCeve TEXT, Item TEXT, Cantidad REAL, FechaOrden TEXT, FechaVenta TEXT
+        );
+        CREATE INDEX IF NOT EXISTS IX_PedidosCevePlanta_Fecha ON PedidosCevePlanta (FechaVenta);
+        CREATE TABLE IF NOT EXISTS PedidosOracle (
+            OrderNbr TEXT, ItemCode TEXT, ItemDescription TEXT, CustField3 TEXT, OrderedQty REAL,
+            OrigOrderQty REAL, AllocatedQty REAL, PackedQty REAL, SalePrice REAL, CustomerPC TEXT,
+            OrderStatus TEXT, OrderType TEXT, RequiredShipDate TEXT, CustName TEXT, OrderDate TEXT,
+            ShipDate TEXT, DestinationId TEXT, Facility TEXT, OrderDtlStatus TEXT, Estado TEXT, Semana TEXT
+        );
+        CREATE INDEX IF NOT EXISTS IX_PedidosOracle_Fecha ON PedidosOracle (RequiredShipDate);
+        CREATE TABLE IF NOT EXISTS ExistenciaCeveManual (
+            FechaVenta TEXT, CodCeve TEXT, Item TEXT, Cantidad REAL
+        );
+        CREATE INDEX IF NOT EXISTS IX_ExistenciaCeveManual_Fecha ON ExistenciaCeveManual (FechaVenta);
+        CREATE TABLE IF NOT EXISTS PedidoVsCargoReal (
+            FechaVenta TEXT, CodCeve TEXT, Item TEXT, CargoPzs REAL, PedidoPzs REAL
+        );
+        CREATE INDEX IF NOT EXISTS IX_PedidoVsCargoReal_Fecha ON PedidoVsCargoReal (FechaVenta);
+        CREATE TABLE IF NOT EXISTS ParticipacionTipoMovimiento (
+            CodigoCeve TEXT, NombreCeve TEXT, Item TEXT, NombreProducto TEXT, Categoria TEXT, Marca TEXT,
+            CargoTotalAnio REAL, PctParticipacion REAL, PctAcumulado REAL, ClasificacionABC TEXT,
+            DiasConMovimientoUltMes INTEGER, TotalDiasUltMes INTEGER, PctDiasMovimientoUltMes REAL,
+            ClasificacionXYZ TEXT, ClasificacionCombinada TEXT
+        );
         """;
     cmd.ExecuteNonQuery();
 }
@@ -296,9 +321,214 @@ ResultadoCarga CargarPlantasCedis() => CargarCatalogoGenerico("Plantas / Cedis",
     ("Planta","Planta"), ("CODIGO","Codigo"), ("WH","WH"), ("CUSTOMER_NAME","CustomerName"),
 });
 
+// yyyy-MM-dd, dd/MM/yyyy, d/M/yyyy, yyyy/MM/dd -> yyyy-MM-dd (o "" si no se reconoce).
+static string NormalizarFechaIso(string s)
+{
+    s = s.Trim();
+    foreach (var fmt in new[] { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "yyyy/MM/dd" })
+        if (DateTime.TryParseExact(s, fmt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
+            return d.ToString("yyyy-MM-dd");
+    return "";
+}
+
+static object? ParseNum(string s)
+{
+    s = s.Trim();
+    return decimal.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v) ? (object)v : null;
+}
+
+static object? ParseTxt(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+// ── Loader genérico de cargas transaccionales por fecha ─────────────────────
+// A diferencia de los catálogos (que se reemplazan completos), aquí se
+// acumula historia: se procesan TODOS los CSV nuevos de la carpeta (no solo
+// el más reciente), para cada uno se borra el rango de fechas que cubre
+// (evita duplicar si se vuelve a soltar el mismo archivo) y se insertan sus
+// filas; el archivo procesado se mueve a Datos/_Procesados/<misma carpeta>
+// para no reprocesarlo en la siguiente recarga. Sin validación de encabezado
+// (igual que el sistema original): la primera línea se descarta y las demás
+// se leen por posición fija de columna.
+ResultadoCarga CargarTransaccionalPorFecha(
+    string fuente, string tabla, string carpetaRel, int colFechaIdx,
+    (string sql, Func<string, object?> parse)[] columnas)
+{
+    var carpeta = Path.Combine(datosDir, carpetaRel);
+    if (!Directory.Exists(carpeta)) return new ResultadoCarga(true, $"Sin carpeta Datos/{carpetaRel} — se deja '{fuente}' como está.", 0);
+    var archivos = Directory.GetFiles(carpeta, "*.csv").OrderBy(f => f).ToArray();
+    if (archivos.Length == 0) return new ResultadoCarga(true, $"Sin archivos nuevos para '{fuente}'.", 0);
+
+    var procesadosDir = Path.Combine(datosDir, "_Procesados", carpetaRel);
+    Directory.CreateDirectory(procesadosDir);
+
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+
+    int totalFilas = 0;
+    var archivosOk = new List<string>();
+    foreach (var archivo in archivos)
+    {
+        var lines = File.ReadAllLines(archivo).Where(l => !string.IsNullOrWhiteSpace(l)).ToArray();
+        var filasParseadas = new List<object?[]>();
+        string? fechaMin = null, fechaMax = null;
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var f = SplitCsvLine(lines[i]);
+            if (f.Length < columnas.Length) continue;
+            var vals = new object?[columnas.Length];
+            for (int c = 0; c < columnas.Length; c++) vals[c] = columnas[c].parse(f[c]);
+            filasParseadas.Add(vals);
+            var fv = colFechaIdx >= 0 ? vals[colFechaIdx] as string : null;
+            if (!string.IsNullOrEmpty(fv))
+            {
+                if (fechaMin is null || string.CompareOrdinal(fv, fechaMin) < 0) fechaMin = fv;
+                if (fechaMax is null || string.CompareOrdinal(fv, fechaMax) > 0) fechaMax = fv;
+            }
+        }
+
+        using (var tx = conn.BeginTransaction())
+        {
+            if (fechaMin != null && fechaMax != null)
+            {
+                using var del = conn.CreateCommand();
+                del.Transaction = tx;
+                del.CommandText = $"DELETE FROM {tabla} WHERE {columnas[colFechaIdx].sql} BETWEEN $d1 AND $d2";
+                del.Parameters.AddWithValue("$d1", fechaMin);
+                del.Parameters.AddWithValue("$d2", fechaMax);
+                del.ExecuteNonQuery();
+            }
+
+            using var ins = conn.CreateCommand();
+            ins.Transaction = tx;
+            var paramNames = columnas.Select((c, i) => "$p" + i).ToArray();
+            ins.CommandText = $"INSERT INTO {tabla} ({string.Join(",", columnas.Select(c => c.sql))}) VALUES ({string.Join(",", paramNames)})";
+            foreach (var pn in paramNames) ins.Parameters.Add(new SqliteParameter(pn, DBNull.Value));
+            foreach (var vals in filasParseadas)
+            {
+                for (int c = 0; c < vals.Length; c++) ins.Parameters[c].Value = vals[c] ?? DBNull.Value;
+                ins.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+
+        totalFilas += filasParseadas.Count;
+        archivosOk.Add(Path.GetFileName(archivo));
+        var destino = Path.Combine(procesadosDir, Path.GetFileName(archivo));
+        if (File.Exists(destino)) File.Delete(destino);
+        File.Move(archivo, destino);
+    }
+
+    using (var log = conn.CreateCommand())
+    {
+        log.CommandText = "INSERT OR REPLACE INTO CargasLog (Fuente, Archivo, Filas, CargadoEn) VALUES ($f,$a,$n,$c)";
+        log.Parameters.AddWithValue("$f", fuente);
+        log.Parameters.AddWithValue("$a", string.Join(", ", archivosOk));
+        log.Parameters.AddWithValue("$n", totalFilas);
+        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+        log.ExecuteNonQuery();
+    }
+
+    return new ResultadoCarga(true, $"{archivosOk.Count} archivo(s) procesados, {totalFilas:N0} filas en {fuente}.", totalFilas);
+}
+
+ResultadoCarga CargarPedidoCevePlanta() => CargarTransaccionalPorFecha("Pedido CeVe a Planta/Cedis", "PedidosCevePlanta", "Cargas/PedidoCevePlanta", 4, new (string, Func<string, object?>)[] {
+    ("CodCeve", ParseTxt), ("Item", ParseTxt), ("Cantidad", ParseNum),
+    ("FechaOrden", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? v : null; }),
+    ("FechaVenta", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
+});
+
+ResultadoCarga CargarPedidoOracle() => CargarTransaccionalPorFecha("Pedido Oracle", "PedidosOracle", "Cargas/PedidoOracle", 12, new (string, Func<string, object?>)[] {
+    ("OrderNbr", ParseTxt), ("ItemCode", ParseTxt), ("ItemDescription", ParseTxt), ("CustField3", ParseTxt),
+    ("OrderedQty", ParseNum), ("OrigOrderQty", ParseNum), ("AllocatedQty", ParseNum), ("PackedQty", ParseNum),
+    ("SalePrice", ParseNum), ("CustomerPC", ParseTxt), ("OrderStatus", ParseTxt), ("OrderType", ParseTxt),
+    ("RequiredShipDate", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
+    ("CustName", ParseTxt), ("OrderDate", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? v : null; }),
+    ("ShipDate", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? v : null; }),
+    ("DestinationId", ParseTxt), ("Facility", ParseTxt), ("OrderDtlStatus", ParseTxt), ("Estado", ParseTxt), ("Semana", ParseTxt),
+});
+
+ResultadoCarga CargarExistenciaCeveManual() => CargarTransaccionalPorFecha("Existencia CeVe Manual", "ExistenciaCeveManual", "Cargas/ExistenciaCeveManual", 0, new (string, Func<string, object?>)[] {
+    ("FechaVenta", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
+    ("CodCeve", ParseTxt), ("Item", ParseTxt), ("Cantidad", ParseNum),
+});
+
+ResultadoCarga CargarPedidoVsCargoReal() => CargarTransaccionalPorFecha("PedidoVSCargo Real", "PedidoVsCargoReal", "Cargas/PedidoVsCargoReal", 0, new (string, Func<string, object?>)[] {
+    ("FechaVenta", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
+    ("CodCeve", ParseTxt), ("Item", ParseTxt), ("CargoPzs", ParseNum), ("PedidoPzs", ParseNum),
+});
+
+// Participación - Tipo Movimiento no trae fecha (es una clasificación ABC/XYZ
+// vigente, no una serie histórica): se trata como catálogo, el CSV más
+// reciente reemplaza la tabla completa. Tampoco valida encabezado (igual que
+// el sistema original): primera línea se descarta, el resto se lee por
+// posición fija.
+ResultadoCarga CargarParticipacionTipoMovimiento()
+{
+    var carpeta = Path.Combine(datosDir, "Cargas/ParticipacionTipoMovimiento");
+    var archivo = UltimoArchivoCsv(carpeta);
+    if (archivo is null) return new ResultadoCarga(true, "Sin archivo CSV en Datos/Cargas/ParticipacionTipoMovimiento — se deja como está.", 0);
+
+    var lines = File.ReadAllLines(archivo).Where(l => !string.IsNullOrWhiteSpace(l)).ToArray();
+    if (lines.Length < 2) return new ResultadoCarga(false, $"'{Path.GetFileName(archivo)}' está vacío.", 0);
+
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var tx = conn.BeginTransaction();
+    using (var del = conn.CreateCommand()) { del.CommandText = "DELETE FROM ParticipacionTipoMovimiento"; del.Transaction = tx; del.ExecuteNonQuery(); }
+
+    using var ins = conn.CreateCommand();
+    ins.Transaction = tx;
+    ins.CommandText = """
+        INSERT INTO ParticipacionTipoMovimiento
+            (CodigoCeve,NombreCeve,Item,NombreProducto,Categoria,Marca,CargoTotalAnio,PctParticipacion,
+             PctAcumulado,ClasificacionABC,DiasConMovimientoUltMes,TotalDiasUltMes,PctDiasMovimientoUltMes,
+             ClasificacionXYZ,ClasificacionCombinada)
+        VALUES ($p0,$p1,$p2,$p3,$p4,$p5,$p6,$p7,$p8,$p9,$p10,$p11,$p12,$p13,$p14)
+        """;
+    for (int c = 0; c < 15; c++) ins.Parameters.Add(new SqliteParameter("$p" + c, DBNull.Value));
+
+    int filas = 0;
+    for (int i = 1; i < lines.Length; i++)
+    {
+        var f = SplitCsvLine(lines[i]);
+        if (f.Length < 15) continue;
+        ins.Parameters[0].Value = ParseTxt(f[0]) ?? DBNull.Value;
+        ins.Parameters[1].Value = ParseTxt(f[1]) ?? DBNull.Value;
+        ins.Parameters[2].Value = ParseTxt(f[2]) ?? DBNull.Value;
+        ins.Parameters[3].Value = ParseTxt(f[3]) ?? DBNull.Value;
+        ins.Parameters[4].Value = ParseTxt(f[4]) ?? DBNull.Value;
+        ins.Parameters[5].Value = ParseTxt(f[5]) ?? DBNull.Value;
+        ins.Parameters[6].Value = ParseNum(f[6]) ?? DBNull.Value;
+        ins.Parameters[7].Value = ParseNum(f[7]) ?? DBNull.Value;
+        ins.Parameters[8].Value = ParseNum(f[8]) ?? DBNull.Value;
+        ins.Parameters[9].Value = ParseTxt(f[9]) ?? DBNull.Value;
+        ins.Parameters[10].Value = ParseNum(f[10]) ?? DBNull.Value;
+        ins.Parameters[11].Value = ParseNum(f[11]) ?? DBNull.Value;
+        ins.Parameters[12].Value = ParseNum(f[12]) ?? DBNull.Value;
+        ins.Parameters[13].Value = ParseTxt(f[13]) ?? DBNull.Value;
+        ins.Parameters[14].Value = ParseTxt(f[14]) ?? DBNull.Value;
+        ins.ExecuteNonQuery();
+        filas++;
+    }
+
+    using (var log = conn.CreateCommand())
+    {
+        log.Transaction = tx;
+        log.CommandText = "INSERT OR REPLACE INTO CargasLog (Fuente, Archivo, Filas, CargadoEn) VALUES ('Participación - Tipo Movimiento', $a, $n, $c)";
+        log.Parameters.AddWithValue("$a", Path.GetFileName(archivo));
+        log.Parameters.AddWithValue("$n", filas);
+        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+        log.ExecuteNonQuery();
+    }
+
+    tx.Commit();
+    return new ResultadoCarga(true, $"'{Path.GetFileName(archivo)}': {filas:N0} filas cargadas en Participación - Tipo Movimiento.", filas);
+}
+
 List<ResultadoCarga> RecargarTodo() => new() {
     CargarCeves(), CargarProductosHub(), CargarRtmProductos(), CargarCalendario(),
     CargarCatCevesOracle(), CargarCatOracleFacilities(), CargarPlantasCedis(),
+    CargarPedidoCevePlanta(), CargarPedidoOracle(), CargarExistenciaCeveManual(),
+    CargarPedidoVsCargoReal(), CargarParticipacionTipoMovimiento(),
 };
 
 RecargarTodo();
@@ -358,6 +588,12 @@ app.MapGet("/api/catalogos/calendario", () => Results.Ok(LeerTabla("CalendarioBi
 app.MapGet("/api/catalogos/oracle-ceves", () => Results.Ok(LeerTabla("CatCevesOracle", "CeveCPT")));
 app.MapGet("/api/catalogos/oracle-facilities", () => Results.Ok(LeerTabla("CatOracleDestFacility", "HW")));
 app.MapGet("/api/catalogos/plantas", () => Results.Ok(LeerTabla("CatPlantasCedis", "Planta")));
+
+app.MapGet("/api/cargas/pedido-ceve-planta", () => Results.Ok(LeerTabla("PedidosCevePlanta", "FechaVenta DESC")));
+app.MapGet("/api/cargas/pedido-oracle", () => Results.Ok(LeerTabla("PedidosOracle", "RequiredShipDate DESC")));
+app.MapGet("/api/cargas/existencia-ceve-manual", () => Results.Ok(LeerTabla("ExistenciaCeveManual", "FechaVenta DESC")));
+app.MapGet("/api/cargas/pedido-vs-cargo-real", () => Results.Ok(LeerTabla("PedidoVsCargoReal", "FechaVenta DESC")));
+app.MapGet("/api/cargas/participacion-tipo-movimiento", () => Results.Ok(LeerTabla("ParticipacionTipoMovimiento", "CodigoCeve")));
 
 app.MapPost("/api/datos/recargar", () => Results.Ok(RecargarTodo().Select(r => new { r.Ok, r.Mensaje, r.Filas })));
 
