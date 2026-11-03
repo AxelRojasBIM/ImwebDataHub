@@ -401,23 +401,90 @@ function PostMortemPage() {
   )
 }
 
+const CAUSA_STYLES = {
+  'Recorte Fabrica': { bg: '#fee2e2', color: '#991b1b' },
+  'Recorte por cupo en Tina': { bg: '#dbeafe', color: '#1e40af' },
+  'Consumo arriba del promedio': { bg: '#fef3c7', color: '#92400e' },
+  'Existencia CeVe': { bg: '#dcfce7', color: '#166534' },
+  'Sin Pedido CeVe Últimos 7 días': { bg: '#cffafe', color: '#155e75' },
+  'Sin causa identificada': { bg: '#f3f4f6', color: '#4b5563' },
+}
+const CAUSA_LABELS = { 'Consumo arriba del promedio': 'Consumo de Inventario' }
+function estiloCausa(causa) {
+  if (!causa) return CAUSA_STYLES['Sin causa identificada']
+  if (causa.startsWith('Sin Pedido CeVe')) return CAUSA_STYLES['Sin Pedido CeVe Últimos 7 días']
+  return CAUSA_STYLES[causa] || CAUSA_STYLES['Sin causa identificada']
+}
+function CausaBadge({ causa }) {
+  const s = estiloCausa(causa)
+  const label = CAUSA_LABELS[causa] || causa || 'Sin causa identificada'
+  return <span className="badge" style={{ background: s.bg, color: s.color, whiteSpace: 'nowrap' }}>{label}</span>
+}
+
+const GROUP_FIELDS = [
+  { key: 'fecha', label: 'Fecha' }, { key: 'ceve', label: 'CeVe' }, { key: 'item', label: 'Item' },
+  { key: 'categoria', label: 'Categoría' }, { key: 'canal', label: 'Canal' }, { key: 'marca', label: 'Marca' },
+]
+
+function FiltrosCausasRecorte({ filtros, setFiltros, opciones }) {
+  const campo = (label, key, lista) => (
+    <label style={{ fontSize: 12.5 }}>
+      {label}{' '}
+      <select value={filtros[key]} onChange={e => setFiltros(f => ({ ...f, [key]: e.target.value }))}>
+        <option value="">Todos</option>
+        {lista?.map(v => <option key={typeof v === 'string' ? v : v.codigoCeve} value={typeof v === 'string' ? v : v.codigoCeve}>
+          {typeof v === 'string' ? v : v.ceve}
+        </option>)}
+      </select>
+    </label>
+  )
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'end' }}>
+      <label style={{ fontSize: 12.5 }}>Desde{' '}
+        <input type="date" value={filtros.fechaInicio} onChange={e => setFiltros(f => ({ ...f, fechaInicio: e.target.value }))} />
+      </label>
+      <label style={{ fontSize: 12.5 }}>Hasta{' '}
+        <input type="date" value={filtros.fechaFin} onChange={e => setFiltros(f => ({ ...f, fechaFin: e.target.value }))} />
+      </label>
+      {campo('CeVe', 'codigoCeve', opciones?.ceves)}
+      {campo('Región', 'region', opciones?.regiones)}
+      {campo('Canal', 'canal', opciones?.canales)}
+      {campo('Categoría', 'categoria', opciones?.categorias)}
+      {campo('Marca', 'marca', opciones?.marcas)}
+      {campo('Causa', 'causa', opciones?.causas)}
+      <label style={{ fontSize: 12.5 }}>Item / descripción{' '}
+        <input type="text" placeholder="buscar…" value={filtros.item} onChange={e => setFiltros(f => ({ ...f, item: e.target.value }))} style={{ width: 140 }} />
+      </label>
+    </div>
+  )
+}
+
+function qs(obj) {
+  const p = new URLSearchParams()
+  for (const [k, v] of Object.entries(obj)) if (v !== '' && v != null) p.set(k, v)
+  return p.toString()
+}
+
 function CausasRecortePage() {
   const [ejecutando, setEjecutando] = useState(false)
   const [mensaje, setMensaje] = useState(null)
-  const [resultados, setResultados] = useState(null)
   const [ejecuciones, setEjecuciones] = useState([])
-  const [fechaVer, setFechaVer] = useState('')
+  const [opciones, setOpciones] = useState(null)
+  const [vista, setVista] = useState('detalle')
+
+  const [filtros, setFiltros] = useState({
+    fechaInicio: '', fechaFin: '', codigoCeve: '', region: '', canal: '', categoria: '', marca: '', causa: '', item: '',
+  })
 
   async function cargarEjecuciones() {
     const r = await fetch('/api/procesos/causas-recorte/ejecuciones')
     setEjecuciones(await r.json())
   }
-  async function cargarResultados(fecha) {
-    const url = fecha ? `/api/procesos/causas-recorte/resultados?fecha=${fecha}` : '/api/procesos/causas-recorte/resultados'
-    const r = await fetch(url)
-    setResultados(await r.json())
+  async function cargarOpciones() {
+    const r = await fetch('/api/procesos/causas-recorte/filtros')
+    setOpciones(await r.json())
   }
-  useEffect(() => { cargarEjecuciones(); cargarResultados() }, [])
+  useEffect(() => { cargarEjecuciones(); cargarOpciones() }, [])
 
   async function handleEjecutar() {
     setEjecutando(true); setMensaje(null)
@@ -426,21 +493,13 @@ function CausasRecortePage() {
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || data.detail || 'Error al ejecutar')
       setMensaje(`Listo: ${data.filas.toLocaleString('es-MX')} filas (${data.fechaMin} a ${data.fechaMax}), archivo "${data.archivo}".`)
-      await cargarEjecuciones(); setFechaVer(''); await cargarResultados()
+      await cargarEjecuciones(); await cargarOpciones()
     } catch (e) {
       setMensaje('Error: ' + e.message)
     } finally {
       setEjecutando(false)
     }
   }
-
-  async function handleVerFecha(f) {
-    setFechaVer(f)
-    await cargarResultados(f)
-  }
-
-  const cols = resultados?.length ? Object.keys(resultados[0]) : []
-  const fechasDisponibles = [...new Set(resultados?.map(r => r.Fecha_Venta) ?? [])].sort().reverse()
 
   return (
     <>
@@ -462,31 +521,237 @@ function CausasRecortePage() {
       </div>
 
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
-          <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')}${!fechaVer ? ', últimas 500' : ''})` : ''}</strong>
-          {fechasDisponibles.length > 1 && (
-            <label style={{ fontSize: 12.5 }}>
-              Filtrar por fecha: {' '}
-              <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
-                <option value="">Todas (últimas 500)</option>
-                {fechasDisponibles.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </label>
-          )}
+        <FiltrosCausasRecorte filtros={filtros} setFiltros={setFiltros} opciones={opciones} />
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {[['detalle', 'Detalle'], ['agrupado', 'Agrupado'], ['topn', 'Top N']].map(([k, label]) => (
+            <button key={k} onClick={() => setVista(k)} style={{ background: vista === k ? '#1d4ed8' : '#e5e7eb', color: vista === k ? '#fff' : '#374151' }}>
+              {label}
+            </button>
+          ))}
         </div>
-        {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Causas Recorte primero.</p> : (
+        {vista === 'detalle' && <CausasRecorteDetalle filtros={filtros} />}
+        {vista === 'agrupado' && <CausasRecorteAgrupado filtros={filtros} />}
+        {vista === 'topn' && <CausasRecorteTopN filtros={filtros} opciones={opciones} />}
+      </div>
+    </>
+  )
+}
+
+function CausasRecorteDetalle({ filtros }) {
+  const [data, setData] = useState(null)
+  const [page, setPage] = useState(1)
+  const [sortBy, setSortBy] = useState('fecha')
+  const [sortDir, setSortDir] = useState('desc')
+  const pageSize = 100
+
+  useEffect(() => {
+    let activo = true
+    fetch('/api/procesos/causas-recorte/tablero?' + qs({ ...filtros, page, pageSize, sortBy, sortDir }))
+      .then(r => r.json()).then(d => { if (activo) setData(d) })
+    return () => { activo = false }
+  }, [filtros, page, sortBy, sortDir])
+
+  useEffect(() => { setPage(1) }, [filtros])
+
+  function ordenarPor(campo) {
+    if (sortBy === campo) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(campo); setSortDir('desc') }
+  }
+
+  if (!data) return <p>Cargando…</p>
+  if (data.total === 0) return <p>Sin resultados con estos filtros.</p>
+  const totalPaginas = Math.max(1, Math.ceil(data.total / pageSize))
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+        <strong>{data.total.toLocaleString('es-MX')} filas — Recorte: {Math.round(data.totalRecortePzs).toLocaleString('es-MX')} pzs / ${data.totalRecorteUsd.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</strong>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5 }}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>◀</button>
+          Página {page} de {totalPaginas}
+          <button onClick={() => setPage(p => Math.min(totalPaginas, p + 1))} disabled={page >= totalPaginas}>▶</button>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {[['fecha', 'Fecha'], ['ceve', 'CeVe'], null, ['item', 'Item'], null, null, null, null,
+                ['recortePzs', 'Recorte pzs'], null, ['recorteUsd', 'Recorte USD'], null, null].map((c, i) => c
+                ? <th key={c[0]} style={{ cursor: 'pointer' }} onClick={() => ordenarPor(c[0])}>{c[1]}{sortBy === c[0] ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>
+                : null)}
+              <th>Región</th><th>Descripción</th><th>Categoría</th><th>Marca</th><th>Canal</th>
+              <th>Recorte env/res</th><th>Existencia pzs</th><th>Causa</th><th>Resumen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((r, i) => (
+              <tr key={i}>
+                <td>{r.fechaVenta}</td><td>{r.ceve}</td><td>{r.item}</td>
+                <td>{Math.round(r.recortePzs).toLocaleString('es-MX')}</td>
+                <td>{r.recorteUsd.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</td>
+                <td>{r.region}</td><td>{r.descripcion}</td><td>{r.categoria}</td><td>{r.marca}</td><td>{r.canal}</td>
+                <td>{r.recorteEnv != null ? `${r.recorteEnv} / ${Math.round(r.recorteResiduo)}` : Math.round(r.recorteResiduo ?? 0)}</td>
+                <td>{r.existenciaPzs != null ? Math.round(r.existenciaPzs).toLocaleString('es-MX') : ''}</td>
+                <td><CausaBadge causa={r.causaPrincipal} /></td>
+                <td style={{ whiteSpace: 'normal', maxWidth: 360 }}>{r.resumen}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
+function CausasRecorteAgrupado({ filtros }) {
+  const [campos, setCampos] = useState(['fecha', 'ceve'])
+  const [data, setData] = useState(null)
+  const [page, setPage] = useState(1)
+  const [sortBy, setSortBy] = useState('recortePzs')
+  const [sortDir, setSortDir] = useState('desc')
+  const pageSize = 50
+
+  function toggleCampo(k) {
+    setCampos(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k])
+  }
+
+  useEffect(() => {
+    if (campos.length === 0) { setData(null); return }
+    let activo = true
+    fetch('/api/procesos/causas-recorte/agrupado?' + qs({ ...filtros, groupBy: campos.join(','), page, pageSize, sortBy, sortDir }))
+      .then(r => r.json()).then(d => { if (activo) setData(d) })
+    return () => { activo = false }
+  }, [filtros, campos, page, sortBy, sortDir])
+
+  useEffect(() => { setPage(1) }, [filtros, campos])
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 14, marginBottom: 14, flexWrap: 'wrap' }}>
+        {GROUP_FIELDS.map(g => (
+          <label key={g.key} style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <input type="checkbox" checked={campos.includes(g.key)} onChange={() => toggleCampo(g.key)} /> {g.label}
+          </label>
+        ))}
+      </div>
+      {campos.length === 0 ? <p>Selecciona al menos un campo para agrupar.</p> : !data ? <p>Cargando…</p> : data.error ? <p>{data.error}</p> : (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <strong>{data.totalGrupos.toLocaleString('es-MX')} grupos — Recorte: {Math.round(data.totalRecortePzs).toLocaleString('es-MX')} pzs / ${data.totalRecorteUsd.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</strong>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5 }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>◀</button>
+              Página {page}
+              <button onClick={() => setPage(p => p + 1)} disabled={data.rows.length < pageSize}>▶</button>
+            </div>
+          </div>
           <div className="table-wrap">
             <table>
-              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+              <thead>
+                <tr>
+                  {campos.includes('ceve') && <th>Región</th>}
+                  {campos.map(c => <th key={c}>{GROUP_FIELDS.find(g => g.key === c).label}</th>)}
+                  <th>Filas</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => { setSortBy('recortePzs'); setSortDir(d => d === 'asc' ? 'desc' : 'asc') }}>Recorte pzs</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => { setSortBy('recorteUsd'); setSortDir(d => d === 'asc' ? 'desc' : 'asc') }}>Recorte USD</th>
+                  <th>Causa predominante</th><th>Causa secundaria</th>
+                </tr>
+              </thead>
               <tbody>
-                {resultados.map((r, i) => (
-                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                {data.rows.map((r, i) => (
+                  <tr key={i}>
+                    {campos.includes('ceve') && <td>{r.region}</td>}
+                    {campos.map(c => <td key={c}>{r[c]}</td>)}
+                    <td>{r.filas}</td>
+                    <td>{Math.round(r.recortePzs).toLocaleString('es-MX')}</td>
+                    <td>{r.recorteUsd.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</td>
+                    <td><CausaBadge causa={r.causaPredominante} /></td>
+                    <td>{r.causaSecundaria ? <CausaBadge causa={r.causaSecundaria} /> : ''}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
+        </>
+      )}
+    </>
+  )
+}
+
+function CausasRecorteTopN({ filtros, opciones }) {
+  const [categoria, setCategoria] = useState('')
+  const [topProductos, setTopProductos] = useState(10)
+  const [topCeves, setTopCeves] = useState(5)
+  const [unidad, setUnidad] = useState('pzs')
+  const [orden, setOrden] = useState('desc')
+  const [data, setData] = useState(null)
+
+  async function buscar() {
+    if (!categoria) return
+    const params = qs({
+      categoria, topProductos, topCeves, unidad, orden,
+      fechaInicio: filtros.fechaInicio, fechaFin: filtros.fechaFin, canal: filtros.canal,
+      causa: filtros.causa, marca: filtros.marca, region: filtros.region,
+    })
+    const r = await fetch('/api/procesos/causas-recorte/top-n?' + params)
+    setData(await r.json())
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end', marginBottom: 14 }}>
+        <label style={{ fontSize: 12.5 }}>Categoría{' '}
+          <select value={categoria} onChange={e => setCategoria(e.target.value)}>
+            <option value="">Selecciona…</option>
+            {opciones?.categorias?.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: 12.5 }}>Top items{' '}
+          <input type="number" min={1} max={100} value={topProductos} onChange={e => setTopProductos(Number(e.target.value))} style={{ width: 60 }} />
+        </label>
+        <label style={{ fontSize: 12.5 }}>Top CeVes por item{' '}
+          <input type="number" min={1} max={50} value={topCeves} onChange={e => setTopCeves(Number(e.target.value))} style={{ width: 60 }} />
+        </label>
+        <label style={{ fontSize: 12.5 }}>Unidad{' '}
+          <select value={unidad} onChange={e => setUnidad(e.target.value)}>
+            <option value="pzs">Piezas</option><option value="usd">USD</option>
+          </select>
+        </label>
+        <label style={{ fontSize: 12.5 }}>Orden{' '}
+          <select value={orden} onChange={e => setOrden(e.target.value)}>
+            <option value="desc">Mayor a menor</option><option value="asc">Menor a mayor</option>
+          </select>
+        </label>
+        <button onClick={buscar} disabled={!categoria}>Buscar</button>
       </div>
+      {data && (data.resultado.length === 0 ? <p>Sin resultados.</p> : data.resultado.map((it, i) => (
+        <div key={i} className="card" style={{ background: '#f9fafb' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <strong>{it.item} — {it.descripcion}</strong>
+            <span className="mono">{Math.round(it.totalPzs).toLocaleString('es-MX')} pzs / ${it.totalUsd.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>
+          </div>
+          <div className="table-wrap" style={{ marginTop: 10, maxHeight: 280 }}>
+            <table>
+              <thead><tr><th>CeVe</th><th>Recorte pzs</th><th>Recorte USD</th><th>Causas</th></tr></thead>
+              <tbody>
+                {it.ceves.map((c, j) => (
+                  <tr key={j}>
+                    <td>{c.codigoCeve} - {c.ceve}</td>
+                    <td>{Math.round(c.totalPzs).toLocaleString('es-MX')}</td>
+                    <td>{c.totalUsd.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</td>
+                    <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {c.causas.map((cs, k) => <CausaBadge key={k} causa={cs.causa} />)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )))}
     </>
   )
 }

@@ -1785,6 +1785,64 @@ object EjecutarCausasRecorte()
     return new { ok = true, filas = filas.Count, fechaMin, fechaMax, archivo = Path.GetFileName(archivo) };
 }
 
+// ── Causas Recorte: tablero (filtros, vista agrupada, Top N) ───────────────
+// Lee CausasRecorteResultados filtrado a memoria y arma las 3 vistas con
+// LINQ en vez de SQL dinámico — SQLite no tiene las funciones de ventana que
+// usa el original para la "causa predominante" por grupo, y un GROUP BY
+// armado a mano por combinación de campos es más frágil que agrupar en C#.
+// Nota de alcance: se deja fuera el desglose día-por-día expandible y el
+// "pedido en tránsito hacia adelante" de la vista agrupada/Top N original
+// (son un detalle adicional sobre el grupo, no el cálculo central); el resto
+// — filtros, orden, paginación, causa predominante/secundaria, Top N por
+// categoría con desglose de CeVes — sí está completo.
+List<CrReadRow> LeerCausasRecorteFiltrado(string? fechaInicio, string? fechaFin, string? codigoCeve, string? canal, string? causa, string? categoria, string? marca, string? region, string? item)
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    var where = new List<string>();
+    if (!string.IsNullOrWhiteSpace(fechaInicio)) where.Add("Fecha_Venta >= $fi");
+    if (!string.IsNullOrWhiteSpace(fechaFin)) where.Add("Fecha_Venta <= $ff");
+    if (!string.IsNullOrWhiteSpace(codigoCeve)) where.Add("Codigo_CeVe = $cv");
+    if (!string.IsNullOrWhiteSpace(canal)) where.Add("NombreCanal = $cn");
+    if (!string.IsNullOrWhiteSpace(causa)) where.Add("Causa_Principal = $ca");
+    if (!string.IsNullOrWhiteSpace(categoria)) where.Add("CategoriaResumida = $ct");
+    if (!string.IsNullOrWhiteSpace(marca)) where.Add("Marca = $ma");
+    if (!string.IsNullOrWhiteSpace(region)) where.Add("RegionLogistica = $rg");
+    if (!string.IsNullOrWhiteSpace(item)) where.Add("(Item LIKE $it OR DescripcionProducto LIKE $it)");
+    cmd.CommandText = "SELECT Codigo_CeVe,CeVe,RegionLogistica,Fecha_Venta,NombreDia,Item,DescripcionProducto,Cupo,Precio,CategoriaResumida,Marca,NombreCanal,RecortePzs,RecorteUSD,Causa_Principal,Causa_Secundaria,Resumen,Envs_Planta,Envs_Consumo,ExistenciaPzs FROM CausasRecorteResultados"
+        + (where.Count > 0 ? " WHERE " + string.Join(" AND ", where) : "");
+    if (!string.IsNullOrWhiteSpace(fechaInicio)) cmd.Parameters.AddWithValue("$fi", NormalizarFechaIso(fechaInicio) is { Length: > 0 } a ? a : fechaInicio);
+    if (!string.IsNullOrWhiteSpace(fechaFin)) cmd.Parameters.AddWithValue("$ff", NormalizarFechaIso(fechaFin) is { Length: > 0 } b ? b : fechaFin);
+    if (!string.IsNullOrWhiteSpace(codigoCeve)) cmd.Parameters.AddWithValue("$cv", codigoCeve);
+    if (!string.IsNullOrWhiteSpace(canal)) cmd.Parameters.AddWithValue("$cn", canal);
+    if (!string.IsNullOrWhiteSpace(causa)) cmd.Parameters.AddWithValue("$ca", causa);
+    if (!string.IsNullOrWhiteSpace(categoria)) cmd.Parameters.AddWithValue("$ct", categoria);
+    if (!string.IsNullOrWhiteSpace(marca)) cmd.Parameters.AddWithValue("$ma", marca);
+    if (!string.IsNullOrWhiteSpace(region)) cmd.Parameters.AddWithValue("$rg", region);
+    if (!string.IsNullOrWhiteSpace(item)) cmd.Parameters.AddWithValue("$it", $"%{item}%");
+
+    var list = new List<CrReadRow>();
+    using var dr = cmd.ExecuteReader();
+    decimal? DecN(int i) => dr.IsDBNull(i) ? null : Convert.ToDecimal(dr.GetValue(i));
+    while (dr.Read())
+        list.Add(new CrReadRow
+        {
+            CodigoCeve = dr.IsDBNull(0) ? "" : dr.GetString(0), Ceve = dr.IsDBNull(1) ? null : dr.GetString(1),
+            Region = dr.IsDBNull(2) ? null : dr.GetString(2), Fecha = dr.IsDBNull(3) ? "" : dr.GetString(3),
+            NombreDia = dr.IsDBNull(4) ? null : dr.GetString(4), Item = dr.IsDBNull(5) ? "" : dr.GetString(5),
+            Descripcion = dr.IsDBNull(6) ? null : dr.GetString(6), Cupo = dr.IsDBNull(7) ? null : Convert.ToInt32(dr.GetValue(7)),
+            Precio = DecN(8), Categoria = dr.IsDBNull(9) ? null : dr.GetString(9), Marca = dr.IsDBNull(10) ? null : dr.GetString(10),
+            Canal = dr.IsDBNull(11) ? null : dr.GetString(11), RecortePzs = DecN(12) ?? 0, RecorteUsd = DecN(13) ?? 0,
+            CausaPrincipal = dr.IsDBNull(14) ? null : dr.GetString(14), CausaSecundaria = dr.IsDBNull(15) ? null : dr.GetString(15),
+            Resumen = dr.IsDBNull(16) ? null : dr.GetString(16), EnvsPlanta = DecN(17), EnvsConsumo = DecN(18), ExistenciaPzs = DecN(19),
+        });
+    return list;
+}
+
+(decimal? env, decimal? residuo) SplitRecorteEnvases(decimal recortePzs, int? cupo) =>
+    cupo is > 0 ? (Math.Floor(recortePzs / cupo.Value), recortePzs - Math.Floor(recortePzs / cupo.Value) * cupo.Value) : (null, recortePzs);
+
 // ── App web ──────────────────────────────────────────────────────────────
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://127.0.0.1:5255");
@@ -1986,6 +2044,167 @@ app.MapGet("/api/procesos/causas-recorte/resultados", (string? fecha) =>
     return Results.Ok(rows);
 });
 
+app.MapGet("/api/procesos/causas-recorte/filtros", () =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    List<string> Distintos(string sql) { using var c = conn.CreateCommand(); c.CommandText = sql; using var d = c.ExecuteReader(); var l = new List<string>(); while (d.Read()) if (!d.IsDBNull(0)) l.Add(d.GetString(0)); return l; }
+    var ceves = new List<object>();
+    using (var c = conn.CreateCommand())
+    {
+        c.CommandText = "SELECT DISTINCT Codigo_CeVe, CeVe FROM CausasRecorteResultados WHERE Codigo_CeVe IS NOT NULL ORDER BY CeVe";
+        using var d = c.ExecuteReader();
+        while (d.Read()) ceves.Add(new { codigoCeve = d.GetString(0), ceve = d.IsDBNull(1) ? d.GetString(0) : d.GetString(1) });
+    }
+    return Results.Ok(new
+    {
+        ceves,
+        canales = Distintos("SELECT DISTINCT NombreCanal FROM CausasRecorteResultados WHERE NombreCanal IS NOT NULL ORDER BY NombreCanal"),
+        categorias = Distintos("SELECT DISTINCT CategoriaResumida FROM CausasRecorteResultados WHERE CategoriaResumida IS NOT NULL ORDER BY CategoriaResumida"),
+        marcas = Distintos("SELECT DISTINCT Marca FROM CausasRecorteResultados WHERE Marca IS NOT NULL ORDER BY Marca"),
+        regiones = Distintos("SELECT DISTINCT RegionLogistica FROM CausasRecorteResultados WHERE RegionLogistica IS NOT NULL ORDER BY RegionLogistica"),
+        causas = Distintos("SELECT DISTINCT Causa_Principal FROM CausasRecorteResultados WHERE Causa_Principal IS NOT NULL ORDER BY Causa_Principal"),
+    });
+});
+
+app.MapGet("/api/procesos/causas-recorte/tablero", (string? fechaInicio, string? fechaFin, string? codigoCeve, string? canal, string? causa,
+    string? categoria, string? marca, string? region, string? item, string? sortBy, string? sortDir, int page = 1, int pageSize = 100) =>
+{
+    var rows = LeerCausasRecorteFiltrado(fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, marca, region, item);
+    var total = rows.Count;
+    var totalRecortePzs = rows.Sum(r => r.RecortePzs);
+    var totalRecorteUsd = rows.Sum(r => r.RecorteUsd);
+
+    bool asc = string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase);
+    IEnumerable<CrReadRow> ordenado = sortBy switch
+    {
+        "recortePzs" => asc ? rows.OrderBy(r => r.RecortePzs) : rows.OrderByDescending(r => r.RecortePzs),
+        "recorteUsd" => asc ? rows.OrderBy(r => r.RecorteUsd) : rows.OrderByDescending(r => r.RecorteUsd),
+        "fecha" => asc ? rows.OrderBy(r => r.Fecha) : rows.OrderByDescending(r => r.Fecha),
+        "ceve" => asc ? rows.OrderBy(r => r.Ceve) : rows.OrderByDescending(r => r.Ceve),
+        "item" => asc ? rows.OrderBy(r => r.Item) : rows.OrderByDescending(r => r.Item),
+        _ => rows.OrderByDescending(r => r.Fecha).ThenByDescending(r => r.RecortePzs),
+    };
+
+    var pagina = ordenado.Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize).Select(r =>
+    {
+        var (env, residuo) = SplitRecorteEnvases(r.RecortePzs, r.Cupo);
+        var existenciaEnv = (r.Cupo is > 0 && r.ExistenciaPzs != null) ? Math.Floor(r.ExistenciaPzs.Value / r.Cupo.Value) : (decimal?)null;
+        var existenciaUsd = (r.ExistenciaPzs != null && r.Precio != null) ? r.ExistenciaPzs.Value * r.Precio.Value : (decimal?)null;
+        return new
+        {
+            codigoCeve = r.CodigoCeve, ceve = r.Ceve, region = r.Region, fechaVenta = r.Fecha, nombreDia = r.NombreDia,
+            item = r.Item, descripcion = r.Descripcion, cupo = r.Cupo, categoria = r.Categoria, marca = r.Marca, canal = r.Canal,
+            recortePzs = r.RecortePzs, recorteEnv = env, recorteResiduo = residuo, recorteUsd = r.RecorteUsd,
+            existenciaPzs = r.ExistenciaPzs, existenciaEnv, existenciaUsd,
+            causaPrincipal = r.CausaPrincipal, causaSecundaria = r.CausaSecundaria, resumen = r.Resumen,
+            envsPlanta = r.EnvsPlanta, envsConsumo = r.EnvsConsumo,
+        };
+    }).ToList();
+
+    return Results.Ok(new { total, totalRecortePzs, totalRecorteUsd, rows = pagina });
+});
+
+app.MapGet("/api/procesos/causas-recorte/agrupado", (string groupBy, string? fechaInicio, string? fechaFin, string? codigoCeve, string? canal,
+    string? causa, string? categoria, string? marca, string? region, string? item, string? sortBy, string? sortDir, int page = 1, int pageSize = 50) =>
+{
+    var camposValidos = new HashSet<string> { "fecha", "ceve", "item", "categoria", "canal", "marca" };
+    var keys = (groupBy ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(camposValidos.Contains).Distinct().ToList();
+    if (keys.Count == 0) return Results.BadRequest(new { error = "Selecciona al menos un campo para agrupar (fecha, ceve, item, categoria, canal, marca)." });
+
+    var rows = LeerCausasRecorteFiltrado(fechaInicio, fechaFin, codigoCeve, canal, causa, categoria, marca, region, item);
+
+    string ClaveDe(CrReadRow r, string k) => k switch
+    {
+        "fecha" => r.Fecha,
+        "ceve" => $"{r.CodigoCeve} - {r.Ceve}",
+        "item" => $"{r.Item} - {r.Descripcion}",
+        "categoria" => r.Categoria ?? "Sin categoría",
+        "canal" => r.Canal ?? "Sin canal",
+        "marca" => r.Marca ?? "Sin marca",
+        _ => "",
+    };
+
+    var grupos = rows.GroupBy(r => string.Join("\u0001", keys.Select(k => ClaveDe(r, k))))
+        .Select(g =>
+        {
+            var primero = g.First();
+            var porCausa = g.GroupBy(r => r.CausaPrincipal ?? "Sin causa identificada")
+                .Select(cg => (causa: cg.Key, pzs: cg.Sum(r => r.RecortePzs)))
+                .OrderByDescending(c => c.pzs).ToList();
+            var dict = new Dictionary<string, object?>();
+            foreach (var k in keys) dict[k] = ClaveDe(primero, k);
+            if (keys.Contains("ceve")) dict["region"] = primero.Region;
+            dict["filas"] = g.Count();
+            dict["recortePzs"] = g.Sum(r => r.RecortePzs);
+            dict["recorteUsd"] = g.Sum(r => r.RecorteUsd);
+            dict["causaPredominante"] = porCausa.Count > 0 ? porCausa[0].causa : null;
+            dict["causaSecundaria"] = porCausa.Count > 1 ? porCausa[1].causa : null;
+            return dict;
+        }).ToList();
+
+    var totalGrupos = grupos.Count;
+    var totalRecortePzs = rows.Sum(r => r.RecortePzs);
+    var totalRecorteUsd = rows.Sum(r => r.RecorteUsd);
+
+    bool asc = string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase);
+    decimal RecPzs(Dictionary<string, object?> d) => (decimal)(d["recortePzs"] ?? 0m);
+    IEnumerable<Dictionary<string, object?>> ordenado = sortBy switch
+    {
+        "recorteUsd" => asc ? grupos.OrderBy(d => (decimal)(d["recorteUsd"] ?? 0m)) : grupos.OrderByDescending(d => (decimal)(d["recorteUsd"] ?? 0m)),
+        "filas" => asc ? grupos.OrderBy(d => (int)(d["filas"] ?? 0)) : grupos.OrderByDescending(d => (int)(d["filas"] ?? 0)),
+        _ => asc ? grupos.OrderBy(RecPzs) : grupos.OrderByDescending(RecPzs),
+    };
+    var pagina = ordenado.Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize).ToList();
+
+    return Results.Ok(new { totalGrupos, totalRecortePzs, totalRecorteUsd, rows = pagina });
+});
+
+app.MapGet("/api/procesos/causas-recorte/top-n", (string categoria, int topProductos, int topCeves, string? unidad, string? orden,
+    string? fechaInicio, string? fechaFin, string? canal, string? causa, string? marca, string? region) =>
+{
+    if (string.IsNullOrWhiteSpace(categoria)) return Results.BadRequest(new { error = "Selecciona una categoría." });
+    topProductos = Math.Clamp(topProductos <= 0 ? 10 : topProductos, 1, 100);
+    topCeves = Math.Clamp(topCeves <= 0 ? 5 : topCeves, 1, 50);
+    bool usd = string.Equals(unidad, "usd", StringComparison.OrdinalIgnoreCase);
+    bool asc = string.Equals(orden, "asc", StringComparison.OrdinalIgnoreCase);
+
+    var rows = LeerCausasRecorteFiltrado(fechaInicio, fechaFin, null, canal, causa, categoria, marca, region, null);
+
+    var porItem = rows.GroupBy(r => r.Item).Select(g => new
+    {
+        item = g.Key,
+        descripcion = g.Select(r => r.Descripcion).FirstOrDefault(d => !string.IsNullOrEmpty(d)),
+        totalPzs = g.Sum(r => r.RecortePzs),
+        totalUsd = g.Sum(r => r.RecorteUsd),
+        filas = g.ToList(),
+    });
+    porItem = usd
+        ? (asc ? porItem.OrderBy(x => x.totalUsd) : porItem.OrderByDescending(x => x.totalUsd))
+        : (asc ? porItem.OrderBy(x => x.totalPzs) : porItem.OrderByDescending(x => x.totalPzs));
+    var topItems = porItem.Take(topProductos).ToList();
+
+    var resultado = topItems.Select(it =>
+    {
+        var porCeve = it.filas.GroupBy(r => (r.CodigoCeve, r.Ceve)).Select(g =>
+        {
+            var porCausa = g.GroupBy(r => r.CausaPrincipal ?? "Sin causa identificada")
+                .Select(cg => new { causa = cg.Key, pzs = cg.Sum(r => r.RecortePzs), usd = cg.Sum(r => r.RecorteUsd), filas = cg.Count(), resumen = cg.Select(r => r.Resumen).FirstOrDefault() })
+                .OrderByDescending(c => usd ? c.usd : c.pzs).ToList();
+            return new
+            {
+                codigoCeve = g.Key.CodigoCeve, ceve = g.Key.Ceve,
+                totalPzs = g.Sum(r => r.RecortePzs), totalUsd = g.Sum(r => r.RecorteUsd),
+                causas = porCausa,
+            };
+        });
+        porCeve = usd ? porCeve.OrderByDescending(c => c.totalUsd) : porCeve.OrderByDescending(c => c.totalPzs);
+        return new { it.item, it.descripcion, it.totalPzs, it.totalUsd, ceves = porCeve.Take(topCeves).ToList() };
+    }).ToList();
+
+    return Results.Ok(new { categoria, resultado });
+});
+
 app.MapPost("/api/datos/recargar", () => Results.Ok(RecargarTodo().Select(r => new { r.Ok, r.Mensaje, r.Filas })));
 
 app.MapGet("/api/datos/estado", () =>
@@ -2027,4 +2246,13 @@ sealed class PmRow
     public decimal[] EmbarqueReal = new decimal[6];
     public decimal[] CargoReal = new decimal[6];
     public decimal[] CargoPromedio = new decimal[6];
+}
+
+sealed class CrReadRow
+{
+    public string CodigoCeve = ""; public string? Ceve; public string? Region; public string Fecha = "";
+    public string? NombreDia; public string Item = ""; public string? Descripcion; public int? Cupo;
+    public decimal? Precio; public string? Categoria; public string? Marca; public string? Canal;
+    public decimal RecortePzs; public decimal RecorteUsd; public string? CausaPrincipal; public string? CausaSecundaria;
+    public string? Resumen; public decimal? EnvsPlanta; public decimal? EnvsConsumo; public decimal? ExistenciaPzs;
 }
