@@ -123,6 +123,42 @@ void EnsureSchema()
         CREATE TABLE IF NOT EXISTS ProcesosLog (
             Proceso TEXT PRIMARY KEY, Detalle TEXT, Filas INTEGER, EjecutadoEn TEXT
         );
+        -- Extracto de inventario_resumen (Ivy): existencia física real, "automática"
+        -- (alternativa a Existencia CeVe Manual). Snapshot por fecha_captura.
+        CREATE TABLE IF NOT EXISTS InventarioResumen (
+            CeveNombre TEXT, SkuCodigo TEXT, CantidadTotal REAL, FechaCaptura TEXT
+        );
+        CREATE INDEX IF NOT EXISTS IX_InventarioResumen_Fecha ON InventarioResumen (FechaCaptura);
+        -- Extracto de Synapse: promedio/desviación histórica de pedido por CeVe+Item+Día.
+        CREATE TABLE IF NOT EXISTS PedidoVendedorPromedios (
+            CodCeve TEXT, Item TEXT, Dia TEXT, PromedioFinalPedido REAL, DesviacionStdPedido REAL
+        );
+        -- Extracto de OrderTowerDB: lead time y frecuencia de pedido por CeVe+Item+Día.
+        CREATE TABLE IF NOT EXISTS FrecuenciasConsolidadas (
+            CodCeve TEXT, Item TEXT, Dia TEXT, LeadTime INTEGER, FrecuenciaDias TEXT
+        );
+        -- Existencia Teórica: una ejecución por Fecha_Venta (volver a ejecutar la misma
+        -- fecha reemplaza solo esa fecha, no las demás — Post-Mortem necesita poder
+        -- encontrar ejecuciones de fechas pasadas).
+        CREATE TABLE IF NOT EXISTS ExistenciaTeoricaEjecuciones (
+            FechaSel TEXT PRIMARY KEY, BaseExistencia TEXT, Filas INTEGER, EjecutadoEn TEXT
+        );
+        CREATE TABLE IF NOT EXISTS ExistenciaTeoricaResultados (
+            Cod_ceve TEXT, Nombre_Indicadores_Almacenes_CeVe TEXT, Region TEXT, Organizacion TEXT, Item TEXT,
+            ShortName TEXT, LongName TEXT, Price REAL, TrayCapacity REAL, ContainerCapacity REAL, DaysLife REAL,
+            Brand TEXT, CategoryItem TEXT, Fecha_Venta TEXT, Fecha_Proceso TEXT, Dia_Semana TEXT,
+            LeadTime REAL, FrecuenciaDias TEXT, Fecha_Venta_Origen TEXT,
+            Cantidad REAL, Existencia_manual_pzs REAL, Existencia_manual_env REAL,
+            Fecha_Transito1 TEXT, Pedido_Fabrica1 REAL, CargoPromedio_Transito1 REAL, Existencia_teorica_1 REAL,
+            Fecha_Transito2 TEXT, Pedido_Fabrica2 REAL, CargoPromedio_Transito2 REAL, Existencia_teorica_2 REAL,
+            Fecha_Transito3 TEXT, Pedido_Fabrica3 REAL, CargoPromedio_Transito3 REAL, Existencia_teorica_3 REAL,
+            Fecha_Transito4 TEXT, Pedido_Fabrica4 REAL, CargoPromedio_Transito4 REAL, Existencia_teorica_4 REAL,
+            Fecha_Transito5 TEXT, Pedido_Fabrica5 REAL, CargoPromedio_Transito5 REAL, Existencia_teorica_5 REAL,
+            Fecha_Transito6 TEXT, Pedido_Fabrica6 REAL, CargoPromedio_Transito6 REAL, Existencia_teorica_6 REAL,
+            PromedioFinalPedido REAL, DesviacionStdPedido REAL, Estadistico REAL, Stock_Seguridad REAL,
+            Inventario_Optimo REAL, Reposicion REAL, Diferencia_Pedido_Fabrica REAL
+        );
+        CREATE INDEX IF NOT EXISTS IX_ExistenciaTeoricaResultados_Fecha ON ExistenciaTeoricaResultados (Fecha_Venta);
         """;
     cmd.ExecuteNonQuery();
 }
@@ -650,12 +686,28 @@ ResultadoCarga CargarRemisiones()
     return new ResultadoCarga(true, $"{archivosOk.Count} archivo(s) procesados, {totalFilas:N0} filas en Remisiones (Fill Rate).", totalFilas);
 }
 
+ResultadoCarga CargarPedidoVendedorPromedios() => CargarCatalogoGenerico("Promedios de Pedido (Synapse)", "PedidoVendedorPromedios", "Catalogos/PromediosPedido", new (string, string)[] {
+    ("Cod_CeVe","CodCeve"), ("Item","Item"), ("Dia","Dia"), ("PromedioFinalPedido","PromedioFinalPedido"), ("DesviacionStdPedido","DesviacionStdPedido"),
+});
+
+ResultadoCarga CargarFrecuenciasConsolidadas() => CargarCatalogoGenerico("Frecuencias Producto CeVes (OrderTower)", "FrecuenciasConsolidadas", "Catalogos/FrecuenciasProductoCeves", new (string, string)[] {
+    ("Cod_ceve","CodCeve"), ("Item","Item"), ("Dia","Dia"), ("LeadTime","LeadTime"), ("FrecuenciaDias","FrecuenciaDias"),
+});
+
+// Existencia física real (extracto de inventario_resumen/Ivy): snapshot por
+// fecha_captura, igual patrón que las demás cargas por fecha.
+ResultadoCarga CargarInventarioResumen() => CargarTransaccionalPorFecha("Inventario Resumen (Ivy)", "InventarioResumen", "Cargas/InventarioResumen", 3, new (string, Func<string, object?>)[] {
+    ("CeveNombre", ParseTxt), ("SkuCodigo", ParseTxt), ("CantidadTotal", ParseNum),
+    ("FechaCaptura", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
+});
+
 List<ResultadoCarga> RecargarTodo() => new() {
     CargarCeves(), CargarProductosHub(), CargarRtmProductos(), CargarCalendario(),
     CargarCatCevesOracle(), CargarCatOracleFacilities(), CargarPlantasCedis(),
     CargarPedidoCevePlanta(), CargarPedidoOracle(), CargarExistenciaCeveManual(),
     CargarPedidoVsCargoReal(), CargarParticipacionTipoMovimiento(),
     CargarCatCadenaSupministro(), CargarRemisiones(),
+    CargarPedidoVendedorPromedios(), CargarFrecuenciasConsolidadas(), CargarInventarioResumen(),
 };
 
 RecargarTodo();
@@ -913,6 +965,284 @@ object EjecutarFillRate(string fechaInicio, string fechaFin)
     return new { ok = true, filas, fechaInicio = fi, fechaFin = ff };
 }
 
+// ── Existencia Teórica ──────────────────────────────────────────────────────
+// Para la Fecha_Venta seleccionada: calcula cuánto habrá en existencia cada
+// uno de los próximos 6 días hábiles de tránsito (sin domingo), cruzando lo
+// pedido (PedidoCevePlanta), la existencia física de hoy (InventarioResumen o
+// ExistenciaCeveManual, según @BaseExistencia), y el promedio histórico de
+// pedido + lead time (Promedios de Pedido / Frecuencias Producto CeVes) para
+// calcular stock de seguridad e inventario óptimo. Igual que Fill Rate: se
+// hace en memoria en C# porque SQLite no tiene DATEFIRST/CROSS APPLY.
+string[] DiasSemanaEs = { "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" };
+string NombreDiaEs(DateTime d) => DiasSemanaEs[(int)d.DayOfWeek];
+static int StartIdxDeDia(string dia) => dia switch
+{
+    "Lunes" => 0, "Martes" => 1, "Miércoles" => 2, "Jueves" => 3, "Viernes" => 4, "Sábado" => 5, _ => 0,
+};
+
+object EjecutarExistenciaTeorica(string fechaSelStr, string baseExistencia)
+{
+    var fsIso = NormalizarFechaIso(fechaSelStr); if (fsIso.Length == 0) fsIso = fechaSelStr.Trim();
+    var fechaSel = DateTime.Parse(fsIso, System.Globalization.CultureInfo.InvariantCulture);
+    var fechaProceso = fechaSel.AddDays(-7);
+    var fpIso = fechaProceso.ToString("yyyy-MM-dd");
+    var diaSemanaSel = NombreDiaEs(fechaSel);
+    var startIdx = StartIdxDeDia(diaSemanaSel);
+
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+
+    // Universo CeVe+Item: quién pidió en los últimos 7 días, prefiriendo el
+    // pedido de hoy mismo si existe.
+    var catalogo = new Dictionary<(string ceve, string item), (string fecha, bool exacta)>();
+    var pedidoFabrica = new Dictionary<(string ceve, string item, string fecha), decimal>();
+    var pedidoDia = new Dictionary<(string ceve, string item), decimal>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Cantidad, FechaVenta FROM PedidosCevePlanta WHERE FechaVenta BETWEEN $fp AND $fs";
+        cmd.Parameters.AddWithValue("$fp", fpIso); cmd.Parameters.AddWithValue("$fs", fsIso);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var cant = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+            var fecha = dr.IsDBNull(3) ? "" : dr.GetString(3);
+            if (ceve.Length == 0 || fecha.Length == 0) continue;
+
+            var key = (ceve, item);
+            bool exacta = fecha == fsIso;
+            if (!catalogo.TryGetValue(key, out var cur) || (exacta && !cur.exacta) || (exacta == cur.exacta && string.CompareOrdinal(fecha, cur.fecha) > 0))
+                catalogo[key] = (fecha, exacta);
+
+            var fkey = (ceve, item, fecha);
+            pedidoFabrica[fkey] = pedidoFabrica.GetValueOrDefault(fkey) + cant;
+            if (exacta) pedidoDia[key] = pedidoDia.GetValueOrDefault(key) + cant;
+        }
+    }
+
+    // 6 próximos días hábiles de tránsito (sin domingo) entre FechaProceso y FechaSel.
+    var diasTransito = new List<(DateTime fecha, string dia)>();
+    for (int n = 1; n <= 8 && diasTransito.Count < 6; n++)
+    {
+        var f = fechaProceso.AddDays(n);
+        if (f.DayOfWeek == DayOfWeek.Sunday || f > fechaSel) continue;
+        diasTransito.Add((f, NombreDiaEs(f)));
+    }
+
+    var ceves = new Dictionary<string, (string nombre, string region, string org)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Nombre, Region, Organizacion FROM Ceves";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var c = NormalizarCodigo(dr.GetString(0));
+            if (c.Length > 0) ceves[c] = (dr.IsDBNull(1) ? "" : dr.GetString(1), dr.IsDBNull(2) ? "" : dr.GetString(2), dr.IsDBNull(3) ? "" : dr.GetString(3));
+        }
+    }
+
+    var productos = new Dictionary<string, (string shortName, string longName, decimal? price, decimal? trayCap, decimal? containerCap, decimal? daysLife, string brand, string category)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT ItemCode, ShortName, LongName, Price, TrayCapacity, ContainerCapacity, DaysLife, Brand, CategoryItem FROM ProductosHub";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var item = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            if (item.Length == 0) continue;
+            productos[item] = (
+                dr.IsDBNull(1) ? "" : dr.GetString(1), dr.IsDBNull(2) ? "" : dr.GetString(2),
+                dr.IsDBNull(3) ? null : ParseDecN(dr.GetString(3)), dr.IsDBNull(4) ? null : ParseDecN(dr.GetString(4)),
+                dr.IsDBNull(5) ? null : ParseDecN(dr.GetString(5)), dr.IsDBNull(6) ? null : ParseDecN(dr.GetString(6)),
+                dr.IsDBNull(7) ? "" : dr.GetString(7), dr.IsDBNull(8) ? "" : dr.GetString(8));
+        }
+    }
+
+    var pvp = new Dictionary<(string ceve, string item, string dia), (decimal promedio, decimal desviacion)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Dia, PromedioFinalPedido, DesviacionStdPedido FROM PedidoVendedorPromedios";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
+            if (ceve.Length == 0 || dia.Length == 0) continue;
+            pvp[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4)));
+        }
+    }
+
+    var frec = new Dictionary<(string ceve, string item, string dia), (int leadTime, string frecuenciaDias)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Dia, LeadTime, FrecuenciaDias FROM FrecuenciasConsolidadas";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
+            if (ceve.Length == 0 || dia.Length == 0) continue;
+            frec[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0 : Convert.ToInt32(dr.GetValue(3)), dr.IsDBNull(4) ? "" : dr.GetString(4));
+        }
+    }
+
+    // Existencia manual "automática" (InventarioResumen): ceve_nombre trae el
+    // código de CeVe como prefijo antes de un guion, ej. "12858-Texmelucan".
+    var existManualAuto = new Dictionary<(string ceve, string item), decimal>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CeveNombre, SkuCodigo, CantidadTotal FROM InventarioResumen WHERE FechaCaptura = $fp";
+        cmd.Parameters.AddWithValue("$fp", fpIso);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceveNombre = dr.IsDBNull(0) ? "" : dr.GetString(0);
+            var guion = ceveNombre.IndexOf('-');
+            var ceve = NormalizarCodigo(guion > 0 ? ceveNombre[..guion] : ceveNombre);
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            if (ceve.Length == 0) continue;
+            existManualAuto[(ceve, item)] = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+        }
+    }
+
+    var existManualUsuario = new Dictionary<(string ceve, string item), decimal>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Cantidad FROM ExistenciaCeveManual WHERE FechaVenta = $fp";
+        cmd.Parameters.AddWithValue("$fp", fpIso);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            if (ceve.Length == 0) continue;
+            existManualUsuario[(ceve, item)] = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+        }
+    }
+
+    using var tx = conn.BeginTransaction();
+    using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM ExistenciaTeoricaResultados WHERE Fecha_Venta = $fs"; del.Parameters.AddWithValue("$fs", fsIso); del.ExecuteNonQuery(); }
+
+    using var ins = conn.CreateCommand();
+    ins.Transaction = tx;
+    ins.CommandText = """
+        INSERT INTO ExistenciaTeoricaResultados (
+            Cod_ceve,Nombre_Indicadores_Almacenes_CeVe,Region,Organizacion,Item,ShortName,LongName,Price,
+            TrayCapacity,ContainerCapacity,DaysLife,Brand,CategoryItem,Fecha_Venta,Fecha_Proceso,Dia_Semana,
+            LeadTime,FrecuenciaDias,Fecha_Venta_Origen,Cantidad,Existencia_manual_pzs,Existencia_manual_env,
+            Fecha_Transito1,Pedido_Fabrica1,CargoPromedio_Transito1,Existencia_teorica_1,
+            Fecha_Transito2,Pedido_Fabrica2,CargoPromedio_Transito2,Existencia_teorica_2,
+            Fecha_Transito3,Pedido_Fabrica3,CargoPromedio_Transito3,Existencia_teorica_3,
+            Fecha_Transito4,Pedido_Fabrica4,CargoPromedio_Transito4,Existencia_teorica_4,
+            Fecha_Transito5,Pedido_Fabrica5,CargoPromedio_Transito5,Existencia_teorica_5,
+            Fecha_Transito6,Pedido_Fabrica6,CargoPromedio_Transito6,Existencia_teorica_6,
+            PromedioFinalPedido,DesviacionStdPedido,Estadistico,Stock_Seguridad,
+            Inventario_Optimo,Reposicion,Diferencia_Pedido_Fabrica
+        ) VALUES (
+            $p0,$p1,$p2,$p3,$p4,$p5,$p6,$p7,$p8,$p9,$p10,$p11,$p12,$p13,$p14,$p15,$p16,$p17,$p18,$p19,
+            $p20,$p21,$p22,$p23,$p24,$p25,$p26,$p27,$p28,$p29,$p30,$p31,$p32,$p33,$p34,$p35,$p36,$p37,$p38,$p39,
+            $p40,$p41,$p42,$p43,$p44,$p45,$p46,$p47,$p48,$p49,$p50,$p51,$p52
+        )
+        """;
+    for (int c = 0; c < 53; c++) ins.Parameters.Add(new SqliteParameter("$p" + c, DBNull.Value));
+
+    var diasLunSab = new[] { "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" };
+    int filas = 0;
+    foreach (var (key, info) in catalogo)
+    {
+        var (ceve, item) = key;
+        ceves.TryGetValue(ceve, out var ceveInfo);
+        productos.TryGetValue(item, out var prod);
+        var cantidad = pedidoDia.GetValueOrDefault(key, 0m);
+
+        bool esManual = string.Equals(baseExistencia, "Man", StringComparison.OrdinalIgnoreCase);
+        decimal? existManualPzs = esManual
+            ? (existManualUsuario.TryGetValue(key, out var emu) ? emu : null)
+            : (existManualAuto.TryGetValue(key, out var ema) ? ema : null);
+        var trayCap = prod.trayCap;
+        decimal? existManualEnv = (trayCap.HasValue && trayCap.Value != 0) ? Math.Floor((existManualPzs ?? 0) / trayCap.Value) : null;
+
+        bool tieneFrec = frec.TryGetValue((ceve, item, diaSemanaSel), out var frRow);
+        int leadTimeEf = tieneFrec ? frRow.leadTime : 0;
+
+        var fechaTransitoN = new string?[6];
+        var pedidoFabricaN = new decimal?[6];
+        var cargoPromN = new decimal?[6];
+        for (int i = 0; i < diasTransito.Count; i++)
+        {
+            var (fecha, dia) = diasTransito[i];
+            fechaTransitoN[i] = fecha.ToString("yyyy-MM-dd");
+            pedidoFabricaN[i] = pedidoFabrica.TryGetValue((ceve, item, fechaTransitoN[i]!), out var pf) ? pf : 0m;
+            cargoPromN[i] = pvp.TryGetValue((ceve, item, dia), out var cp) ? cp.promedio : (decimal?)null;
+        }
+
+        bool tienePvSel = pvp.TryGetValue((ceve, item, diaSemanaSel), out var pvSel);
+        decimal? promedioFinalPedido = tienePvSel ? Math.Ceiling(pvSel.promedio) : null;
+        decimal? desviacionStdPedido = tienePvSel ? Math.Ceiling(pvSel.desviacion) : null;
+
+        decimal estadistico = 0;
+        for (int d = 0; d < 6; d++)
+        {
+            int offset = ((d - startIdx + 6) % 6);
+            if (offset < leadTimeEf && pvp.TryGetValue((ceve, item, diasLunSab[d]), out var pvD))
+                estadistico += pvD.promedio;
+        }
+        estadistico = Math.Ceiling(estadistico);
+
+        decimal? stockSeguridad = desviacionStdPedido.HasValue ? desviacionStdPedido.Value * leadTimeEf : null;
+        decimal? inventarioOptimo = stockSeguridad.HasValue ? Math.Ceiling(estadistico + stockSeguridad.Value) : null;
+
+        var existenciaTeoricaN = new decimal?[6];
+        for (int i = 0; i < 6; i++)
+        {
+            if (i >= diasTransito.Count) { existenciaTeoricaN[i] = null; continue; }
+            var baseVal = i == 0 ? (existManualEnv ?? 0) : ((existenciaTeoricaN[i - 1].HasValue && existenciaTeoricaN[i - 1]!.Value >= 0) ? existenciaTeoricaN[i - 1]!.Value : 0);
+            existenciaTeoricaN[i] = baseVal + (pedidoFabricaN[i] ?? 0) - (cargoPromN[i] ?? 0);
+        }
+
+        decimal? reposicion = inventarioOptimo.HasValue
+            ? ((inventarioOptimo.Value - (existenciaTeoricaN[4] ?? 0)) < 0 ? 0 : Math.Ceiling(inventarioOptimo.Value - (existenciaTeoricaN[4] ?? 0)))
+            : null;
+        decimal? diferenciaPedidoFabrica = reposicion.HasValue ? Math.Ceiling((pedidoFabricaN[5] ?? 0) - reposicion.Value) : null;
+
+        object[] vals = {
+            ceve, ceveInfo.nombre, ceveInfo.region, ceveInfo.org, item, prod.shortName, prod.longName,
+            (object?)prod.price ?? DBNull.Value, (object?)prod.trayCap ?? DBNull.Value, (object?)prod.containerCap ?? DBNull.Value,
+            (object?)prod.daysLife ?? DBNull.Value, prod.brand, prod.category, fsIso, fpIso, diaSemanaSel,
+            tieneFrec ? frRow.leadTime : (object)DBNull.Value, tieneFrec ? frRow.frecuenciaDias : "", info.fecha,
+            cantidad, (object?)existManualPzs ?? DBNull.Value, (object?)existManualEnv ?? DBNull.Value,
+            (object?)fechaTransitoN[0] ?? DBNull.Value, (object?)pedidoFabricaN[0] ?? DBNull.Value, (object?)cargoPromN[0] ?? DBNull.Value, (object?)existenciaTeoricaN[0] ?? DBNull.Value,
+            (object?)fechaTransitoN[1] ?? DBNull.Value, (object?)pedidoFabricaN[1] ?? DBNull.Value, (object?)cargoPromN[1] ?? DBNull.Value, (object?)existenciaTeoricaN[1] ?? DBNull.Value,
+            (object?)fechaTransitoN[2] ?? DBNull.Value, (object?)pedidoFabricaN[2] ?? DBNull.Value, (object?)cargoPromN[2] ?? DBNull.Value, (object?)existenciaTeoricaN[2] ?? DBNull.Value,
+            (object?)fechaTransitoN[3] ?? DBNull.Value, (object?)pedidoFabricaN[3] ?? DBNull.Value, (object?)cargoPromN[3] ?? DBNull.Value, (object?)existenciaTeoricaN[3] ?? DBNull.Value,
+            (object?)fechaTransitoN[4] ?? DBNull.Value, (object?)pedidoFabricaN[4] ?? DBNull.Value, (object?)cargoPromN[4] ?? DBNull.Value, (object?)existenciaTeoricaN[4] ?? DBNull.Value,
+            (object?)fechaTransitoN[5] ?? DBNull.Value, (object?)pedidoFabricaN[5] ?? DBNull.Value, (object?)cargoPromN[5] ?? DBNull.Value, (object?)existenciaTeoricaN[5] ?? DBNull.Value,
+            (object?)promedioFinalPedido ?? DBNull.Value, (object?)desviacionStdPedido ?? DBNull.Value, estadistico, (object?)stockSeguridad ?? DBNull.Value,
+            (object?)inventarioOptimo ?? DBNull.Value, (object?)reposicion ?? DBNull.Value, (object?)diferenciaPedidoFabrica ?? DBNull.Value,
+        };
+        for (int c = 0; c < vals.Length; c++) ins.Parameters[c].Value = vals[c] ?? DBNull.Value;
+        ins.ExecuteNonQuery();
+        filas++;
+    }
+
+    using (var log = conn.CreateCommand())
+    {
+        log.Transaction = tx;
+        log.CommandText = "INSERT OR REPLACE INTO ExistenciaTeoricaEjecuciones (FechaSel, BaseExistencia, Filas, EjecutadoEn) VALUES ($fs,$b,$f,$c)";
+        log.Parameters.AddWithValue("$fs", fsIso);
+        log.Parameters.AddWithValue("$b", baseExistencia);
+        log.Parameters.AddWithValue("$f", filas);
+        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+        log.ExecuteNonQuery();
+    }
+    tx.Commit();
+
+    return new { ok = true, filas, fechaSel = fsIso, fechaProceso = fpIso };
+}
+
 // ── App web ──────────────────────────────────────────────────────────────
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://127.0.0.1:5255");
@@ -987,6 +1317,55 @@ app.MapPost("/api/procesos/fill-rate/ejecutar", (FillRateRequest req) =>
 app.MapGet("/api/procesos/fill-rate/resultados", () => Results.Ok(LeerTabla("FillRateResultados", "CodigoCeve, Item, FechaVenta")));
 app.MapGet("/api/procesos/fill-rate/estado", () => Results.Ok(LeerTabla("ProcesosLog", "Proceso").FirstOrDefault(r => r["Proceso"]?.ToString() == "Fill Rate")));
 
+app.MapGet("/api/catalogos/promedios-pedido", () => Results.Ok(LeerTabla("PedidoVendedorPromedios", "CodCeve")));
+app.MapGet("/api/catalogos/frecuencias-producto-ceves", () => Results.Ok(LeerTabla("FrecuenciasConsolidadas", "CodCeve")));
+app.MapGet("/api/cargas/inventario-resumen", () => Results.Ok(LeerTabla("InventarioResumen", "FechaCaptura DESC")));
+
+app.MapPost("/api/procesos/existencia-teorica/ejecutar", (ExistenciaTeoricaRequest req) =>
+{
+    if (string.IsNullOrWhiteSpace(req?.FechaSel))
+        return Results.BadRequest(new { error = "fechaSel es requerida (yyyy-MM-dd)." });
+    try { return Results.Ok(EjecutarExistenciaTeorica(req.FechaSel, req.BaseExistencia ?? "Aut")); }
+    catch (Exception ex) { return Results.Problem(ex.Message); }
+});
+app.MapGet("/api/procesos/existencia-teorica/fechas", () =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT FechaSel, BaseExistencia, Filas, EjecutadoEn FROM ExistenciaTeoricaEjecuciones ORDER BY FechaSel DESC";
+    using var dr = cmd.ExecuteReader();
+    var rows = new List<object>();
+    while (dr.Read())
+        rows.Add(new { fechaSel = dr.GetString(0), baseExistencia = dr.IsDBNull(1) ? "" : dr.GetString(1), filas = dr.GetInt64(2), ejecutadoEn = dr.IsDBNull(3) ? "" : dr.GetString(3) });
+    return Results.Ok(rows);
+});
+app.MapGet("/api/procesos/existencia-teorica/resultados", (string? fecha) =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    var fechaEf = fecha;
+    if (string.IsNullOrWhiteSpace(fechaEf))
+    {
+        using var cmdU = conn.CreateCommand();
+        cmdU.CommandText = "SELECT FechaSel FROM ExistenciaTeoricaEjecuciones ORDER BY EjecutadoEn DESC LIMIT 1";
+        fechaEf = cmdU.ExecuteScalar() as string;
+    }
+    if (string.IsNullOrWhiteSpace(fechaEf)) return Results.Ok(new List<object>());
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT * FROM ExistenciaTeoricaResultados WHERE Fecha_Venta = $f ORDER BY Cod_ceve, Item";
+    cmd.Parameters.AddWithValue("$f", fechaEf);
+    using var dr = cmd.ExecuteReader();
+    var rows = new List<Dictionary<string, object?>>();
+    while (dr.Read())
+    {
+        var row = new Dictionary<string, object?>();
+        for (int i = 0; i < dr.FieldCount; i++) row[dr.GetName(i)] = dr.IsDBNull(i) ? null : dr.GetValue(i);
+        rows.Add(row);
+    }
+    return Results.Ok(rows);
+});
+
 app.MapPost("/api/datos/recargar", () => Results.Ok(RecargarTodo().Select(r => new { r.Ok, r.Mensaje, r.Filas })));
 
 app.MapGet("/api/datos/estado", () =>
@@ -1011,3 +1390,4 @@ app.Run();
 
 readonly record struct ResultadoCarga(bool Ok, string Mensaje, int Filas);
 record FillRateRequest(string FechaInicio, string FechaFin);
+record ExistenciaTeoricaRequest(string FechaSel, string? BaseExistencia);

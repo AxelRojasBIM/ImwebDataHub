@@ -15,6 +15,7 @@ const CATALOGOS = [
   // ── Ejecución Proceso ── (Post-Mortem, Existencia Teórica y Causas Recorte
   // quedan pendientes — ver nota en el chat)
   { key: 'fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', fuente: 'Fill Rate', carpeta: 'Procesos/FillRate/Remisiones (+ catálogos)', section: 'Ejecución Proceso', proceso: true },
+  { key: 'existencia-teorica', label: 'Existencia Teórica', fuente: 'Existencia Teórica', carpeta: 'Catalogos/PromediosPedido, FrecuenciasProductoCeves, Cargas/InventarioResumen', section: 'Ejecución Proceso', proceso: true },
   // ── Cargas masivas ──
   { key: 'pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', fuente: 'Pedido CeVe a Planta/Cedis', carpeta: 'Cargas/PedidoCevePlanta', section: 'Cargas masivas' },
   { key: 'pedido-oracle', label: 'Pedido Oracle', fuente: 'Pedido Oracle', carpeta: 'Cargas/PedidoOracle', section: 'Cargas masivas' },
@@ -31,6 +32,9 @@ const CATALOGOS = [
   { key: 'plantas', label: 'Plantas / Cedis', fuente: 'Plantas / Cedis', carpeta: 'Catalogos/Plantas', section: 'Catálogos' },
   { key: 'cadena-suministro', label: 'Catálogo Cadena Suministro', fuente: 'Catálogo Cadena Suministro', carpeta: 'Catalogos/CadenaSuministro', section: 'Catálogos' },
   { key: 'remisiones', label: 'Remisiones (Fill Rate)', fuente: 'Remisiones (Fill Rate)', carpeta: 'Procesos/FillRate/Remisiones', section: 'Catálogos' },
+  { key: 'promedios-pedido', label: 'Promedios de Pedido (Synapse)', fuente: 'Promedios de Pedido (Synapse)', carpeta: 'Catalogos/PromediosPedido', section: 'Catálogos' },
+  { key: 'frecuencias-producto-ceves', label: 'Frecuencias Producto CeVes (OrderTower)', fuente: 'Frecuencias Producto CeVes (OrderTower)', carpeta: 'Catalogos/FrecuenciasProductoCeves', section: 'Catálogos' },
+  { key: 'inventario-resumen', label: 'Inventario Resumen (Ivy)', fuente: 'Inventario Resumen (Ivy)', carpeta: 'Cargas/InventarioResumen', section: 'Catálogos' },
 ]
 
 const SECCIONES = ['Ejecución Proceso', 'Cargas masivas', 'Catálogos']
@@ -108,6 +112,9 @@ const API_PATHS = {
   'participacion-tipo-movimiento': '/api/cargas/participacion-tipo-movimiento',
   'cadena-suministro': '/api/catalogos/cadena-suministro',
   remisiones: '/api/cargas/remisiones',
+  'promedios-pedido': '/api/catalogos/promedios-pedido',
+  'frecuencias-producto-ceves': '/api/catalogos/frecuencias-producto-ceves',
+  'inventario-resumen': '/api/cargas/inventario-resumen',
 }
 
 function todayIso() { return new Date().toISOString().slice(0, 10) }
@@ -198,6 +205,112 @@ function FillRatePage() {
   )
 }
 
+function ExistenciaTeoricaPage() {
+  const [fechaSel, setFechaSel] = useState(todayIso())
+  const [baseExistencia, setBaseExistencia] = useState('Aut')
+  const [ejecutando, setEjecutando] = useState(false)
+  const [mensaje, setMensaje] = useState(null)
+  const [resultados, setResultados] = useState(null)
+  const [fechas, setFechas] = useState([])
+  const [fechaVer, setFechaVer] = useState('')
+
+  async function cargarFechas() {
+    const r = await fetch('/api/procesos/existencia-teorica/fechas')
+    setFechas(await r.json())
+  }
+  async function cargarResultados(fecha) {
+    const url = fecha ? `/api/procesos/existencia-teorica/resultados?fecha=${fecha}` : '/api/procesos/existencia-teorica/resultados'
+    const r = await fetch(url)
+    const data = await r.json()
+    setResultados(data)
+    if (data.length && !fecha) setFechaVer(data[0].Fecha_Venta)
+  }
+  useEffect(() => { cargarFechas(); cargarResultados() }, [])
+
+  async function handleEjecutar() {
+    setEjecutando(true); setMensaje(null)
+    try {
+      const r = await fetch('/api/procesos/existencia-teorica/ejecutar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fechaSel, baseExistencia }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || data.detail || 'Error al ejecutar')
+      setMensaje(`Listo: ${data.filas.toLocaleString('es-MX')} filas para ${data.fechaSel}.`)
+      await cargarFechas(); setFechaVer(data.fechaSel); await cargarResultados(data.fechaSel)
+    } catch (e) {
+      setMensaje('Error: ' + e.message)
+    } finally {
+      setEjecutando(false)
+    }
+  }
+
+  async function handleVerFecha(f) {
+    setFechaVer(f)
+    await cargarResultados(f)
+  }
+
+  const cols = resultados?.length ? Object.keys(resultados[0]) : []
+
+  return (
+    <>
+      <div className="card">
+        <strong>Ejecutar Existencia Teórica</strong>
+        <p style={{ fontSize: 12.5, color: '#6b7280', margin: '6px 0 14px' }}>
+          Calcula cuánta existencia habrá en los próximos 6 días hábiles de tránsito, a partir de lo
+          pedido, la existencia física actual y el promedio histórico de pedido por CeVe+Item.
+        </p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 12.5 }}>
+            Fecha de venta<br />
+            <input type="date" value={fechaSel} onChange={e => setFechaSel(e.target.value)} />
+          </label>
+          <label style={{ fontSize: 12.5 }}>
+            Existencia base<br />
+            <select value={baseExistencia} onChange={e => setBaseExistencia(e.target.value)}>
+              <option value="Aut">Automática (Inventario Resumen / Ivy)</option>
+              <option value="Man">Manual (Existencia CeVe Manual)</option>
+            </select>
+          </label>
+          <button onClick={handleEjecutar} disabled={ejecutando}>{ejecutando ? 'Ejecutando…' : 'Ejecutar'}</button>
+        </div>
+        {mensaje && <p>{mensaje}</p>}
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
+          <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')})` : ''}</strong>
+          {fechas.length > 0 && (
+            <label style={{ fontSize: 12.5 }}>
+              Ver ejecución de: {' '}
+              <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
+                {fechas.map(f => <option key={f.fechaSel} value={f.fechaSel}>{f.fechaSel} ({f.baseExistencia}, {f.filas} filas)</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+        {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Existencia Teórica para una fecha.</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+              <tbody>
+                {resultados.map((r, i) => (
+                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+const PROCESO_PAGES = {
+  'fill-rate': FillRatePage,
+  'existencia-teorica': ExistenciaTeoricaPage,
+}
+
 export default function App() {
   const [tab, setTab] = useState('ceves')
   const [estado, setEstado] = useState(null)
@@ -279,7 +392,7 @@ export default function App() {
           </div>
 
           {activo?.proceso ? (
-            <FillRatePage key={refreshKey} />
+            (() => { const Pagina = PROCESO_PAGES[tab]; return <Pagina key={refreshKey} /> })()
           ) : (
             <div className="card" key={refreshKey}>
               {tab === 'ceves' ? <CevesTable /> : <GenericTable apiPath={API_PATHS[tab]} />}
