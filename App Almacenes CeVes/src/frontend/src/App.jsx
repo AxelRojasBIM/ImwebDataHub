@@ -6,20 +6,32 @@ const CEVES_COLS = [
   ['coordinador', 'Coordinador'], ['turnoLaboral', 'Turno'],
 ]
 
+// Mismo orden de secciones y de items que el menú principal de la app en
+// Azure (Ejecución Proceso / Cargas masivas / Catálogos), para que a nadie
+// le cueste encontrar algo porque "aquí está en otro lado". Las pantallas
+// que aún no se migran (Promedios de Pedido, Frecuencias Producto CeVes)
+// simplemente no aparecen todavía — se insertan en su lugar cuando se migren.
 const CATALOGOS = [
-  { key: 'ceves', label: 'CeVes', fuente: 'CEVEs', carpeta: 'Catalogos/CEVEs' },
-  { key: 'productos-hub', label: 'Productos HubPedidos', fuente: 'Productos HubPedidos', carpeta: 'Catalogos/ProductosHubPedidos' },
-  { key: 'rtm', label: 'Productos RTM', fuente: 'Productos RTM', carpeta: 'Catalogos/ProductosHubPedidos/RTM' },
-  { key: 'calendario', label: 'Calendario', fuente: 'Calendario', carpeta: 'Catalogos/Calendario' },
-  { key: 'oracle-ceves', label: 'Catálogo CeVes Oracle', fuente: 'Catálogo CeVes Oracle', carpeta: 'Catalogos/CatalogosOracle/CeVes' },
-  { key: 'oracle-facilities', label: 'Catálogo Facilities Oracle', fuente: 'Catálogo Destination Facility Oracle', carpeta: 'Catalogos/CatalogosOracle/Facilities' },
-  { key: 'plantas', label: 'Plantas / Cedis', fuente: 'Plantas / Cedis', carpeta: 'Catalogos/Plantas' },
-  { key: 'pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', fuente: 'Pedido CeVe a Planta/Cedis', carpeta: 'Cargas/PedidoCevePlanta' },
-  { key: 'pedido-oracle', label: 'Pedido Oracle', fuente: 'Pedido Oracle', carpeta: 'Cargas/PedidoOracle' },
-  { key: 'existencia-ceve-manual', label: 'Existencia CeVe Manual', fuente: 'Existencia CeVe Manual', carpeta: 'Cargas/ExistenciaCeveManual' },
-  { key: 'pedido-vs-cargo-real', label: 'PedidoVSCargo Real', fuente: 'PedidoVSCargo Real', carpeta: 'Cargas/PedidoVsCargoReal' },
-  { key: 'participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', fuente: 'Participación - Tipo Movimiento', carpeta: 'Cargas/ParticipacionTipoMovimiento' },
+  // ── Ejecución Proceso ── (pendiente: ver nota en el chat — bloqueada por
+  // dependencias de Frecuencias Producto CeVes, Promedios de Pedido e
+  // inventario_resumen, ninguna migrada todavía)
+  // ── Cargas masivas ──
+  { key: 'pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', fuente: 'Pedido CeVe a Planta/Cedis', carpeta: 'Cargas/PedidoCevePlanta', section: 'Cargas masivas' },
+  { key: 'pedido-oracle', label: 'Pedido Oracle', fuente: 'Pedido Oracle', carpeta: 'Cargas/PedidoOracle', section: 'Cargas masivas' },
+  { key: 'participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', fuente: 'Participación - Tipo Movimiento', carpeta: 'Cargas/ParticipacionTipoMovimiento', section: 'Cargas masivas' },
+  { key: 'existencia-ceve-manual', label: 'Existencia CeVe Manual', fuente: 'Existencia CeVe Manual', carpeta: 'Cargas/ExistenciaCeveManual', section: 'Cargas masivas' },
+  { key: 'pedido-vs-cargo-real', label: 'PedidoVSCargo Real', fuente: 'PedidoVSCargo Real', carpeta: 'Cargas/PedidoVsCargoReal', section: 'Cargas masivas' },
+  // ── Catálogos ──
+  { key: 'ceves', label: 'CeVes', fuente: 'CEVEs', carpeta: 'Catalogos/CEVEs', section: 'Catálogos' },
+  { key: 'productos-hub', label: 'Productos HubPedidos', fuente: 'Productos HubPedidos', carpeta: 'Catalogos/ProductosHubPedidos', section: 'Catálogos' },
+  { key: 'rtm', label: 'Productos RTM', fuente: 'Productos RTM', carpeta: 'Catalogos/ProductosHubPedidos/RTM', section: 'Catálogos' },
+  { key: 'calendario', label: 'Calendario', fuente: 'Calendario', carpeta: 'Catalogos/Calendario', section: 'Catálogos' },
+  { key: 'oracle-ceves', label: 'Catálogo CeVes Oracle', fuente: 'Catálogo CeVes Oracle', carpeta: 'Catalogos/CatalogosOracle/CeVes', section: 'Catálogos' },
+  { key: 'oracle-facilities', label: 'Catálogo Facilities Oracle', fuente: 'Catálogo Destination Facility Oracle', carpeta: 'Catalogos/CatalogosOracle/Facilities', section: 'Catálogos' },
+  { key: 'plantas', label: 'Plantas / Cedis', fuente: 'Plantas / Cedis', carpeta: 'Catalogos/Plantas', section: 'Catálogos' },
 ]
+
+const SECCIONES = ['Ejecución Proceso', 'Cargas masivas', 'Catálogos']
 
 function GenericTable({ apiPath }) {
   const [rows, setRows] = useState(null)
@@ -134,16 +146,27 @@ export default function App() {
       </div>
 
       <div style={{ display: 'flex' }}>
-        <div style={{ width: 220, background: '#fff', borderRight: '1px solid #e5e7eb', minHeight: 'calc(100vh - 64px)' }}>
-          {CATALOGOS.map(c => (
-            <div key={c.key} onClick={() => setTab(c.key)} style={{
-              padding: '12px 18px', cursor: 'pointer', fontSize: 13, fontWeight: tab === c.key ? 700 : 500,
-              background: tab === c.key ? '#eff6ff' : 'transparent', color: tab === c.key ? '#2563eb' : '#374151',
-              borderLeft: tab === c.key ? '3px solid #2563eb' : '3px solid transparent',
-            }}>
-              {c.label}
-            </div>
-          ))}
+        <div style={{ width: 240, background: '#fff', borderRight: '1px solid #e5e7eb', minHeight: 'calc(100vh - 64px)', paddingBottom: 20 }}>
+          {SECCIONES.map(sec => {
+            const items = CATALOGOS.filter(c => c.section === sec)
+            if (items.length === 0) return null
+            return (
+              <div key={sec}>
+                <div style={{ padding: '16px 18px 6px', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: '#9ca3af', textTransform: 'uppercase' }}>
+                  {sec}
+                </div>
+                {items.map(c => (
+                  <div key={c.key} onClick={() => setTab(c.key)} style={{
+                    padding: '10px 18px', cursor: 'pointer', fontSize: 13, fontWeight: tab === c.key ? 700 : 500,
+                    background: tab === c.key ? '#eff6ff' : 'transparent', color: tab === c.key ? '#2563eb' : '#374151',
+                    borderLeft: tab === c.key ? '3px solid #2563eb' : '3px solid transparent',
+                  }}>
+                    {c.label}
+                  </div>
+                ))}
+              </div>
+            )
+          })}
         </div>
 
         <div className="content" style={{ flex: 1 }}>
