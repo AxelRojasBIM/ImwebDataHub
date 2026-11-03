@@ -16,6 +16,7 @@ const CATALOGOS = [
   // quedan pendientes — ver nota en el chat)
   { key: 'fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', fuente: 'Fill Rate', carpeta: 'Procesos/FillRate/Remisiones (+ catálogos)', section: 'Ejecución Proceso', proceso: true },
   { key: 'existencia-teorica', label: 'Existencia Teórica', fuente: 'Existencia Teórica', carpeta: 'Catalogos/PromediosPedido, FrecuenciasProductoCeves, Cargas/InventarioResumen', section: 'Ejecución Proceso', proceso: true },
+  { key: 'post-mortem', label: 'Post-Mortem', fuente: 'Post-Mortem', carpeta: '(usa Existencia Teórica + Fill Rate + PedidoVSCargo Real ya cargados)', section: 'Ejecución Proceso', proceso: true },
   // ── Cargas masivas ──
   { key: 'pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', fuente: 'Pedido CeVe a Planta/Cedis', carpeta: 'Cargas/PedidoCevePlanta', section: 'Cargas masivas' },
   { key: 'pedido-oracle', label: 'Pedido Oracle', fuente: 'Pedido Oracle', carpeta: 'Cargas/PedidoOracle', section: 'Cargas masivas' },
@@ -306,9 +307,103 @@ function ExistenciaTeoricaPage() {
   )
 }
 
+function PostMortemPage() {
+  const [fechaVenta, setFechaVenta] = useState(todayIso())
+  const [ejecutando, setEjecutando] = useState(false)
+  const [mensaje, setMensaje] = useState(null)
+  const [resultados, setResultados] = useState(null)
+  const [fechas, setFechas] = useState([])
+  const [fechaVer, setFechaVer] = useState('')
+
+  async function cargarFechas() {
+    const r = await fetch('/api/procesos/post-mortem/fechas')
+    setFechas(await r.json())
+  }
+  async function cargarResultados(fecha) {
+    const url = fecha ? `/api/procesos/post-mortem/resultados?fecha=${fecha}` : '/api/procesos/post-mortem/resultados'
+    const r = await fetch(url)
+    const data = await r.json()
+    setResultados(data)
+    if (data.length && !fecha) setFechaVer(data[0].Fecha_Venta)
+  }
+  useEffect(() => { cargarFechas(); cargarResultados() }, [])
+
+  async function handleEjecutar() {
+    setEjecutando(true); setMensaje(null)
+    try {
+      const r = await fetch('/api/procesos/post-mortem/ejecutar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fechaVenta }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || data.detail || 'Error al ejecutar')
+      setMensaje(`Listo: ${data.filas.toLocaleString('es-MX')} filas para ${data.fechaVenta}.`)
+      await cargarFechas(); setFechaVer(data.fechaVenta); await cargarResultados(data.fechaVenta)
+    } catch (e) {
+      setMensaje('Error: ' + e.message)
+    } finally {
+      setEjecutando(false)
+    }
+  }
+
+  async function handleVerFecha(f) {
+    setFechaVer(f)
+    await cargarResultados(f)
+  }
+
+  const cols = resultados?.length ? Object.keys(resultados[0]) : []
+
+  return (
+    <>
+      <div className="card">
+        <strong>Ejecutar Post-Mortem</strong>
+        <p style={{ fontSize: 12.5, color: '#6b7280', margin: '6px 0 14px' }}>
+          Compara lo que Existencia Teórica predijo contra lo que realmente pasó (Fill Rate real y
+          PedidoVSCargo Real). Necesita que Existencia Teórica ya se haya ejecutado para esa misma fecha.
+        </p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 12.5 }}>
+            Fecha de venta<br />
+            <input type="date" value={fechaVenta} onChange={e => setFechaVenta(e.target.value)} />
+          </label>
+          <button onClick={handleEjecutar} disabled={ejecutando}>{ejecutando ? 'Ejecutando…' : 'Ejecutar'}</button>
+        </div>
+        {mensaje && <p>{mensaje}</p>}
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
+          <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')})` : ''}</strong>
+          {fechas.length > 0 && (
+            <label style={{ fontSize: 12.5 }}>
+              Ver ejecución de: {' '}
+              <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
+                {fechas.map(f => <option key={f.fechaVenta} value={f.fechaVenta}>{f.fechaVenta} ({f.filas} filas)</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+        {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Post-Mortem para una fecha.</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+              <tbody>
+                {resultados.map((r, i) => (
+                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 const PROCESO_PAGES = {
   'fill-rate': FillRatePage,
   'existencia-teorica': ExistenciaTeoricaPage,
+  'post-mortem': PostMortemPage,
 }
 
 export default function App() {

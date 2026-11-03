@@ -164,6 +164,36 @@ void EnsureSchema()
 }
 EnsureSchema();
 
+// Post-Mortem tiene ~125 columnas (11 base + 19 por cada uno de los 6 días de
+// tránsito) — se construye el nombre de cada columna en código en vez de
+// escribir el CREATE TABLE a mano, para no arriesgar un desfase como el que
+// ya pasó una vez con Fill Rate (45 vs 46 parámetros).
+List<string> ColumnasPostMortem()
+{
+    var baseCols = new[] { "Cod_ceve", "Nombre_Indicadores_Almacenes_CeVe", "Region", "Organizacion", "Item", "ShortName", "Fecha_Venta", "Fecha_Proceso", "Dia_Semana", "Existencia_manual_env", "Inventario_Optimo" };
+    var perDiaCols = new[] { "Fecha_Transito", "Pedido_Fabrica", "CargoPromedio_Transito", "Existencia_teorica_", "Embarque_Real", "Diferencia_env", "Recorte_env", "Aumento_env", "Embarque_Sin_Aumentos_env", "Cargo_pzs", "Cargo_espejo_pzs", "Cargo_total", "Pedido_pzs", "Pedido_espejo_pzs", "Pedido_total", "Existencia_Real", "Diferencia_Embarque", "Diferencia_Carga", "Diferencia_Existencia" };
+    var cols = new List<string>(baseCols);
+    for (int n = 1; n <= 6; n++) foreach (var c in perDiaCols) cols.Add($"{c}{n}");
+    return cols;
+}
+
+void EnsurePostMortemSchema()
+{
+    var textCols = new HashSet<string> { "Cod_ceve", "Nombre_Indicadores_Almacenes_CeVe", "Region", "Organizacion", "Item", "ShortName", "Dia_Semana" };
+    var colDefs = string.Join(", ", ColumnasPostMortem().Select(c =>
+        textCols.Contains(c) || c.StartsWith("Fecha_") ? $"[{c}] TEXT" : $"[{c}] REAL"));
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = $"""
+        CREATE TABLE IF NOT EXISTS PostMortemResultados ({colDefs});
+        CREATE INDEX IF NOT EXISTS IX_PostMortemResultados_Fecha ON PostMortemResultados (Fecha_Venta);
+        CREATE TABLE IF NOT EXISTS PostMortemEjecuciones (FechaVenta TEXT PRIMARY KEY, Filas INTEGER, EjecutadoEn TEXT);
+        """;
+    cmd.ExecuteNonQuery();
+}
+EnsurePostMortemSchema();
+
 // ── Carga de catálogos desde Datos/ ─────────────────────────────────────────
 // Convención v1, simple a propósito: el CSV que esté hoy en la carpeta de cada
 // catálogo ES el catálogo vigente (se reemplaza completo en cada recarga). Si
@@ -1243,6 +1273,180 @@ object EjecutarExistenciaTeorica(string fechaSelStr, string baseExistencia)
     return new { ok = true, filas, fechaSel = fsIso, fechaProceso = fpIso };
 }
 
+// ── Post-Mortem ──────────────────────────────────────────────────────────
+// Compara lo que Existencia Teórica predijo (ya guardado) contra lo que
+// realmente pasó: embarque real (FillRateResultados) y cargo/pedido real
+// (PedidoVsCargoReal, con manejo de "espejo": un Item que empieza con 99 es
+// un cargo/pedido compensatorio del mismo item sin el prefijo). Necesita que
+// Existencia Teórica ya se haya ejecutado para esa Fecha_Venta.
+object EjecutarPostMortem(string fechaVentaStr)
+{
+    var fvIso = NormalizarFechaIso(fechaVentaStr); if (fvIso.Length == 0) fvIso = fechaVentaStr.Trim();
+
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+
+    long teoricaCount;
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT COUNT(*) FROM ExistenciaTeoricaEjecuciones WHERE FechaSel = $f";
+        cmd.Parameters.AddWithValue("$f", fvIso);
+        teoricaCount = Convert.ToInt64(cmd.ExecuteScalar());
+    }
+    if (teoricaCount == 0)
+        throw new InvalidOperationException($"No hay una ejecución de Existencia Teórica para la fecha {fvIso}. Ejecuta Existencia Teórica primero para esa fecha.");
+
+    var teorico = new List<Dictionary<string, object?>>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT * FROM ExistenciaTeoricaResultados WHERE Fecha_Venta = $f";
+        cmd.Parameters.AddWithValue("$f", fvIso);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var row = new Dictionary<string, object?>();
+            for (int i = 0; i < dr.FieldCount; i++) row[dr.GetName(i)] = dr.IsDBNull(i) ? null : dr.GetValue(i);
+            teorico.Add(row);
+        }
+    }
+
+    string fpIso = teorico.Count > 0 && teorico[0]["Fecha_Proceso"] is string fp0 ? fp0
+        : DateTime.Parse(fvIso, System.Globalization.CultureInfo.InvariantCulture).AddDays(-7).ToString("yyyy-MM-dd");
+
+    var fr = new Dictionary<(string ceve, string item, string fecha), (decimal embarque, decimal diferencia, decimal recorte, decimal aumento, decimal sinAumentos)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodigoCeve, Item, FechaVenta, EmbarquePlantaCedis, DiferenciaEnv, RecorteEnv, AumentoEnv, EmbarqueSinAumentosEnv FROM FillRateResultados WHERE FechaVenta BETWEEN $fp AND $fv";
+        cmd.Parameters.AddWithValue("$fp", fpIso); cmd.Parameters.AddWithValue("$fv", fvIso);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
+            if (ceve.Length == 0) continue;
+            fr[(ceve, item, fecha)] = (
+                dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4)),
+                dr.IsDBNull(5) ? 0m : Convert.ToDecimal(dr.GetValue(5)), dr.IsDBNull(6) ? 0m : Convert.ToDecimal(dr.GetValue(6)),
+                dr.IsDBNull(7) ? 0m : Convert.ToDecimal(dr.GetValue(7)));
+        }
+    }
+
+    var pvcr = new Dictionary<(string ceve, string item, string fecha), (decimal cargoPzs, decimal cargoEspejoPzs, decimal pedidoPzs, decimal pedidoEspejoPzs)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, FechaVenta, CargoPzs, PedidoPzs FROM PedidoVsCargoReal WHERE FechaVenta BETWEEN $fp AND $fv";
+        cmd.Parameters.AddWithValue("$fp", fpIso); cmd.Parameters.AddWithValue("$fv", fvIso);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var itemRaw = (dr.IsDBNull(1) ? "" : dr.GetString(1)).Trim();
+            var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
+            var cargo = dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3));
+            var pedido = dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4));
+            if (ceve.Length == 0 || itemRaw.Length == 0) continue;
+            bool esEspejo = itemRaw.StartsWith("99");
+            var itemOriginal = NormalizarCodigo(esEspejo ? itemRaw[2..] : itemRaw);
+            var key = (ceve, itemOriginal, fecha);
+            pvcr.TryGetValue(key, out var cur);
+            pvcr[key] = esEspejo ? (cur.cargoPzs, cargo, cur.pedidoPzs, pedido) : (cargo, cur.cargoEspejoPzs, pedido, cur.pedidoEspejoPzs);
+        }
+    }
+
+    var cols = ColumnasPostMortem();
+
+    using var tx = conn.BeginTransaction();
+    using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM PostMortemResultados WHERE Fecha_Venta = $f"; del.Parameters.AddWithValue("$f", fvIso); del.ExecuteNonQuery(); }
+
+    using var ins = conn.CreateCommand();
+    ins.Transaction = tx;
+    var paramNames = cols.Select((c, i) => "$p" + i).ToArray();
+    ins.CommandText = $"INSERT INTO PostMortemResultados ({string.Join(",", cols.Select(c => $"[{c}]"))}) VALUES ({string.Join(",", paramNames)})";
+    foreach (var pn in paramNames) ins.Parameters.Add(new SqliteParameter(pn, DBNull.Value));
+
+    int filas = 0;
+    foreach (var t in teorico)
+    {
+        var ceve = NormalizarCodigo(t["Cod_ceve"]?.ToString() ?? "");
+        var item = NormalizarCodigo(t["Item"]?.ToString() ?? "");
+        decimal? trayCap = t["TrayCapacity"] is null ? null : Convert.ToDecimal(t["TrayCapacity"]);
+        decimal existManualEnv = t["Existencia_manual_env"] is null ? 0 : Convert.ToDecimal(t["Existencia_manual_env"]);
+
+        var row = new Dictionary<string, object?> {
+            ["Cod_ceve"] = ceve, ["Nombre_Indicadores_Almacenes_CeVe"] = t["Nombre_Indicadores_Almacenes_CeVe"],
+            ["Region"] = t["Region"], ["Organizacion"] = t["Organizacion"], ["Item"] = item, ["ShortName"] = t["ShortName"],
+            ["Fecha_Venta"] = t["Fecha_Venta"], ["Fecha_Proceso"] = t["Fecha_Proceso"], ["Dia_Semana"] = t["Dia_Semana"],
+            ["Existencia_manual_env"] = existManualEnv, ["Inventario_Optimo"] = t["Inventario_Optimo"] is null ? 0 : Convert.ToDecimal(t["Inventario_Optimo"]),
+        };
+
+        decimal existenciaRealPrev = existManualEnv;
+        for (int n = 1; n <= 6; n++)
+        {
+            var fechaTransito = t[$"Fecha_Transito{n}"] as string;
+            decimal pedidoFabrica = t[$"Pedido_Fabrica{n}"] is null ? 0 : Convert.ToDecimal(t[$"Pedido_Fabrica{n}"]);
+            decimal cargoProm = t[$"CargoPromedio_Transito{n}"] is null ? 0 : Convert.ToDecimal(t[$"CargoPromedio_Transito{n}"]);
+            decimal existenciaTeorica = t[$"Existencia_teorica_{n}"] is null ? 0 : Convert.ToDecimal(t[$"Existencia_teorica_{n}"]);
+
+            decimal embarqueReal = 0, diferenciaEnv = 0, recorteEnv = 0, aumentoEnv = 0, embarqueSinAumentosEnv = 0;
+            if (fechaTransito != null && fr.TryGetValue((ceve, item, fechaTransito), out var frRow))
+                (embarqueReal, diferenciaEnv, recorteEnv, aumentoEnv, embarqueSinAumentosEnv) = frRow;
+
+            decimal cargoPzsEnv = 0, cargoEspejoPzsEnv = 0, pedidoPzsEnv = 0, pedidoEspejoPzsEnv = 0;
+            if (fechaTransito != null && trayCap.HasValue && trayCap.Value != 0 && pvcr.TryGetValue((ceve, item, fechaTransito), out var pvRow))
+            {
+                cargoPzsEnv = Math.Floor(pvRow.cargoPzs / trayCap.Value);
+                cargoEspejoPzsEnv = Math.Floor(pvRow.cargoEspejoPzs / trayCap.Value);
+                pedidoPzsEnv = Math.Floor(pvRow.pedidoPzs / trayCap.Value);
+                pedidoEspejoPzsEnv = Math.Floor(pvRow.pedidoEspejoPzs / trayCap.Value);
+            }
+            decimal cargoTotal = cargoPzsEnv + cargoEspejoPzsEnv;
+            decimal pedidoTotal = pedidoPzsEnv + pedidoEspejoPzsEnv;
+
+            decimal xReal = existenciaRealPrev + embarqueReal - cargoTotal;
+            decimal existenciaReal = xReal < 0 ? 0 : xReal;
+            existenciaRealPrev = existenciaReal;
+
+            row[$"Fecha_Transito{n}"] = fechaTransito;
+            row[$"Pedido_Fabrica{n}"] = pedidoFabrica;
+            row[$"CargoPromedio_Transito{n}"] = cargoProm;
+            row[$"Existencia_teorica_{n}"] = existenciaTeorica;
+            row[$"Embarque_Real{n}"] = embarqueReal;
+            row[$"Diferencia_env{n}"] = diferenciaEnv;
+            row[$"Recorte_env{n}"] = recorteEnv;
+            row[$"Aumento_env{n}"] = aumentoEnv;
+            row[$"Embarque_Sin_Aumentos_env{n}"] = embarqueSinAumentosEnv;
+            row[$"Cargo_pzs{n}"] = cargoPzsEnv;
+            row[$"Cargo_espejo_pzs{n}"] = cargoEspejoPzsEnv;
+            row[$"Cargo_total{n}"] = cargoTotal;
+            row[$"Pedido_pzs{n}"] = pedidoPzsEnv;
+            row[$"Pedido_espejo_pzs{n}"] = pedidoEspejoPzsEnv;
+            row[$"Pedido_total{n}"] = pedidoTotal;
+            row[$"Existencia_Real{n}"] = existenciaReal;
+            row[$"Diferencia_Embarque{n}"] = embarqueReal - pedidoFabrica;
+            row[$"Diferencia_Carga{n}"] = cargoTotal - cargoProm;
+            row[$"Diferencia_Existencia{n}"] = existenciaReal - existenciaTeorica;
+        }
+
+        for (int c = 0; c < cols.Count; c++) ins.Parameters[c].Value = row.TryGetValue(cols[c], out var v) ? (v ?? DBNull.Value) : DBNull.Value;
+        ins.ExecuteNonQuery();
+        filas++;
+    }
+
+    using (var log = conn.CreateCommand())
+    {
+        log.Transaction = tx;
+        log.CommandText = "INSERT OR REPLACE INTO PostMortemEjecuciones (FechaVenta, Filas, EjecutadoEn) VALUES ($f,$n,$c)";
+        log.Parameters.AddWithValue("$f", fvIso);
+        log.Parameters.AddWithValue("$n", filas);
+        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+        log.ExecuteNonQuery();
+    }
+    tx.Commit();
+
+    return new { ok = true, filas, fechaVenta = fvIso, fechaProceso = fpIso };
+}
+
 // ── App web ──────────────────────────────────────────────────────────────
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://127.0.0.1:5255");
@@ -1366,6 +1570,52 @@ app.MapGet("/api/procesos/existencia-teorica/resultados", (string? fecha) =>
     return Results.Ok(rows);
 });
 
+app.MapPost("/api/procesos/post-mortem/ejecutar", (PostMortemRequest req) =>
+{
+    if (string.IsNullOrWhiteSpace(req?.FechaVenta))
+        return Results.BadRequest(new { error = "fechaVenta es requerida (yyyy-MM-dd)." });
+    try { return Results.Ok(EjecutarPostMortem(req.FechaVenta)); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (Exception ex) { return Results.Problem(ex.Message); }
+});
+app.MapGet("/api/procesos/post-mortem/fechas", () =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT FechaVenta, Filas, EjecutadoEn FROM PostMortemEjecuciones ORDER BY FechaVenta DESC";
+    using var dr = cmd.ExecuteReader();
+    var rows = new List<object>();
+    while (dr.Read())
+        rows.Add(new { fechaVenta = dr.GetString(0), filas = dr.GetInt64(1), ejecutadoEn = dr.IsDBNull(2) ? "" : dr.GetString(2) });
+    return Results.Ok(rows);
+});
+app.MapGet("/api/procesos/post-mortem/resultados", (string? fecha) =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    var fechaEf = fecha;
+    if (string.IsNullOrWhiteSpace(fechaEf))
+    {
+        using var cmdU = conn.CreateCommand();
+        cmdU.CommandText = "SELECT FechaVenta FROM PostMortemEjecuciones ORDER BY EjecutadoEn DESC LIMIT 1";
+        fechaEf = cmdU.ExecuteScalar() as string;
+    }
+    if (string.IsNullOrWhiteSpace(fechaEf)) return Results.Ok(new List<object>());
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT * FROM PostMortemResultados WHERE Fecha_Venta = $f ORDER BY Cod_ceve, Item";
+    cmd.Parameters.AddWithValue("$f", fechaEf);
+    using var dr = cmd.ExecuteReader();
+    var rows = new List<Dictionary<string, object?>>();
+    while (dr.Read())
+    {
+        var row = new Dictionary<string, object?>();
+        for (int i = 0; i < dr.FieldCount; i++) row[dr.GetName(i)] = dr.IsDBNull(i) ? null : dr.GetValue(i);
+        rows.Add(row);
+    }
+    return Results.Ok(rows);
+});
+
 app.MapPost("/api/datos/recargar", () => Results.Ok(RecargarTodo().Select(r => new { r.Ok, r.Mensaje, r.Filas })));
 
 app.MapGet("/api/datos/estado", () =>
@@ -1391,3 +1641,4 @@ app.Run();
 readonly record struct ResultadoCarga(bool Ok, string Mensaje, int Filas);
 record FillRateRequest(string FechaInicio, string FechaFin);
 record ExistenciaTeoricaRequest(string FechaSel, string? BaseExistencia);
+record PostMortemRequest(string FechaVenta);
