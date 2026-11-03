@@ -1,0 +1,14 @@
+.DS_Store
+
+# Build artifacts
+src/backend/bin/
+src/backend/obj/
+src/backend/wwwroot/
+src/frontend/node_modules/
+publish/
+
+# Datos y base local — son de cada máquina, no se versionan
+datos.db
+Datos/**/*.csv
+Datos/**/*.xlsx
+!Datos/**/.gitkeep

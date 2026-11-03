@@ -1,0 +1,42 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: #f4f5f7;
+  color: #1f2937;
+}
+.topbar {
+  background: #1f2937;
+  color: #fff;
+  padding: 16px 24px;
+}
+.topbar h1 { margin: 0; font-size: 18px; }
+.topbar p { margin: 4px 0 0; font-size: 13px; color: #9ca3af; }
+.content { padding: 24px; max-width: 1100px; margin: 0 auto; }
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+button {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:hover { background: #1d4ed8; }
+button:disabled { background: #9ca3af; cursor: default; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #eef0f2; white-space: nowrap; }
+th { color: #6b7280; font-weight: 600; background: #f9fafb; position: sticky; top: 0; }
+.table-wrap { overflow: auto; max-height: 60vh; border: 1px solid #eef0f2; border-radius: 8px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.badge-ok { background: #dcfce7; color: #166534; }
+.badge-warn { background: #fef3c7; color: #92400e; }
+.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #6b7280; }
