@@ -36,7 +36,8 @@ void EnsureSchema()
             Nombre TEXT, Region TEXT, Organizacion TEXT, AreaNegocio TEXT,
             Gerente TEXT, CorreoGerente TEXT, Subgerente TEXT, CorreoSubgerente TEXT,
             Coordinador TEXT, CorreoCoordinador TEXT, Direccion TEXT,
-            Latitud TEXT, Longitud TEXT, CeveSinergia TEXT, TurnoLaboral TEXT
+            Latitud TEXT, Longitud TEXT, CeveSinergia TEXT, TurnoLaboral TEXT,
+            RTM TEXT, IntegralVending TEXT
         );
         CREATE TABLE IF NOT EXISTS CargasLog (
             Fuente TEXT PRIMARY KEY,
@@ -87,6 +88,13 @@ void EnsureSchema()
             FechaVenta TEXT, CodCeve TEXT, Item TEXT, CargoPzs REAL, PedidoPzs REAL
         );
         CREATE INDEX IF NOT EXISTS IX_PedidoVsCargoReal_Fecha ON PedidoVsCargoReal (FechaVenta);
+        -- Reporte ya sumarizado de CargoRutas (Pedido vs Cargo por CeVe/día/sistema),
+        -- usado por Seguimiento Servicios para saber quién ya mandó su archivo.
+        CREATE TABLE IF NOT EXISTS SeguimientoServicios (
+            SCCode TEXT, DispatchDate TEXT, Sistema TEXT, PedidoVendedorPzs REAL, CargoPzs REAL,
+            RutasUnicas REAL, ProductosUnicos REAL, Filas REAL, HoraEjecucionCdmx TEXT
+        );
+        CREATE INDEX IF NOT EXISTS IX_SeguimientoServicios_Fecha ON SeguimientoServicios (DispatchDate);
         CREATE TABLE IF NOT EXISTS ParticipacionTipoMovimiento (
             CodigoCeve TEXT, NombreCeve TEXT, Item TEXT, NombreProducto TEXT, Categoria TEXT, Marca TEXT,
             CargoTotalAnio REAL, PctParticipacion REAL, PctAcumulado REAL, ClasificacionABC TEXT,
@@ -315,6 +323,12 @@ ResultadoCarga CargarCeves()
         return new ResultadoCarga(false, $"'{Path.GetFileName(archivo)}': faltan columnas: {string.Join(", ", faltantes)}.", 0);
 
     var idx = cols.ToDictionary(c => c, c => Array.IndexOf(headers, c));
+    // RTM / Integral Vending: opcionales -- no vienen de ningún extracto, son dos
+    // banderas que se mantienen a mano agregando estas columnas al CSV cuando se
+    // quiera cambiarlas. Si no están, igual que el original: RTM arranca Activo
+    // para todos, Integral Vending Inactivo.
+    int idxRtm = Array.IndexOf(headers, "RTM");
+    int idxIv = Array.IndexOf(headers, "Integral_Vending");
 
     using var conn = new SqliteConnection(connStr);
     conn.Open();
@@ -329,8 +343,8 @@ ResultadoCarga CargarCeves()
         INSERT OR REPLACE INTO Ceves
             (CodCeve, Nombre, Region, Organizacion, AreaNegocio, Gerente, CorreoGerente,
              Subgerente, CorreoSubgerente, Coordinador, CorreoCoordinador, Direccion,
-             Latitud, Longitud, CeveSinergia, TurnoLaboral)
-        VALUES ($cod,$nombre,$region,$org,$area,$ger,$cger,$sub,$csub,$coord,$ccoord,$dir,$lat,$lon,$sin,$turno)
+             Latitud, Longitud, CeveSinergia, TurnoLaboral, RTM, IntegralVending)
+        VALUES ($cod,$nombre,$region,$org,$area,$ger,$cger,$sub,$csub,$coord,$ccoord,$dir,$lat,$lon,$sin,$turno,$rtm,$iv)
         """;
     // Nombres de parámetro cortos y fijos (evita depender del nombre de columna CSV).
     var pmap = new (string col, string param)[] {
@@ -341,6 +355,8 @@ ResultadoCarga CargarCeves()
         ("CeVe_Sinergia","$sin"), ("Turno_Laboral","$turno"),
     };
     foreach (var (_, param) in pmap) ins.Parameters.Add(new SqliteParameter(param, ""));
+    ins.Parameters.Add(new SqliteParameter("$rtm", "Activo"));
+    ins.Parameters.Add(new SqliteParameter("$iv", "Inactivo"));
 
     for (int i = 1; i < lines.Length; i++)
     {
@@ -349,6 +365,8 @@ ResultadoCarga CargarCeves()
         if (string.IsNullOrWhiteSpace(Val("Cod_ceve"))) continue;
 
         foreach (var (col, param) in pmap) ins.Parameters[param]!.Value = Val(col);
+        ins.Parameters["$rtm"]!.Value = idxRtm >= 0 && idxRtm < vals.Length && vals[idxRtm].Length > 0 ? vals[idxRtm] : "Activo";
+        ins.Parameters["$iv"]!.Value = idxIv >= 0 && idxIv < vals.Length && vals[idxIv].Length > 0 ? vals[idxIv] : "Inactivo";
         ins.ExecuteNonQuery();
         filas++;
     }
@@ -611,6 +629,14 @@ ResultadoCarga CargarPedidoVsCargoReal() => CargarTransaccionalPorFecha("PedidoV
     ("CodCeve", ParseTxt), ("Item", ParseTxt), ("CargoPzs", ParseNum), ("PedidoPzs", ParseNum),
 });
 
+// Seguimiento Servicios: reporte ya sumarizado de CargoRutas, una fila por
+// SCCode+DispatchDate+Sistema (System='IVY' es RTM, 'IV' es Integral Vending).
+ResultadoCarga CargarSeguimientoServicios() => CargarTransaccionalPorFecha("Seguimiento Servicios", "SeguimientoServicios", "Cargas/SeguimientoServicios", 1, new (string, Func<string, object?>)[] {
+    ("SCCode", ParseTxt), ("DispatchDate", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
+    ("Sistema", ParseTxt), ("PedidoVendedorPzs", ParseNum), ("CargoPzs", ParseNum),
+    ("RutasUnicas", ParseNum), ("ProductosUnicos", ParseNum), ("Filas", ParseNum), ("HoraEjecucionCdmx", ParseTxt),
+});
+
 // Participación - Tipo Movimiento no trae fecha (es una clasificación ABC/XYZ
 // vigente, no una serie histórica): se trata como catálogo, el CSV más
 // reciente reemplaza la tabla completa. Tampoco valida encabezado (igual que
@@ -798,6 +824,7 @@ List<ResultadoCarga> RecargarTodo() => new() {
     CargarPedidoVsCargoReal(), CargarParticipacionTipoMovimiento(),
     CargarCatCadenaSupministro(), CargarRemisiones(),
     CargarPedidoVendedorPromedios(), CargarFrecuenciasConsolidadas(), CargarInventarioResumen(),
+    CargarSeguimientoServicios(),
 };
 
 RecargarTodo();
@@ -2143,6 +2170,89 @@ app.MapGet("/api/cargas/pedido-vs-cargo-real", () => Results.Ok(LeerTabla("Pedid
 app.MapGet("/api/cargas/participacion-tipo-movimiento", () => Results.Ok(LeerTabla("ParticipacionTipoMovimiento", "CodigoCeve")));
 app.MapGet("/api/catalogos/cadena-suministro", () => Results.Ok(LeerTabla("CatCadenaSupministro", "CodCeve")));
 app.MapGet("/api/cargas/remisiones", () => Results.Ok(LeerTabla("RemisionesProductosCEQ", "FechaVenta DESC")));
+app.MapGet("/api/cargas/seguimiento-servicios", () => Results.Ok(LeerTabla("SeguimientoServicios", "DispatchDate DESC")));
+
+// ── Seguimiento Servicios: resumen de quién ya mandó su archivo ────────────
+// Cruza el catálogo de CeVes (ya cargado) contra lo que llegó en
+// SeguimientoServicios para la fecha pedida (o la más reciente cargada).
+// Sistema='IVY' es el reporte de RTM, 'IV' el de Integral Vending -- se
+// agregan aparte para saber si cada sistema llegó, no solo si llegó "algo".
+app.MapGet("/api/seguimiento-servicios/fechas", () =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT DISTINCT DispatchDate FROM SeguimientoServicios WHERE DispatchDate IS NOT NULL AND DispatchDate <> '' ORDER BY DispatchDate DESC";
+    using var dr = cmd.ExecuteReader();
+    var list = new List<string>();
+    while (dr.Read()) if (!dr.IsDBNull(0)) list.Add(dr.GetString(0));
+    return Results.Ok(list);
+});
+app.MapGet("/api/seguimiento-servicios/resumen", (string? fecha) =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+
+    if (string.IsNullOrWhiteSpace(fecha))
+    {
+        using var fc = conn.CreateCommand();
+        fc.CommandText = "SELECT MAX(DispatchDate) FROM SeguimientoServicios";
+        var r = fc.ExecuteScalar();
+        fecha = r is string s && s.Length > 0 ? s : DateTime.UtcNow.ToString("yyyy-MM-dd");
+    }
+
+    var ceves = new List<(string cod, string nombre, string region, string org, bool rtmActivo, bool ivActivo)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Nombre, Region, Organizacion, RTM, IntegralVending FROM Ceves";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var cod = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            if (cod.Length == 0) continue;
+            ceves.Add((cod, dr.IsDBNull(1) ? "" : dr.GetString(1), dr.IsDBNull(2) ? "" : dr.GetString(2), dr.IsDBNull(3) ? "" : dr.GetString(3),
+                !dr.IsDBNull(4) && dr.GetString(4) == "Activo", !dr.IsDBNull(5) && dr.GetString(5) == "Activo"));
+        }
+    }
+
+    var filasPorCeve = new Dictionary<string, decimal>();
+    var rtmFilasPorCeve = new Dictionary<string, decimal>();
+    var ivFilasPorCeve = new Dictionary<string, decimal>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT SCCode, Sistema, Filas FROM SeguimientoServicios WHERE DispatchDate = $f";
+        cmd.Parameters.AddWithValue("$f", fecha);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var cod = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            if (cod.Length == 0) continue;
+            var sistema = dr.IsDBNull(1) ? "" : dr.GetString(1);
+            var filas = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+            filasPorCeve[cod] = filasPorCeve.GetValueOrDefault(cod) + filas;
+            if (sistema == "IVY") rtmFilasPorCeve[cod] = rtmFilasPorCeve.GetValueOrDefault(cod) + filas;
+            else if (sistema == "IV") ivFilasPorCeve[cod] = ivFilasPorCeve.GetValueOrDefault(cod) + filas;
+        }
+    }
+
+    var resultado = new List<object>();
+    int enviados = 0;
+    foreach (var c in ceves.OrderBy(c => filasPorCeve.ContainsKey(c.cod) ? 1 : 0).ThenBy(c => c.cod))
+    {
+        bool enviado = filasPorCeve.ContainsKey(c.cod);
+        if (enviado) enviados++;
+        bool rtmEnviado = rtmFilasPorCeve.ContainsKey(c.cod);
+        bool ivEnviado = ivFilasPorCeve.ContainsKey(c.cod);
+        resultado.Add(new {
+            codCeve = c.cod, nombre = c.nombre, region = c.region, organizacion = c.org,
+            enviado, filas = enviado ? (decimal?)filasPorCeve[c.cod] : null,
+            rtmActivo = c.rtmActivo, rtmEnviado, rtmFilas = rtmEnviado ? (decimal?)rtmFilasPorCeve[c.cod] : null,
+            ivActivo = c.ivActivo, ivEnviado, ivFilas = ivEnviado ? (decimal?)ivFilasPorCeve[c.cod] : null,
+        });
+    }
+
+    return Results.Ok(new { fecha, total = ceves.Count, enviados, faltantes = ceves.Count - enviados, ceves = resultado });
+});
 
 app.MapPost("/api/procesos/fill-rate/ejecutar", (FillRateRequest req) =>
 {

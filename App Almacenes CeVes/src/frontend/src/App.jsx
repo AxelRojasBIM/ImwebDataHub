@@ -25,6 +25,7 @@ const CATALOGOS = [
   { key: 'participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', fuente: 'Participación - Tipo Movimiento', carpeta: 'Cargas/ParticipacionTipoMovimiento', section: 'Cargas masivas' },
   { key: 'existencia-ceve-manual', label: 'Existencia CeVe Manual', fuente: 'Existencia CeVe Manual', carpeta: 'Cargas/ExistenciaCeveManual', section: 'Cargas masivas' },
   { key: 'pedido-vs-cargo-real', label: 'PedidoVSCargo Real', fuente: 'PedidoVSCargo Real', carpeta: 'Cargas/PedidoVsCargoReal', section: 'Cargas masivas' },
+  { key: 'seguimiento-servicios', label: 'Seguimiento Servicios', fuente: 'Seguimiento Servicios', carpeta: 'Cargas/SeguimientoServicios', section: 'Cargas masivas', proceso: true },
   // ── Catálogos ──
   { key: 'ceves', label: 'CeVes', fuente: 'CEVEs', carpeta: 'Catalogos/CEVEs', section: 'Catálogos' },
   { key: 'productos-hub', label: 'Productos HubPedidos', fuente: 'Productos HubPedidos', carpeta: 'Catalogos/ProductosHubPedidos', section: 'Catálogos' },
@@ -847,12 +848,156 @@ function CausasRecorteTopN({ filtros, opciones }) {
   )
 }
 
+const ESTADO_STYLES = {
+  completo: { bg: '#dcfce7', color: '#166534', label: '✓ Enviado' },
+  incompleto: { bg: '#fef3c7', color: '#92400e', label: '⚠ Incompleto' },
+  falta: { bg: '#fee2e2', color: '#991b1b', label: '✕ Falta' },
+  na: { bg: '#f3f4f6', color: '#9ca3af', label: '— N/A' },
+}
+function estadoCeve(c) {
+  const activos = []
+  if (c.rtmActivo) activos.push(c.rtmEnviado)
+  if (c.ivActivo) activos.push(c.ivEnviado)
+  if (activos.length === 0) return 'na'
+  const enviados = activos.filter(Boolean).length
+  if (enviados === 0) return 'falta'
+  if (enviados === activos.length) return 'completo'
+  return 'incompleto'
+}
+function EstadoBadge({ estado }) {
+  const s = ESTADO_STYLES[estado]
+  return <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>
+}
+function SistemaBadge({ activo, enviado, filas }) {
+  if (!activo) return <span style={{ color: '#9ca3af', fontSize: 12.5 }}>—</span>
+  if (!enviado) return <span className="badge" style={{ background: '#fee2e2', color: '#991b1b' }}>✕ Falta</span>
+  return <span className="badge" style={{ background: '#dcfce7', color: '#166534' }}>✓ {Number(filas).toLocaleString('es-MX')}</span>
+}
+
+function SeguimientoServiciosPage() {
+  const [fechas, setFechas] = useState([])
+  const [fecha, setFecha] = useState('')
+  const [resumen, setResumen] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [organizacion, setOrganizacion] = useState('')
+  const [region, setRegion] = useState('')
+
+  async function cargarFechas() {
+    const r = await fetch('/api/seguimiento-servicios/fechas')
+    const d = await r.json()
+    setFechas(d)
+    setFecha(prev => (prev && d.includes(prev)) ? prev : (d[0] ?? ''))
+  }
+  async function cargarResumen(f) {
+    setLoading(true)
+    const url = f ? `/api/seguimiento-servicios/resumen?fecha=${f}` : '/api/seguimiento-servicios/resumen'
+    const r = await fetch(url)
+    setResumen(r.ok ? await r.json() : null)
+    setLoading(false)
+  }
+  useEffect(() => { cargarFechas() }, [])
+  useEffect(() => { if (fecha) cargarResumen(fecha) }, [fecha])
+
+  const ceves = resumen?.ceves ?? []
+  const organizaciones = [...new Set(ceves.map(c => c.organizacion).filter(Boolean))].sort()
+  const regiones = [...new Set(ceves.map(c => c.region).filter(Boolean))].sort()
+  const q = search.trim().toLowerCase()
+  const filtrados = ceves.filter(c =>
+    (!q || (c.codCeve || '').toLowerCase().includes(q) || (c.nombre || '').toLowerCase().includes(q)) &&
+    (!organizacion || c.organizacion === organizacion) &&
+    (!region || c.region === region)
+  )
+  const totalF = filtrados.length
+  const enviadosF = filtrados.filter(c => c.enviado).length
+  const pct = totalF > 0 ? Math.round((enviadosF / totalF) * 100) : 0
+
+  return (
+    <>
+      <div className="card">
+        <strong>Seguimiento Servicios</strong>
+        <p style={{ fontSize: 12.5, color: '#6b7280', margin: '6px 0 0' }}>
+          Cruza el catálogo de CeVes contra el reporte de CargoRutas depositado en Datos/Cargas/SeguimientoServicios
+          para saber quién ya mandó su archivo del día (RTM = Sistema "IVY", Integral Vending = Sistema "IV").
+          Usa "Recargar datos" arriba para leer archivos nuevos.
+        </p>
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end', marginBottom: 14 }}>
+          <label style={{ fontSize: 12.5 }}>Fecha de despacho<br />
+            <select value={fecha} onChange={e => setFecha(e.target.value)}>
+              {fechas.length === 0 && <option value="">Sin cargas</option>}
+              {fechas.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </label>
+          <label style={{ fontSize: 12.5 }}>Buscar<br />
+            <input type="text" placeholder="CeVe o nombre…" value={search} onChange={e => setSearch(e.target.value)} style={{ width: 160 }} />
+          </label>
+          <label style={{ fontSize: 12.5 }}>Organización<br />
+            <select value={organizacion} onChange={e => setOrganizacion(e.target.value)}>
+              <option value="">Todas</option>
+              {organizaciones.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+          <label style={{ fontSize: 12.5 }}>Región<br />
+            <select value={region} onChange={e => setRegion(e.target.value)}>
+              <option value="">Todas</option>
+              {regiones.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </label>
+        </div>
+
+        {resumen && totalF > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12.5, marginBottom: 4 }}>{enviadosF} de {totalF} CeVes enviaron ({pct}%)</div>
+            <div style={{ height: 8, borderRadius: 99, background: '#f3f4f6', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#16a34a' : '#2563eb', borderRadius: 99 }} />
+            </div>
+          </div>
+        )}
+
+        {loading ? <p>Cargando…</p> : !fecha ? <p>Sin cargas — deposita un CSV en Datos/Cargas/SeguimientoServicios y recarga datos.</p> : filtrados.length === 0 ? <p>Sin resultados para ese filtro.</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>CeVe</th><th>Nombre</th><th>Región</th><th>Estado</th>
+                  <th>Filas cargadas</th><th>RTM</th><th>Integral Vending</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrados.map(c => {
+                  const estado = estadoCeve(c)
+                  const rowBg = estado === 'falta' ? '#fef2f2' : estado === 'incompleto' ? '#fffbeb' : undefined
+                  return (
+                    <tr key={c.codCeve} style={{ background: rowBg }}>
+                      <td style={{ fontWeight: 600 }}>{c.codCeve}</td>
+                      <td>{c.nombre || '—'}</td>
+                      <td>{c.region || '—'}</td>
+                      <td><EstadoBadge estado={estado} /></td>
+                      <td>{c.enviado ? Number(c.filas).toLocaleString('es-MX') : '—'}</td>
+                      <td><SistemaBadge activo={c.rtmActivo} enviado={c.rtmEnviado} filas={c.rtmFilas} /></td>
+                      <td><SistemaBadge activo={c.ivActivo} enviado={c.ivEnviado} filas={c.ivFilas} /></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 const PROCESO_PAGES = {
   'fill-rate': FillRatePage,
   'existencia-teorica': ExistenciaTeoricaPage,
   'post-mortem': PostMortemPage,
   'inventario-optimo': InventarioOptimoPage,
   'causas-recorte': CausasRecortePage,
+  'seguimiento-servicios': SeguimientoServiciosPage,
 }
 
 export default function App() {
