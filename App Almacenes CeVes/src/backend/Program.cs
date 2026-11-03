@@ -93,6 +93,36 @@ void EnsureSchema()
             DiasConMovimientoUltMes INTEGER, TotalDiasUltMes INTEGER, PctDiasMovimientoUltMes REAL,
             ClasificacionXYZ TEXT, ClasificacionCombinada TEXT
         );
+        -- Remisiones (embarques Planta/Cedis -> CeVe): texto, igual que en la app
+        -- original, para no perder nada por un TRY_CONVERT que falle en silencio.
+        CREATE TABLE IF NOT EXISTS RemisionesProductosCEQ (
+            Remision TEXT, FechaCierreEmbarque TEXT, FechaVenta TEXT, OrigenId TEXT, Origen TEXT,
+            DestinoId TEXT, Destino TEXT, Producto TEXT, Descripcion TEXT, CantidadEnviada REAL
+        );
+        CREATE INDEX IF NOT EXISTS IX_RemisionesProductosCEQ_Remision ON RemisionesProductosCEQ (Remision);
+        CREATE TABLE IF NOT EXISTS CatCadenaSupministro (
+            Semana TEXT, CodCeve TEXT, Item TEXT, Produce TEXT, Recoge TEXT, Distribuye TEXT, Linea TEXT
+        );
+        -- Resultados de Fill Rate: una sola ejecución vigente a la vez (se
+        -- reemplaza completa en cada "Ejecutar"), simplificación razonable para
+        -- una app de un solo usuario sin necesidad de guardar historial de corridas.
+        CREATE TABLE IF NOT EXISTS FillRateResultados (
+            CodigoCeve TEXT, NombreCeve TEXT, Region TEXT, Organizacion TEXT, Coordinador TEXT,
+            Item TEXT, ShortName TEXT, LongName TEXT, Price REAL, TrayCapacity REAL, TrayCode TEXT,
+            DaysLife REAL, Brand TEXT, CategoryItem TEXT, BedsPerContainer REAL,
+            Semana TEXT, FechaVenta TEXT, OrigenId TEXT, OrigenCusN TEXT, FechaCierreEmbarqueMax TEXT,
+            Produce TEXT, ProduceCusN TEXT, Recoge TEXT, RecogeCusN TEXT, Distribuye TEXT, DistribuyeCusN TEXT,
+            OrigenEmbarque TEXT, Linea TEXT,
+            PedidoCeve REAL, EmbarquePlantaCedis REAL, DiferenciaEnv REAL, RecorteEnv REAL, AumentoEnv REAL,
+            EmbarqueSinAumentosEnv REAL, PedidoCevePiezas REAL, EmbarquePiezas REAL, DiferenciaPiezas REAL,
+            RecortePiezas REAL, AumentoPiezas REAL, EmbarqueSinAumentosPiezas REAL,
+            PedidoCeveImporte REAL, EmbarqueImporte REAL, DiferenciaImporte REAL, RecorteImporte REAL,
+            AumentoImporte REAL, EmbarqueSinAumentosImporte REAL
+        );
+        CREATE INDEX IF NOT EXISTS IX_FillRateResultados_Fecha ON FillRateResultados (FechaVenta);
+        CREATE TABLE IF NOT EXISTS ProcesosLog (
+            Proceso TEXT PRIMARY KEY, Detalle TEXT, Filas INTEGER, EjecutadoEn TEXT
+        );
         """;
     cmd.ExecuteNonQuery();
 }
@@ -524,14 +554,364 @@ ResultadoCarga CargarParticipacionTipoMovimiento()
     return new ResultadoCarga(true, $"'{Path.GetFileName(archivo)}': {filas:N0} filas cargadas en Participación - Tipo Movimiento.", filas);
 }
 
+ResultadoCarga CargarCatCadenaSupministro() => CargarCatalogoGenerico("Catálogo Cadena Suministro", "CatCadenaSupministro", "Catalogos/CadenaSuministro", new (string, string)[] {
+    ("Semana","Semana"), ("Cod_ceve","CodCeve"), ("Item","Item"), ("Produce","Produce"),
+    ("Recoge","Recoge"), ("Distribuye","Distribuye"), ("Linea","Linea"),
+});
+
+// Remisiones (embarques): a diferencia de las cargas por fecha, aquí se
+// deduplica por número de Remisión (igual que en la app original) — un mismo
+// archivo se puede volver a soltar sin duplicar, y dos archivos con
+// remisiones distintas simplemente se acumulan. Se procesan todos los CSV
+// nuevos de la carpeta, cada uno se mueve a _Procesados al terminar.
+ResultadoCarga CargarRemisiones()
+{
+    var carpeta = Path.Combine(datosDir, "Procesos/FillRate/Remisiones");
+    if (!Directory.Exists(carpeta)) return new ResultadoCarga(true, "Sin carpeta Datos/Procesos/FillRate/Remisiones — se deja como está.", 0);
+    var archivos = Directory.GetFiles(carpeta, "*.csv").OrderBy(f => f).ToArray();
+    if (archivos.Length == 0) return new ResultadoCarga(true, "Sin archivos nuevos para 'Remisiones'.", 0);
+
+    var cols = new[] { "Remision", "FechaCierreEmbarque", "FechaVenta", "OrigenId", "Origen", "DestinoId", "Destino", "Producto", "Descripcion", "CantidadEnviada" };
+    var procesadosDir = Path.Combine(datosDir, "_Procesados", "Procesos/FillRate/Remisiones");
+    Directory.CreateDirectory(procesadosDir);
+
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+
+    int totalFilas = 0;
+    var archivosOk = new List<string>();
+    foreach (var archivo in archivos)
+    {
+        var lines = File.ReadAllLines(archivo).Where(l => !string.IsNullOrWhiteSpace(l)).ToArray();
+        if (lines.Length < 2) { archivosOk.Add(Path.GetFileName(archivo)); File.Move(archivo, Path.Combine(procesadosDir, Path.GetFileName(archivo)), true); continue; }
+
+        var headers = SplitCsvLine(lines[0]).Select(h => h.Trim()).ToArray();
+        var idx = cols.Select(c => Array.IndexOf(headers, c)).ToArray();
+        if (idx.Any(i => i < 0))
+            return new ResultadoCarga(false, $"'{Path.GetFileName(archivo)}' (Remisiones): faltan columnas: {string.Join(", ", cols.Where((c, i) => idx[i] < 0))}.", 0);
+
+        var remisiones = new HashSet<string>();
+        var filasParseadas = new List<string[]>();
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var f = SplitCsvLine(lines[i]);
+            if (f.Length < headers.Length) continue;
+            var vals = idx.Select(j => f[j]).ToArray();
+            filasParseadas.Add(vals);
+            if (!string.IsNullOrWhiteSpace(vals[0])) remisiones.Add(vals[0].Trim());
+        }
+
+        using (var tx = conn.BeginTransaction())
+        {
+            if (remisiones.Count > 0)
+            {
+                using var del = conn.CreateCommand();
+                del.Transaction = tx;
+                var ps = remisiones.Select((_, i) => "$r" + i).ToArray();
+                del.CommandText = $"DELETE FROM RemisionesProductosCEQ WHERE Remision IN ({string.Join(",", ps)})";
+                int i2 = 0; foreach (var r in remisiones) del.Parameters.AddWithValue(ps[i2++], r);
+                del.ExecuteNonQuery();
+            }
+
+            using var ins = conn.CreateCommand();
+            ins.Transaction = tx;
+            ins.CommandText = "INSERT INTO RemisionesProductosCEQ (Remision,FechaCierreEmbarque,FechaVenta,OrigenId,Origen,DestinoId,Destino,Producto,Descripcion,CantidadEnviada) VALUES ($p0,$p1,$p2,$p3,$p4,$p5,$p6,$p7,$p8,$p9)";
+            for (int c = 0; c < cols.Length; c++) ins.Parameters.Add(new SqliteParameter("$p" + c, DBNull.Value));
+            foreach (var vals in filasParseadas)
+            {
+                for (int c = 0; c < cols.Length; c++)
+                    ins.Parameters[c].Value = c switch
+                    {
+                        9 => ParseNum(vals[c]) ?? DBNull.Value,
+                        1 or 2 => (object)(NormalizarFechaIso(vals[c]) is { Length: > 0 } iso ? iso : vals[c].Trim()),
+                        _ => ParseTxt(vals[c]) ?? DBNull.Value,
+                    };
+                ins.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+
+        totalFilas += filasParseadas.Count;
+        archivosOk.Add(Path.GetFileName(archivo));
+        var destino = Path.Combine(procesadosDir, Path.GetFileName(archivo));
+        if (File.Exists(destino)) File.Delete(destino);
+        File.Move(archivo, destino);
+    }
+
+    using (var log = conn.CreateCommand())
+    {
+        log.CommandText = "INSERT OR REPLACE INTO CargasLog (Fuente, Archivo, Filas, CargadoEn) VALUES ('Remisiones (Fill Rate)', $a,$n,$c)";
+        log.Parameters.AddWithValue("$a", string.Join(", ", archivosOk));
+        log.Parameters.AddWithValue("$n", totalFilas);
+        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+        log.ExecuteNonQuery();
+    }
+
+    return new ResultadoCarga(true, $"{archivosOk.Count} archivo(s) procesados, {totalFilas:N0} filas en Remisiones (Fill Rate).", totalFilas);
+}
+
 List<ResultadoCarga> RecargarTodo() => new() {
     CargarCeves(), CargarProductosHub(), CargarRtmProductos(), CargarCalendario(),
     CargarCatCevesOracle(), CargarCatOracleFacilities(), CargarPlantasCedis(),
     CargarPedidoCevePlanta(), CargarPedidoOracle(), CargarExistenciaCeveManual(),
     CargarPedidoVsCargoReal(), CargarParticipacionTipoMovimiento(),
+    CargarCatCadenaSupministro(), CargarRemisiones(),
 };
 
 RecargarTodo();
+
+// ── Fill Rate Planta/Cedis a CeVe ───────────────────────────────────────────
+// Igual que en la app original: compara lo pedido (PedidosCevePlanta) contra
+// lo embarcado (RemisionesProductosCEQ) por CeVe+Item+Fecha, y lo enriquece
+// con catálogos para mostrar nombres y calcular Recorte/Aumento en envases,
+// piezas e importe. A diferencia del original (una query SQL de Azure con
+// varias etapas por timeouts de 230s), aquí no hace falta: se trae cada
+// fuente a memoria una sola vez y se cruza con diccionarios, porque SQLite no
+// tiene TRY_CONVERT/DATEFIRST/CROSS APPLY y los volúmenes de una app de un
+// solo usuario no justifican pelear con eso en SQL.
+const int FillRateCeveMin = 12000, FillRateCeveMax = 25769;
+
+static string NormalizarCodigo(string? s)
+{
+    s = (s ?? "").Trim();
+    if (s.Length == 0) return "";
+    if (s.Any(c => !char.IsDigit(c))) return s.ToUpperInvariant();
+    return long.TryParse(s, out var n) ? n.ToString() : s.ToUpperInvariant();
+}
+
+static decimal? ParseDecN(string? s) => string.IsNullOrWhiteSpace(s) ? null : (decimal.TryParse(s.Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null);
+
+object EjecutarFillRate(string fechaInicio, string fechaFin)
+{
+    var fi = NormalizarFechaIso(fechaInicio); if (fi.Length == 0) fi = fechaInicio.Trim();
+    var ff = NormalizarFechaIso(fechaFin); if (ff.Length == 0) ff = fechaFin.Trim();
+
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+
+    var pedidos = new Dictionary<(string ceve, string item, string fecha), decimal>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Cantidad, FechaVenta FROM PedidosCevePlanta WHERE FechaVenta BETWEEN $fi AND $ff";
+        cmd.Parameters.AddWithValue("$fi", fi); cmd.Parameters.AddWithValue("$ff", ff);
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var cant = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+            var fecha = dr.IsDBNull(3) ? "" : dr.GetString(3);
+            if (ceve.Length == 0 || fecha.Length == 0) continue;
+            var key = (ceve, item, fecha);
+            pedidos[key] = pedidos.GetValueOrDefault(key) + cant;
+        }
+    }
+
+    var embarques = new Dictionary<(string ceve, string item, string fecha), decimal>();
+    var catalogoRemisiones = new Dictionary<(string ceve, string item), (string origenId, string fecha)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT OrigenId, DestinoId, Producto, FechaVenta, FechaCierreEmbarque, CantidadEnviada FROM RemisionesProductosCEQ";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var origenId = dr.IsDBNull(0) ? "" : dr.GetString(0);
+            var ceve = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var item = NormalizarCodigo(dr.IsDBNull(2) ? "" : dr.GetString(2));
+            var fechaVenta = dr.IsDBNull(3) ? "" : dr.GetString(3);
+            var fechaCierre = dr.IsDBNull(4) ? "" : dr.GetString(4);
+            var cant = dr.IsDBNull(5) ? 0m : Convert.ToDecimal(dr.GetValue(5));
+            if (ceve.Length == 0) continue;
+
+            if (fechaVenta.Length > 0 && string.CompareOrdinal(fechaVenta, fi) >= 0 && string.CompareOrdinal(fechaVenta, ff) <= 0)
+            {
+                var key = (ceve, item, fechaVenta);
+                embarques[key] = embarques.GetValueOrDefault(key) + cant;
+            }
+            if (fechaCierre.Length > 0)
+            {
+                var ckey = (ceve, item);
+                if (!catalogoRemisiones.TryGetValue(ckey, out var cur) || string.CompareOrdinal(fechaCierre, cur.fecha) > 0)
+                    catalogoRemisiones[ckey] = (origenId, fechaCierre);
+            }
+        }
+    }
+
+    var ceves = new Dictionary<string, (string nombre, string region, string org, string coord)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Nombre, Region, Organizacion, Coordinador FROM Ceves";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var c = NormalizarCodigo(dr.GetString(0));
+            if (c.Length > 0) ceves[c] = (dr.IsDBNull(1) ? "" : dr.GetString(1), dr.IsDBNull(2) ? "" : dr.GetString(2), dr.IsDBNull(3) ? "" : dr.GetString(3), dr.IsDBNull(4) ? "" : dr.GetString(4));
+        }
+    }
+
+    var calendario = new Dictionary<string, string>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT Fecha, Semana FROM CalendarioBimbo";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read()) calendario[dr.GetString(0)] = dr.IsDBNull(1) ? "" : dr.GetString(1);
+    }
+
+    var productos = new Dictionary<string, (string shortName, string longName, decimal? price, decimal? trayCap, string trayCode, decimal? daysLife, string brand, string category, decimal? beds)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT ItemCode, ShortName, LongName, Price, TrayCapacity, TrayCode, DaysLife, Brand, CategoryItem, BedsPerContainer FROM ProductosHub";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var item = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            if (item.Length == 0) continue;
+            productos[item] = (
+                dr.IsDBNull(1) ? "" : dr.GetString(1), dr.IsDBNull(2) ? "" : dr.GetString(2),
+                dr.IsDBNull(3) ? null : ParseDecN(dr.GetString(3)), dr.IsDBNull(4) ? null : ParseDecN(dr.GetString(4)),
+                dr.IsDBNull(5) ? "" : dr.GetString(5), dr.IsDBNull(6) ? null : ParseDecN(dr.GetString(6)),
+                dr.IsDBNull(7) ? "" : dr.GetString(7), dr.IsDBNull(8) ? "" : dr.GetString(8),
+                dr.IsDBNull(9) ? null : ParseDecN(dr.GetString(9)));
+        }
+    }
+
+    var cadena = new Dictionary<(string ceve, string item), List<(string semana, string produce, string recoge, string distribuye, string linea)>>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Semana, Produce, Recoge, Distribuye, Linea FROM CatCadenaSupministro";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            if (ceve.Length == 0) continue;
+            var key = (ceve, item);
+            if (!cadena.TryGetValue(key, out var list)) cadena[key] = list = new();
+            list.Add((dr.IsDBNull(2) ? "" : dr.GetString(2), dr.IsDBNull(3) ? "" : dr.GetString(3), dr.IsDBNull(4) ? "" : dr.GetString(4), dr.IsDBNull(5) ? "" : dr.GetString(5), dr.IsDBNull(6) ? "" : dr.GetString(6)));
+        }
+    }
+
+    (string produce, string recoge, string distribuye, string linea) ResolverCadena(string ceve, string item, string semana)
+    {
+        if (!cadena.TryGetValue((ceve, item), out var list) || list.Count == 0) return ("", "", "", "");
+        foreach (var c in list) if (c.semana == semana) return (c.produce, c.recoge, c.distribuye, c.linea);
+        var best = list.OrderByDescending(c => int.TryParse(c.semana, out var sn) ? sn : int.MinValue).First();
+        return (best.produce, best.recoge, best.distribuye, best.linea);
+    }
+
+    var plantasCedis = new Dictionary<string, string>();
+    void AddPlanta(string code, string customerName)
+    {
+        if (code.Length == 0) return;
+        if (!plantasCedis.TryGetValue(code, out var cur) || string.CompareOrdinal(customerName, cur) < 0) plantasCedis[code] = customerName;
+    }
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT Planta, WH, CustomerName FROM CatPlantasCedis";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var cust = dr.IsDBNull(2) ? "" : dr.GetString(2);
+            AddPlanta(NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0)), cust);
+            AddPlanta(NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1)), cust);
+        }
+    }
+
+    var claves = new HashSet<(string ceve, string item, string fecha)>(pedidos.Keys);
+    claves.UnionWith(embarques.Keys);
+
+    using var tx = conn.BeginTransaction();
+    using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM FillRateResultados"; del.ExecuteNonQuery(); }
+
+    using var ins = conn.CreateCommand();
+    ins.Transaction = tx;
+    ins.CommandText = """
+        INSERT INTO FillRateResultados (
+            CodigoCeve,NombreCeve,Region,Organizacion,Coordinador,Item,ShortName,LongName,Price,TrayCapacity,TrayCode,
+            DaysLife,Brand,CategoryItem,BedsPerContainer,Semana,FechaVenta,OrigenId,OrigenCusN,FechaCierreEmbarqueMax,
+            Produce,ProduceCusN,Recoge,RecogeCusN,Distribuye,DistribuyeCusN,OrigenEmbarque,Linea,
+            PedidoCeve,EmbarquePlantaCedis,DiferenciaEnv,RecorteEnv,AumentoEnv,EmbarqueSinAumentosEnv,
+            PedidoCevePiezas,EmbarquePiezas,DiferenciaPiezas,RecortePiezas,AumentoPiezas,EmbarqueSinAumentosPiezas,
+            PedidoCeveImporte,EmbarqueImporte,DiferenciaImporte,RecorteImporte,AumentoImporte,EmbarqueSinAumentosImporte
+        ) VALUES (
+            $p0,$p1,$p2,$p3,$p4,$p5,$p6,$p7,$p8,$p9,$p10,$p11,$p12,$p13,$p14,$p15,$p16,$p17,$p18,$p19,
+            $p20,$p21,$p22,$p23,$p24,$p25,$p26,$p27,$p28,$p29,$p30,$p31,$p32,$p33,$p34,$p35,$p36,$p37,$p38,$p39,
+            $p40,$p41,$p42,$p43,$p44,$p45
+        )
+        """;
+    for (int c = 0; c < 46; c++) ins.Parameters.Add(new SqliteParameter("$p" + c, DBNull.Value));
+
+    int filas = 0;
+    foreach (var key in claves)
+    {
+        if (!int.TryParse(key.ceve, out var ceveNum) || ceveNum < FillRateCeveMin || ceveNum > FillRateCeveMax) continue;
+
+        var pedido = pedidos.GetValueOrDefault(key);
+        var embarque = embarques.GetValueOrDefault(key);
+        ceves.TryGetValue(key.ceve, out var ceveInfo);
+        calendario.TryGetValue(key.fecha, out var semana);
+        productos.TryGetValue(key.item, out var prod);
+        catalogoRemisiones.TryGetValue((key.ceve, key.item), out var cr);
+        var (produce, recoge, distribuye, linea) = ResolverCadena(key.ceve, key.item, semana ?? "");
+
+        string? origenCusN = cr.origenId != null && plantasCedis.TryGetValue(NormalizarCodigo(cr.origenId), out var ocn) ? ocn : null;
+        string? produceCusN = plantasCedis.TryGetValue(NormalizarCodigo(produce), out var pcn) ? pcn : null;
+        string? recogeCusN = plantasCedis.TryGetValue(NormalizarCodigo(recoge), out var rcn) ? rcn : null;
+        string? distribuyeCusN = plantasCedis.TryGetValue(NormalizarCodigo(distribuye), out var dcn) ? dcn : null;
+        string? origenEmbarque = origenCusN ?? distribuyeCusN;
+
+        var diferenciaEnv = embarque - pedido;
+        var recorteEnv = diferenciaEnv < 0 ? Math.Abs(diferenciaEnv) : 0;
+        var aumentoEnv = diferenciaEnv > 0 ? diferenciaEnv : 0;
+        var embarqueSinAumentosEnv = embarque - aumentoEnv;
+
+        var trayCap = prod.trayCap;
+        var price = prod.price;
+        decimal? pedidoPiezas = trayCap.HasValue ? pedido * trayCap : null;
+        decimal? embarquePiezas = trayCap.HasValue ? embarque * trayCap : null;
+        decimal? diferenciaPiezas = trayCap.HasValue ? diferenciaEnv * trayCap : null;
+        decimal? recortePiezas = trayCap.HasValue ? recorteEnv * trayCap : null;
+        decimal? aumentoPiezas = trayCap.HasValue ? aumentoEnv * trayCap : null;
+        decimal? embarqueSinAumentosPiezas = embarquePiezas - aumentoPiezas;
+
+        decimal? pedidoImporte = pedidoPiezas * price;
+        decimal? embarqueImporte = embarquePiezas * price;
+        decimal? diferenciaImporte = diferenciaPiezas * price;
+        decimal? recorteImporte = recortePiezas * price;
+        decimal? aumentoImporte = aumentoPiezas * price;
+        decimal? embarqueSinAumentosImporte = embarqueSinAumentosPiezas * price;
+
+        object[] vals = {
+            key.ceve, ceveInfo.nombre, ceveInfo.region, ceveInfo.org, ceveInfo.coord, key.item, prod.shortName, prod.longName,
+            (object?)price ?? DBNull.Value, (object?)trayCap ?? DBNull.Value, prod.trayCode, (object?)prod.daysLife ?? DBNull.Value,
+            prod.brand, prod.category, (object?)prod.beds ?? DBNull.Value, semana ?? "", key.fecha,
+            cr.origenId ?? "", (object?)origenCusN ?? DBNull.Value, cr.fecha ?? "",
+            produce, (object?)produceCusN ?? DBNull.Value, recoge, (object?)recogeCusN ?? DBNull.Value,
+            distribuye, (object?)distribuyeCusN ?? DBNull.Value, (object?)origenEmbarque ?? DBNull.Value, linea,
+            pedido, embarque, diferenciaEnv, recorteEnv, aumentoEnv, embarqueSinAumentosEnv,
+            (object?)pedidoPiezas ?? DBNull.Value, (object?)embarquePiezas ?? DBNull.Value, (object?)diferenciaPiezas ?? DBNull.Value,
+            (object?)recortePiezas ?? DBNull.Value, (object?)aumentoPiezas ?? DBNull.Value, (object?)embarqueSinAumentosPiezas ?? DBNull.Value,
+            (object?)pedidoImporte ?? DBNull.Value, (object?)embarqueImporte ?? DBNull.Value, (object?)diferenciaImporte ?? DBNull.Value,
+            (object?)recorteImporte ?? DBNull.Value, (object?)aumentoImporte ?? DBNull.Value, (object?)embarqueSinAumentosImporte ?? DBNull.Value,
+        };
+        for (int c = 0; c < vals.Length; c++) ins.Parameters[c].Value = vals[c] ?? DBNull.Value;
+        ins.ExecuteNonQuery();
+        filas++;
+    }
+
+    using (var log = conn.CreateCommand())
+    {
+        log.Transaction = tx;
+        log.CommandText = "INSERT OR REPLACE INTO ProcesosLog (Proceso, Detalle, Filas, EjecutadoEn) VALUES ('Fill Rate', $d, $f, $c)";
+        log.Parameters.AddWithValue("$d", $"{fi} a {ff}");
+        log.Parameters.AddWithValue("$f", filas);
+        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+        log.ExecuteNonQuery();
+    }
+    tx.Commit();
+
+    return new { ok = true, filas, fechaInicio = fi, fechaFin = ff };
+}
 
 // ── App web ──────────────────────────────────────────────────────────────
 var builder = WebApplication.CreateBuilder(args);
@@ -594,6 +974,18 @@ app.MapGet("/api/cargas/pedido-oracle", () => Results.Ok(LeerTabla("PedidosOracl
 app.MapGet("/api/cargas/existencia-ceve-manual", () => Results.Ok(LeerTabla("ExistenciaCeveManual", "FechaVenta DESC")));
 app.MapGet("/api/cargas/pedido-vs-cargo-real", () => Results.Ok(LeerTabla("PedidoVsCargoReal", "FechaVenta DESC")));
 app.MapGet("/api/cargas/participacion-tipo-movimiento", () => Results.Ok(LeerTabla("ParticipacionTipoMovimiento", "CodigoCeve")));
+app.MapGet("/api/catalogos/cadena-suministro", () => Results.Ok(LeerTabla("CatCadenaSupministro", "CodCeve")));
+app.MapGet("/api/cargas/remisiones", () => Results.Ok(LeerTabla("RemisionesProductosCEQ", "FechaVenta DESC")));
+
+app.MapPost("/api/procesos/fill-rate/ejecutar", (FillRateRequest req) =>
+{
+    if (string.IsNullOrWhiteSpace(req?.FechaInicio) || string.IsNullOrWhiteSpace(req?.FechaFin))
+        return Results.BadRequest(new { error = "fechaInicio y fechaFin son requeridas (yyyy-MM-dd)." });
+    try { return Results.Ok(EjecutarFillRate(req.FechaInicio, req.FechaFin)); }
+    catch (Exception ex) { return Results.Problem(ex.Message); }
+});
+app.MapGet("/api/procesos/fill-rate/resultados", () => Results.Ok(LeerTabla("FillRateResultados", "CodigoCeve, Item, FechaVenta")));
+app.MapGet("/api/procesos/fill-rate/estado", () => Results.Ok(LeerTabla("ProcesosLog", "Proceso").FirstOrDefault(r => r["Proceso"]?.ToString() == "Fill Rate")));
 
 app.MapPost("/api/datos/recargar", () => Results.Ok(RecargarTodo().Select(r => new { r.Ok, r.Mensaje, r.Filas })));
 
@@ -618,3 +1010,4 @@ try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } cat
 app.Run();
 
 readonly record struct ResultadoCarga(bool Ok, string Mensaje, int Filas);
+record FillRateRequest(string FechaInicio, string FechaFin);

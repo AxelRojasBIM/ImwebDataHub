@@ -12,9 +12,9 @@ const CEVES_COLS = [
 // que aún no se migran (Promedios de Pedido, Frecuencias Producto CeVes)
 // simplemente no aparecen todavía — se insertan en su lugar cuando se migren.
 const CATALOGOS = [
-  // ── Ejecución Proceso ── (pendiente: ver nota en el chat — bloqueada por
-  // dependencias de Frecuencias Producto CeVes, Promedios de Pedido e
-  // inventario_resumen, ninguna migrada todavía)
+  // ── Ejecución Proceso ── (Post-Mortem, Existencia Teórica y Causas Recorte
+  // quedan pendientes — ver nota en el chat)
+  { key: 'fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', fuente: 'Fill Rate', carpeta: 'Procesos/FillRate/Remisiones (+ catálogos)', section: 'Ejecución Proceso', proceso: true },
   // ── Cargas masivas ──
   { key: 'pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', fuente: 'Pedido CeVe a Planta/Cedis', carpeta: 'Cargas/PedidoCevePlanta', section: 'Cargas masivas' },
   { key: 'pedido-oracle', label: 'Pedido Oracle', fuente: 'Pedido Oracle', carpeta: 'Cargas/PedidoOracle', section: 'Cargas masivas' },
@@ -29,6 +29,8 @@ const CATALOGOS = [
   { key: 'oracle-ceves', label: 'Catálogo CeVes Oracle', fuente: 'Catálogo CeVes Oracle', carpeta: 'Catalogos/CatalogosOracle/CeVes', section: 'Catálogos' },
   { key: 'oracle-facilities', label: 'Catálogo Facilities Oracle', fuente: 'Catálogo Destination Facility Oracle', carpeta: 'Catalogos/CatalogosOracle/Facilities', section: 'Catálogos' },
   { key: 'plantas', label: 'Plantas / Cedis', fuente: 'Plantas / Cedis', carpeta: 'Catalogos/Plantas', section: 'Catálogos' },
+  { key: 'cadena-suministro', label: 'Catálogo Cadena Suministro', fuente: 'Catálogo Cadena Suministro', carpeta: 'Catalogos/CadenaSuministro', section: 'Catálogos' },
+  { key: 'remisiones', label: 'Remisiones (Fill Rate)', fuente: 'Remisiones (Fill Rate)', carpeta: 'Procesos/FillRate/Remisiones', section: 'Catálogos' },
 ]
 
 const SECCIONES = ['Ejecución Proceso', 'Cargas masivas', 'Catálogos']
@@ -104,6 +106,96 @@ const API_PATHS = {
   'existencia-ceve-manual': '/api/cargas/existencia-ceve-manual',
   'pedido-vs-cargo-real': '/api/cargas/pedido-vs-cargo-real',
   'participacion-tipo-movimiento': '/api/cargas/participacion-tipo-movimiento',
+  'cadena-suministro': '/api/catalogos/cadena-suministro',
+  remisiones: '/api/cargas/remisiones',
+}
+
+function todayIso() { return new Date().toISOString().slice(0, 10) }
+
+function FillRatePage() {
+  const [fechaInicio, setFechaInicio] = useState(todayIso())
+  const [fechaFin, setFechaFin] = useState(todayIso())
+  const [ejecutando, setEjecutando] = useState(false)
+  const [mensaje, setMensaje] = useState(null)
+  const [resultados, setResultados] = useState(null)
+  const [estado, setEstado] = useState(null)
+
+  async function cargarEstado() {
+    const r = await fetch('/api/procesos/fill-rate/estado')
+    setEstado(await r.json().catch(() => null))
+  }
+  async function cargarResultados() {
+    const r = await fetch('/api/procesos/fill-rate/resultados')
+    setResultados(await r.json())
+  }
+  useEffect(() => { cargarEstado(); cargarResultados() }, [])
+
+  async function handleEjecutar() {
+    setEjecutando(true); setMensaje(null)
+    try {
+      const r = await fetch('/api/procesos/fill-rate/ejecutar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fechaInicio, fechaFin }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || data.detail || 'Error al ejecutar')
+      setMensaje(`Listo: ${data.filas.toLocaleString('es-MX')} filas (${data.fechaInicio} a ${data.fechaFin}).`)
+      await cargarEstado(); await cargarResultados()
+    } catch (e) {
+      setMensaje('Error: ' + e.message)
+    } finally {
+      setEjecutando(false)
+    }
+  }
+
+  const cols = resultados?.length ? Object.keys(resultados[0]) : []
+
+  return (
+    <>
+      <div className="card">
+        <strong>Ejecutar Fill Rate</strong>
+        <p style={{ fontSize: 12.5, color: '#6b7280', margin: '6px 0 14px' }}>
+          Compara Pedido CeVe a Planta/Cedis contra Remisiones (embarques) en el rango de fechas,
+          y calcula Recorte/Aumento en envases, piezas e importe.
+        </p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 12.5 }}>
+            Desde<br />
+            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
+          </label>
+          <label style={{ fontSize: 12.5 }}>
+            Hasta<br />
+            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} />
+          </label>
+          <button onClick={handleEjecutar} disabled={ejecutando}>{ejecutando ? 'Ejecutando…' : 'Ejecutar'}</button>
+        </div>
+        {estado?.filas != null && (
+          <div className="mono" style={{ marginTop: 10 }}>
+            Última ejecución: {estado.detalle} — {Number(estado.filas).toLocaleString('es-MX')} filas ({estado.ejecutadoEn?.slice(0, 16).replace('T', ' ')})
+          </div>
+        )}
+        {mensaje && <p>{mensaje}</p>}
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')})` : ''}</strong>
+        </div>
+        {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Fill Rate para un rango de fechas.</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+              <tbody>
+                {resultados.map((r, i) => (
+                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
 }
 
 export default function App() {
@@ -171,22 +263,28 @@ export default function App() {
 
         <div className="content" style={{ flex: 1 }}>
           <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <strong>Estado de carga — {activo?.label}</strong>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: activo?.proceso ? 0 : 10 }}>
+              <strong>{activo?.proceso ? 'Datos de entrada' : `Estado de carga — ${activo?.label}`}</strong>
               <button onClick={handleRecargar} disabled={recargando}>
                 {recargando ? 'Recargando…' : 'Recargar datos'}
               </button>
             </div>
-            <div className="mono">
-              Archivo esperado en: Datos/{activo?.carpeta}/*.csv
-              {estadoFuente && <> — último cargado: {estadoFuente.archivo} ({estadoFuente.filas.toLocaleString('es-MX')} filas, {estadoFuente.cargadoEn?.slice(0, 16).replace('T', ' ')})</>}
-            </div>
+            {!activo?.proceso && (
+              <div className="mono">
+                Archivo esperado en: Datos/{activo?.carpeta}/*.csv
+                {estadoFuente && <> — último cargado: {estadoFuente.archivo} ({estadoFuente.filas.toLocaleString('es-MX')} filas, {estadoFuente.cargadoEn?.slice(0, 16).replace('T', ' ')})</>}
+              </div>
+            )}
             {mensaje && <p>{mensaje}</p>}
           </div>
 
-          <div className="card" key={refreshKey}>
-            {tab === 'ceves' ? <CevesTable /> : <GenericTable apiPath={API_PATHS[tab]} />}
-          </div>
+          {activo?.proceso ? (
+            <FillRatePage key={refreshKey} />
+          ) : (
+            <div className="card" key={refreshKey}>
+              {tab === 'ceves' ? <CevesTable /> : <GenericTable apiPath={API_PATHS[tab]} />}
+            </div>
+          )}
         </div>
       </div>
     </>
