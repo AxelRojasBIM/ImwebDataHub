@@ -1,5 +1,5 @@
 import {
-  Stethoscope, Ruler, BarChart3, Search, Calculator, Warehouse,
+  Stethoscope, Ruler, BarChart3, Search, Calculator,
   LayoutGrid, Database, TrendingUp, PieChart, Package, Truck,
   MapPin, Boxes, Target, Calendar, Factory, Users, ClipboardCheck, Waypoints,
 } from 'lucide-react'
@@ -22,12 +22,6 @@ const nav = [
       { to: '/post-mortem', label: 'Post-Mortem', icon: Search },
       { to: '/inv-opt', label: 'Cálculo Inventario Óptimo', icon: Calculator },
       { to: '/causas-recorte', label: 'Causas Recorte', icon: Stethoscope },
-    ]
-  },
-  {
-    section: 'Gestión de Inventarios',
-    items: [
-      { to: '/gestion-inventarios', label: 'Gestión de Inventarios', icon: Warehouse },
     ]
   },
   {
