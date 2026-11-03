@@ -17,6 +17,7 @@ const CATALOGOS = [
   { key: 'fill-rate', label: 'Fill Rate Planta/Cedis a CeVe', fuente: 'Fill Rate', carpeta: 'Procesos/FillRate/Remisiones (+ catálogos)', section: 'Ejecución Proceso', proceso: true },
   { key: 'existencia-teorica', label: 'Existencia Teórica', fuente: 'Existencia Teórica', carpeta: 'Catalogos/PromediosPedido, FrecuenciasProductoCeves, Cargas/InventarioResumen', section: 'Ejecución Proceso', proceso: true },
   { key: 'post-mortem', label: 'Post-Mortem', fuente: 'Post-Mortem', carpeta: '(usa Existencia Teórica + Fill Rate + PedidoVSCargo Real ya cargados)', section: 'Ejecución Proceso', proceso: true },
+  { key: 'inventario-optimo', label: 'Cálculo Inventario Óptimo', fuente: 'Cálculo Inventario Óptimo', carpeta: 'Procesos/InventarioOptimo', section: 'Ejecución Proceso', proceso: true },
   { key: 'causas-recorte', label: 'Causas Recorte', fuente: 'Causas Recorte', carpeta: 'Procesos/CausasRecorte', section: 'Ejecución Proceso', proceso: true },
   // ── Cargas masivas ──
   { key: 'pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', fuente: 'Pedido CeVe a Planta/Cedis', carpeta: 'Cargas/PedidoCevePlanta', section: 'Cargas masivas' },
@@ -401,6 +402,96 @@ function PostMortemPage() {
   )
 }
 
+function InventarioOptimoPage() {
+  const [ejecutando, setEjecutando] = useState(false)
+  const [mensaje, setMensaje] = useState(null)
+  const [resultados, setResultados] = useState(null)
+  const [ejecuciones, setEjecuciones] = useState([])
+  const [fechaVer, setFechaVer] = useState('')
+
+  async function cargarEjecuciones() {
+    const r = await fetch('/api/procesos/inventario-optimo/ejecuciones')
+    setEjecuciones(await r.json())
+  }
+  async function cargarResultados(fecha) {
+    const url = fecha ? `/api/procesos/inventario-optimo/resultados?fecha=${fecha}` : '/api/procesos/inventario-optimo/resultados'
+    const r = await fetch(url)
+    setResultados(await r.json())
+  }
+  useEffect(() => { cargarEjecuciones(); cargarResultados() }, [])
+
+  async function handleEjecutar() {
+    setEjecutando(true); setMensaje(null)
+    try {
+      const r = await fetch('/api/procesos/inventario-optimo/ejecutar', { method: 'POST' })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || data.detail || 'Error al ejecutar')
+      setMensaje(`Listo: ${data.filas.toLocaleString('es-MX')} filas (${data.fechaMin} a ${data.fechaMax}), archivo "${data.archivo}".`)
+      await cargarEjecuciones(); setFechaVer(''); await cargarResultados()
+    } catch (e) {
+      setMensaje('Error: ' + e.message)
+    } finally {
+      setEjecutando(false)
+    }
+  }
+
+  async function handleVerFecha(f) {
+    setFechaVer(f)
+    await cargarResultados(f)
+  }
+
+  const cols = resultados?.length ? Object.keys(resultados[0]) : []
+  const fechasDisponibles = [...new Set(resultados?.map(r => r.Fecha_venta) ?? [])].sort().reverse()
+
+  return (
+    <>
+      <div className="card">
+        <strong>Ejecutar Cálculo Inventario Óptimo</strong>
+        <p style={{ fontSize: 12.5, color: '#6b7280', margin: '6px 0 14px' }}>
+          Lee el extracto de existencias depositado en Datos/Procesos/InventarioOptimo (Fecha_venta, SCCode,
+          ItemOrg + existencias hoy/ayer por CE/CN) y calcula el Inventario Óptimo por CeVe+Item, cruzando
+          contra Productos, Participación - Tipo Movimiento, Promedios de Pedido y Frecuencias Producto CeVes.
+        </p>
+        <button onClick={handleEjecutar} disabled={ejecutando}>{ejecutando ? 'Ejecutando…' : 'Ejecutar'}</button>
+        {ejecuciones.length > 0 && (
+          <div className="mono" style={{ marginTop: 10 }}>
+            Última ejecución: {ejecuciones[0].Archivo} — {ejecuciones[0].FechaMin} a {ejecuciones[0].FechaMax}
+            ({Number(ejecuciones[0].Filas).toLocaleString('es-MX')} filas, {ejecuciones[0].EjecutadoEn?.slice(0, 16).replace('T', ' ')})
+          </div>
+        )}
+        {mensaje && <p>{mensaje}</p>}
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
+          <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')}${!fechaVer ? ', últimas 500' : ''})` : ''}</strong>
+          {fechasDisponibles.length > 1 && (
+            <label style={{ fontSize: 12.5 }}>
+              Filtrar por fecha: {' '}
+              <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
+                <option value="">Todas (últimas 500)</option>
+                {fechasDisponibles.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+        {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Cálculo Inventario Óptimo primero.</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+              <tbody>
+                {resultados.map((r, i) => (
+                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 const CAUSA_STYLES = {
   'Recorte Fabrica': { bg: '#fee2e2', color: '#991b1b' },
   'Recorte por cupo en Tina': { bg: '#dbeafe', color: '#1e40af' },
@@ -513,8 +604,8 @@ function CausasRecortePage() {
         <button onClick={handleEjecutar} disabled={ejecutando}>{ejecutando ? 'Ejecutando…' : 'Ejecutar'}</button>
         {ejecuciones.length > 0 && (
           <div className="mono" style={{ marginTop: 10 }}>
-            Última ejecución: {ejecuciones[0].archivo} — {ejecuciones[0].fechaMin} a {ejecuciones[0].fechaMax}
-            ({Number(ejecuciones[0].filas).toLocaleString('es-MX')} filas, {ejecuciones[0].ejecutadoEn?.slice(0, 16).replace('T', ' ')})
+            Última ejecución: {ejecuciones[0].Archivo} — {ejecuciones[0].FechaMin} a {ejecuciones[0].FechaMax}
+            ({Number(ejecuciones[0].Filas).toLocaleString('es-MX')} filas, {ejecuciones[0].EjecutadoEn?.slice(0, 16).replace('T', ' ')})
           </div>
         )}
         {mensaje && <p>{mensaje}</p>}
@@ -760,6 +851,7 @@ const PROCESO_PAGES = {
   'fill-rate': FillRatePage,
   'existencia-teorica': ExistenciaTeoricaPage,
   'post-mortem': PostMortemPage,
+  'inventario-optimo': InventarioOptimoPage,
   'causas-recorte': CausasRecortePage,
 }
 

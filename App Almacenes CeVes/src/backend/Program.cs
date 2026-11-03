@@ -227,6 +227,32 @@ void EnsureCausasRecorteSchema()
 }
 EnsureCausasRecorteSchema();
 
+// Cálculo Inventario Óptimo: mismo patrón de columnas generadas en código.
+List<string> ColumnasInventarioOptimo() => new List<string> {
+    "Fecha_venta", "SCCode", "ItemOrg", "Exist_lv_pzs_CE", "Exist_lv_pzs_CN", "Exist_lvy_pzs_CE", "Exist_lvy_pzs_CN",
+    "Exist_total_ivy", "Exist_total_iv", "Exis_Total",
+    "dia", "semana", "anio", "nombre_ceve", "region", "organizacion",
+    "nombre_producto", "marca", "categoria", "precio", "cupo", "cupo_contenedor", "tipo_envase", "tipo_vida", "dias_vida",
+    "tipo_part", "tipo_mov", "cargoprom_env", "cargoprom_pzs", "desv_standar", "desv_standar_pzs", "leadtime", "frecuencia", "Factor",
+    "Promedio_semanal", "Promedio_semanal_pzs", "ss", "Invopt",
+};
+
+void EnsureInventarioOptimoSchema()
+{
+    var textCols = new HashSet<string> { "Fecha_venta", "SCCode", "ItemOrg", "dia", "nombre_ceve", "region", "organizacion", "nombre_producto", "marca", "categoria", "tipo_envase", "tipo_vida", "tipo_part", "tipo_mov", "frecuencia" };
+    var colDefs = string.Join(", ", ColumnasInventarioOptimo().Select(c => textCols.Contains(c) ? $"[{c}] TEXT" : $"[{c}] REAL"));
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = $"""
+        CREATE TABLE IF NOT EXISTS InventarioOptimoResultados ({colDefs});
+        CREATE INDEX IF NOT EXISTS IX_InventarioOptimoResultados_Fecha ON InventarioOptimoResultados (Fecha_venta);
+        CREATE TABLE IF NOT EXISTS InventarioOptimoEjecuciones (Archivo TEXT PRIMARY KEY, FechaMin TEXT, FechaMax TEXT, Filas INTEGER, EjecutadoEn TEXT);
+        """;
+    cmd.ExecuteNonQuery();
+}
+EnsureInventarioOptimoSchema();
+
 // ── Carga de catálogos desde Datos/ ─────────────────────────────────────────
 // Convención v1, simple a propósito: el CSV que esté hoy en la carpeta de cada
 // catálogo ES el catálogo vigente (se reemplaza completo en cada recarga). Si
@@ -1785,6 +1811,217 @@ object EjecutarCausasRecorte()
     return new { ok = true, filas = filas.Count, fechaMin, fechaMax, archivo = Path.GetFileName(archivo) };
 }
 
+// ── Cálculo Inventario Óptimo ────────────────────────────────────────────
+// Sube un "resumen" de existencias (Fecha_venta, SCCode=CeVe, ItemOrg + 7
+// columnas de existencia hoy/ayer por CE/CN) y calcula, por CeVe+Item,
+// cuánto debería tener en existencia (Inventario Óptimo = demanda de la
+// ventana de lead time + stock de seguridad), cruzando contra Productos,
+// Participación - Tipo Movimiento (clasificación ABC/XYZ), Promedios de
+// Pedido y Frecuencias Producto CeVes. Simplificación respecto al original:
+// no hay DesviacionStdCarga en el extracto local de Promedios de Pedido
+// (igual que en Existencia Teórica), así que el stock de seguridad usa solo
+// DesviacionStdPedido. Igual que las demás cargas por fecha: cada ejecución
+// reemplaza solo el rango de fechas del archivo, sin preview intermedio.
+object EjecutarInventarioOptimo()
+{
+    var carpeta = Path.Combine(datosDir, "Procesos/InventarioOptimo");
+    var archivo = UltimoArchivoCsv(carpeta);
+    if (archivo is null) throw new InvalidOperationException("Sin archivo CSV en Datos/Procesos/InventarioOptimo. Deposita el extracto antes de ejecutar.");
+
+    var lines = File.ReadAllLines(archivo).Where(l => !string.IsNullOrWhiteSpace(l)).ToArray();
+    if (lines.Length < 2) throw new InvalidOperationException($"'{Path.GetFileName(archivo)}' está vacío.");
+
+    var filas = new List<(DateTime fecha, string ceve, string item, decimal? existLvCe, decimal? existLvCn, decimal? existLvyCe, decimal? existLvyCn, decimal? existTotalIvy, decimal? existTotalIv, decimal? exisTotal)>();
+    string? fechaMin = null, fechaMax = null;
+    for (int i = 1; i < lines.Length; i++)
+    {
+        var f = SplitCsvLine(lines[i]);
+        if (f.Length < 10) continue;
+        var fechaIso = NormalizarFechaIso(f[0]);
+        if (fechaIso.Length == 0) continue;
+        if (fechaMin is null || string.CompareOrdinal(fechaIso, fechaMin) < 0) fechaMin = fechaIso;
+        if (fechaMax is null || string.CompareOrdinal(fechaIso, fechaMax) > 0) fechaMax = fechaIso;
+        filas.Add((
+            DateTime.Parse(fechaIso, System.Globalization.CultureInfo.InvariantCulture),
+            NormalizarCodigo(f[1]), NormalizarCodigo(f[2]),
+            ParseDecN(f[3]), ParseDecN(f[4]), ParseDecN(f[5]), ParseDecN(f[6]), ParseDecN(f[7]), ParseDecN(f[8]), ParseDecN(f[9])));
+    }
+    if (filas.Count == 0 || fechaMin is null || fechaMax is null)
+        throw new InvalidOperationException("El archivo no tiene filas válidas.");
+
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+
+    var ceves = new Dictionary<string, (string nombre, string region, string org)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Nombre, Region, Organizacion FROM Ceves";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var c = NormalizarCodigo(dr.GetString(0));
+            if (c.Length > 0) ceves[c] = (dr.IsDBNull(1) ? "" : dr.GetString(1), dr.IsDBNull(2) ? "" : dr.GetString(2), dr.IsDBNull(3) ? "" : dr.GetString(3));
+        }
+    }
+
+    var productos = new Dictionary<string, (string longName, decimal? price, decimal? trayCap, decimal? containerCap, string trayCode, string shelfLife, decimal? daysLife, string brand, string category)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT ItemCode, LongName, Price, TrayCapacity, ContainerCapacity, TrayCode, ShelfLife, DaysLife, Brand, CategoryItem FROM ProductosHub";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var item = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            if (item.Length == 0) continue;
+            productos[item] = (
+                dr.IsDBNull(1) ? "" : dr.GetString(1), dr.IsDBNull(2) ? null : ParseDecN(dr.GetString(2)),
+                dr.IsDBNull(3) ? null : ParseDecN(dr.GetString(3)), dr.IsDBNull(4) ? null : ParseDecN(dr.GetString(4)),
+                dr.IsDBNull(5) ? "" : dr.GetString(5), dr.IsDBNull(6) ? "" : dr.GetString(6),
+                dr.IsDBNull(7) ? null : ParseDecN(dr.GetString(7)), dr.IsDBNull(8) ? "" : dr.GetString(8), dr.IsDBNull(9) ? "" : dr.GetString(9));
+        }
+    }
+
+    var ptm = new Dictionary<(string ceve, string item), (string abc, string xyz)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodigoCeve, Item, ClasificacionABC, ClasificacionXYZ FROM ParticipacionTipoMovimiento";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            if (ceve.Length == 0) continue;
+            ptm[(ceve, item)] = (dr.IsDBNull(2) ? "" : dr.GetString(2), dr.IsDBNull(3) ? "" : dr.GetString(3));
+        }
+    }
+
+    var pvp = new Dictionary<(string ceve, string item, string dia), (decimal pedido, decimal carga, decimal desviacionPedido)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Dia, PromedioFinalPedido, PromedioFinalCarga, DesviacionStdPedido FROM PedidoVendedorPromedios";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
+            if (ceve.Length == 0 || dia.Length == 0) continue;
+            pvp[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4)), dr.IsDBNull(5) ? 0m : Convert.ToDecimal(dr.GetValue(5)));
+        }
+    }
+
+    var frec = new Dictionary<(string ceve, string item, string dia), (int leadTime, string frecuenciaDias)>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT CodCeve, Item, Dia, LeadTime, FrecuenciaDias FROM FrecuenciasConsolidadas";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+        {
+            var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
+            var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
+            var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
+            if (ceve.Length == 0 || dia.Length == 0) continue;
+            frec[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0 : Convert.ToInt32(dr.GetValue(3)), dr.IsDBNull(4) ? "" : dr.GetString(4));
+        }
+    }
+
+    var semanaPorFecha = new Dictionary<string, string>();
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "SELECT Fecha, Semana FROM CalendarioBimbo";
+        using var dr = cmd.ExecuteReader();
+        while (dr.Read())
+            if (!dr.IsDBNull(0)) semanaPorFecha[dr.GetString(0)] = dr.IsDBNull(1) ? "" : dr.GetString(1);
+    }
+
+    var diasLunSab = new[] { "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" };
+    decimal MaxPedCarga((decimal pedido, decimal carga) v) => Math.Max(v.pedido, v.carga);
+
+    var cols = ColumnasInventarioOptimo();
+
+    using var tx = conn.BeginTransaction();
+    using (var del = conn.CreateCommand()) { del.Transaction = tx; del.CommandText = "DELETE FROM InventarioOptimoResultados WHERE Fecha_venta BETWEEN $fi AND $ff"; del.Parameters.AddWithValue("$fi", fechaMin); del.Parameters.AddWithValue("$ff", fechaMax); del.ExecuteNonQuery(); }
+
+    using var ins = conn.CreateCommand();
+    ins.Transaction = tx;
+    var paramNames = cols.Select((c, i) => "$p" + i).ToArray();
+    ins.CommandText = $"INSERT INTO InventarioOptimoResultados ({string.Join(",", cols.Select(c => $"[{c}]"))}) VALUES ({string.Join(",", paramNames)})";
+    foreach (var pn in paramNames) ins.Parameters.Add(new SqliteParameter(pn, DBNull.Value));
+
+    foreach (var r in filas)
+    {
+        var dia = NombreDiaEs(r.fecha);
+        var startIdx = StartIdxDeDia(dia);
+        ceves.TryGetValue(r.ceve, out var ceveInfo);
+        productos.TryGetValue(r.item, out var prod);
+        ptm.TryGetValue((r.ceve, r.item), out var ptmRow);
+        var cupo = prod.trayCap;
+
+        bool tienePvp = pvp.TryGetValue((r.ceve, r.item, dia), out var pvpHoy);
+        decimal? cargoPromEnv = tienePvp ? MaxPedCarga((pvpHoy.pedido, pvpHoy.carga)) : null;
+        decimal? cargoPromPzs = (cargoPromEnv.HasValue && cupo.HasValue) ? cargoPromEnv.Value * cupo.Value : null;
+        decimal? desvStandar = tienePvp ? pvpHoy.desviacionPedido : null;
+        decimal? desvStandarPzs = (desvStandar.HasValue && cupo.HasValue) ? desvStandar.Value * cupo.Value : null;
+
+        bool tieneFrec = frec.TryGetValue((r.ceve, r.item, dia), out var frRow);
+        int leadTimeEf = (tieneFrec && frRow.leadTime != 0) ? frRow.leadTime : 1;
+
+        decimal? factor = ptmRow.abc switch { "A" => 2.05m, "B" => 1.64m, "C" => 1.28m, "D" => 0.99m, _ => null };
+
+        decimal cargoVentanaEnv = 0, promedioSemanal = 0;
+        for (int d = 0; d < 6; d++)
+        {
+            if (!pvp.TryGetValue((r.ceve, r.item, diasLunSab[d]), out var pvD)) continue;
+            var maxD = MaxPedCarga((pvD.pedido, pvD.carga));
+            promedioSemanal += maxD;
+            if (((d - startIdx + 6) % 6) < leadTimeEf) cargoVentanaEnv += maxD;
+        }
+        decimal? promedioSemanalPzs = cupo.HasValue ? promedioSemanal * cupo.Value : null;
+
+        decimal? ss = (desvStandarPzs.HasValue && factor.HasValue)
+            ? desvStandarPzs.Value * factor.Value * (decimal)Math.Sqrt(leadTimeEf)
+            : null;
+        decimal invopt = (cupo.HasValue ? cargoVentanaEnv * cupo.Value : 0) + (ss ?? 0);
+
+        var row = new Dictionary<string, object?> {
+            ["Fecha_venta"] = r.fecha.ToString("yyyy-MM-dd"), ["SCCode"] = r.ceve, ["ItemOrg"] = r.item,
+            ["Exist_lv_pzs_CE"] = r.existLvCe, ["Exist_lv_pzs_CN"] = r.existLvCn, ["Exist_lvy_pzs_CE"] = r.existLvyCe, ["Exist_lvy_pzs_CN"] = r.existLvyCn,
+            ["Exist_total_ivy"] = r.existTotalIvy, ["Exist_total_iv"] = r.existTotalIv, ["Exis_Total"] = r.exisTotal,
+            ["dia"] = dia, ["semana"] = semanaPorFecha.TryGetValue(r.fecha.ToString("yyyy-MM-dd"), out var sem) && int.TryParse(sem, out var semN) ? semN : null,
+            ["anio"] = r.fecha.Year, ["nombre_ceve"] = ceveInfo.nombre, ["region"] = ceveInfo.region, ["organizacion"] = ceveInfo.org,
+            ["nombre_producto"] = prod.longName, ["marca"] = prod.brand, ["categoria"] = prod.category, ["precio"] = prod.price,
+            ["cupo"] = cupo, ["cupo_contenedor"] = prod.containerCap, ["tipo_envase"] = prod.trayCode, ["tipo_vida"] = prod.shelfLife, ["dias_vida"] = prod.daysLife,
+            ["tipo_part"] = ptmRow.abc, ["tipo_mov"] = ptmRow.xyz, ["cargoprom_env"] = cargoPromEnv, ["cargoprom_pzs"] = cargoPromPzs,
+            ["desv_standar"] = desvStandar, ["desv_standar_pzs"] = desvStandarPzs, ["leadtime"] = leadTimeEf, ["frecuencia"] = tieneFrec ? frRow.frecuenciaDias : null,
+            ["Factor"] = factor, ["Promedio_semanal"] = promedioSemanal, ["Promedio_semanal_pzs"] = promedioSemanalPzs, ["ss"] = ss, ["Invopt"] = invopt,
+        };
+
+        for (int c = 0; c < cols.Count; c++) ins.Parameters[c].Value = row.TryGetValue(cols[c], out var v) ? (v ?? DBNull.Value) : DBNull.Value;
+        ins.ExecuteNonQuery();
+    }
+
+    using (var log = conn.CreateCommand())
+    {
+        log.Transaction = tx;
+        log.CommandText = "INSERT OR REPLACE INTO InventarioOptimoEjecuciones (Archivo, FechaMin, FechaMax, Filas, EjecutadoEn) VALUES ($a,$fi,$ff,$n,$c)";
+        log.Parameters.AddWithValue("$a", Path.GetFileName(archivo));
+        log.Parameters.AddWithValue("$fi", fechaMin);
+        log.Parameters.AddWithValue("$ff", fechaMax);
+        log.Parameters.AddWithValue("$n", filas.Count);
+        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+        log.ExecuteNonQuery();
+    }
+    tx.Commit();
+
+    var procesadosDir = Path.Combine(datosDir, "_Procesados", "Procesos/InventarioOptimo");
+    Directory.CreateDirectory(procesadosDir);
+    var destino = Path.Combine(procesadosDir, Path.GetFileName(archivo));
+    if (File.Exists(destino)) File.Delete(destino);
+    File.Move(archivo, destino);
+
+    return new { ok = true, filas = filas.Count, fechaMin, fechaMax, archivo = Path.GetFileName(archivo) };
+}
+
 // ── Causas Recorte: tablero (filtros, vista agrupada, Top N) ───────────────
 // Lee CausasRecorteResultados filtrado a memoria y arma las 3 vistas con
 // LINQ en vez de SQL dinámico — SQLite no tiene las funciones de ventana que
@@ -2203,6 +2440,38 @@ app.MapGet("/api/procesos/causas-recorte/top-n", (string categoria, int topProdu
     }).ToList();
 
     return Results.Ok(new { categoria, resultado });
+});
+
+app.MapPost("/api/procesos/inventario-optimo/ejecutar", () =>
+{
+    try { return Results.Ok(EjecutarInventarioOptimo()); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (Exception ex) { return Results.Problem(ex.Message); }
+});
+app.MapGet("/api/procesos/inventario-optimo/ejecuciones", () => Results.Ok(LeerTabla("InventarioOptimoEjecuciones", "EjecutadoEn DESC")));
+app.MapGet("/api/procesos/inventario-optimo/resultados", (string? fecha) =>
+{
+    using var conn = new SqliteConnection(connStr);
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    if (string.IsNullOrWhiteSpace(fecha))
+    {
+        cmd.CommandText = "SELECT * FROM InventarioOptimoResultados ORDER BY Fecha_venta DESC, SCCode, ItemOrg LIMIT 500";
+    }
+    else
+    {
+        cmd.CommandText = "SELECT * FROM InventarioOptimoResultados WHERE Fecha_venta = $f ORDER BY SCCode, ItemOrg";
+        cmd.Parameters.AddWithValue("$f", fecha);
+    }
+    using var dr = cmd.ExecuteReader();
+    var rows = new List<Dictionary<string, object?>>();
+    while (dr.Read())
+    {
+        var row = new Dictionary<string, object?>();
+        for (int i = 0; i < dr.FieldCount; i++) row[dr.GetName(i)] = dr.IsDBNull(i) ? null : dr.GetValue(i);
+        rows.Add(row);
+    }
+    return Results.Ok(rows);
 });
 
 app.MapPost("/api/datos/recargar", () => Results.Ok(RecargarTodo().Select(r => new { r.Ok, r.Mensaje, r.Filas })));
