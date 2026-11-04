@@ -6,6 +6,37 @@ const CEVES_COLS = [
   ['coordinador', 'Coordinador'], ['turnoLaboral', 'Turno'],
 ]
 
+// columnas: array de nombres de columna, o de [clave, encabezado] si la
+// clave en los datos no es igual al encabezado que se quiere mostrar.
+function exportarCsv(nombreArchivo, columnas, filas) {
+  if (!filas || filas.length === 0) return
+  const clave = c => Array.isArray(c) ? c[0] : c
+  const encabezado = c => Array.isArray(c) ? c[1] : c
+  const esc = v => {
+    if (v === null || v === undefined) return ''
+    const s = String(v)
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+  }
+  const lineas = [columnas.map(c => esc(encabezado(c))).join(',')]
+  for (const fila of filas) lineas.push(columnas.map(c => esc(fila[clave(c)])).join(','))
+  const blob = new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombreArchivo.endsWith('.csv') ? nombreArchivo : `${nombreArchivo}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+function BotonExportarCsv({ nombreArchivo, columnas, filas }) {
+  if (!filas || filas.length === 0) return null
+  return (
+    <button onClick={() => exportarCsv(nombreArchivo, columnas, filas)}
+      style={{ background: '#fff', color: '#16a34a', border: '1px solid #16a34a' }}>
+      Exportar CSV
+    </button>
+  )
+}
+
 // Mismo orden de secciones y de items que el menú principal de la app en
 // Azure (Ejecución Proceso / Cargas masivas / Catálogos), para que a nadie
 // le cueste encontrar algo porque "aquí está en otro lado". Las pantallas
@@ -22,12 +53,12 @@ const CATALOGOS = [
   // ── Cargas masivas ──
   { key: 'pedido-ceve-planta', label: 'Pedido CeVe a Planta/Cedis', fuente: 'Pedido CeVe a Planta/Cedis', carpeta: 'Cargas/PedidoCevePlanta', section: 'Cargas masivas' },
   { key: 'pedido-oracle', label: 'Pedido Oracle', fuente: 'Pedido Oracle', carpeta: 'Cargas/PedidoOracle', section: 'Cargas masivas' },
-  { key: 'participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', fuente: 'Participación - Tipo Movimiento', carpeta: 'Cargas/ParticipacionTipoMovimiento', section: 'Cargas masivas' },
   { key: 'existencia-ceve-manual', label: 'Existencia CeVe Manual', fuente: 'Existencia CeVe Manual', carpeta: 'Cargas/ExistenciaCeveManual', section: 'Cargas masivas' },
   { key: 'pedido-vs-cargo-real', label: 'PedidoVSCargo Real', fuente: 'PedidoVSCargo Real', carpeta: 'Cargas/PedidoVsCargoReal', section: 'Cargas masivas' },
   { key: 'seguimiento-servicios', label: 'Seguimiento Servicios', fuente: 'Seguimiento Servicios', carpeta: 'Cargas/SeguimientoServicios', section: 'Cargas masivas', proceso: true },
   // ── Catálogos ──
   { key: 'ceves', label: 'CeVes', fuente: 'CEVEs', carpeta: 'Catalogos/CEVEs', section: 'Catálogos' },
+  { key: 'participacion-tipo-movimiento', label: 'Participación - Tipo Movimiento', fuente: 'Participación - Tipo Movimiento', carpeta: 'Cargas/ParticipacionTipoMovimiento', section: 'Catálogos' },
   { key: 'productos-hub', label: 'Productos HubPedidos', fuente: 'Productos HubPedidos', carpeta: 'Catalogos/ProductosHubPedidos', section: 'Catálogos' },
   { key: 'calendario', label: 'Calendario', fuente: 'Calendario', carpeta: 'Catalogos/Calendario', section: 'Catálogos' },
   { key: 'plantas', label: 'Plantas / Cedis', fuente: 'Plantas / Cedis', carpeta: 'Catalogos/Plantas', section: 'Catálogos' },
@@ -50,14 +81,18 @@ function GenericTable({ apiPath }) {
 
   if (rows === null) return <p>Cargando…</p>
   const cols = rows.length ? Object.keys(rows[0]) : []
+  const nombreArchivo = apiPath.replace(/^\/api\//, '').replace(/\//g, '-')
 
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <strong>{rows.length.toLocaleString('es-MX')} filas</strong>
-        <span className={`badge ${rows.length ? 'badge-ok' : 'badge-warn'}`}>
-          {rows.length ? 'Catálogo cargado' : 'Sin datos todavía'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BotonExportarCsv nombreArchivo={nombreArchivo} columnas={cols} filas={rows} />
+          <span className={`badge ${rows.length ? 'badge-ok' : 'badge-warn'}`}>
+            {rows.length ? 'Catálogo cargado' : 'Sin datos todavía'}
+          </span>
+        </div>
       </div>
       <div className="table-wrap">
         <table>
@@ -81,9 +116,12 @@ function CevesTable() {
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <strong>{ceves.length} CeVes</strong>
-        <span className={`badge ${ceves.length ? 'badge-ok' : 'badge-warn'}`}>
-          {ceves.length ? 'Catálogo cargado' : 'Sin datos — deposita un CSV en Datos/Catalogos/CEVEs'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BotonExportarCsv nombreArchivo="ceves" columnas={CEVES_COLS} filas={ceves} />
+          <span className={`badge ${ceves.length ? 'badge-ok' : 'badge-warn'}`}>
+            {ceves.length ? 'Catálogo cargado' : 'Sin datos — deposita un CSV en Datos/Catalogos/CEVEs'}
+          </span>
+        </div>
       </div>
       <div className="table-wrap">
         <table>
@@ -185,6 +223,7 @@ function FillRatePage() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')})` : ''}</strong>
+          <BotonExportarCsv nombreArchivo="fill-rate" columnas={cols} filas={resultados} />
         </div>
         {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Fill Rate para un rango de fechas.</p> : (
           <div className="table-wrap">
@@ -278,14 +317,17 @@ function ExistenciaTeoricaPage() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
           <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')})` : ''}</strong>
-          {fechas.length > 0 && (
-            <label style={{ fontSize: 12.5 }}>
-              Ver ejecución de: {' '}
-              <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
-                {fechas.map(f => <option key={f.fechaSel} value={f.fechaSel}>{f.fechaSel} ({f.baseExistencia}, {f.filas} filas)</option>)}
-              </select>
-            </label>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {fechas.length > 0 && (
+              <label style={{ fontSize: 12.5 }}>
+                Ver ejecución de: {' '}
+                <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
+                  {fechas.map(f => <option key={f.fechaSel} value={f.fechaSel}>{f.fechaSel} ({f.baseExistencia}, {f.filas} filas)</option>)}
+                </select>
+              </label>
+            )}
+            <BotonExportarCsv nombreArchivo={`existencia-teorica${fechaVer ? '-' + fechaVer : ''}`} columnas={cols} filas={resultados} />
+          </div>
         </div>
         {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Existencia Teórica para una fecha.</p> : (
           <div className="table-wrap">
@@ -371,14 +413,17 @@ function PostMortemPage() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
           <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')})` : ''}</strong>
-          {fechas.length > 0 && (
-            <label style={{ fontSize: 12.5 }}>
-              Ver ejecución de: {' '}
-              <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
-                {fechas.map(f => <option key={f.fechaVenta} value={f.fechaVenta}>{f.fechaVenta} ({f.filas} filas)</option>)}
-              </select>
-            </label>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {fechas.length > 0 && (
+              <label style={{ fontSize: 12.5 }}>
+                Ver ejecución de: {' '}
+                <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
+                  {fechas.map(f => <option key={f.fechaVenta} value={f.fechaVenta}>{f.fechaVenta} ({f.filas} filas)</option>)}
+                </select>
+              </label>
+            )}
+            <BotonExportarCsv nombreArchivo={`post-mortem${fechaVer ? '-' + fechaVer : ''}`} columnas={cols} filas={resultados} />
+          </div>
         </div>
         {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Post-Mortem para una fecha.</p> : (
           <div className="table-wrap">
@@ -411,7 +456,18 @@ function InventarioOptimoPage() {
   async function cargarResultados(fecha) {
     const url = fecha ? `/api/procesos/inventario-optimo/resultados?fecha=${fecha}` : '/api/procesos/inventario-optimo/resultados'
     const r = await fetch(url)
-    setResultados(await r.json())
+    const data = await r.json()
+    setResultados(data)
+    // Sin filtro de fecha el backend recorta a las últimas 500 (para no
+    // traer de golpe un resultado de 85 mil filas sin que nadie lo pida) —
+    // si en realidad solo hay una fecha cargada, se autoselecciona para
+    // traer el set completo, ya que si no el selector ni aparece (solo se
+    // muestra con 2+ fechas) y quedaría trunco para siempre.
+    const fechasUnicas = [...new Set(data.map(r => r.Fecha_venta))]
+    if (!fecha && fechasUnicas.length === 1) {
+      setFechaVer(fechasUnicas[0])
+      await cargarResultados(fechasUnicas[0])
+    }
   }
   useEffect(() => { cargarEjecuciones(); cargarResultados() }, [])
 
@@ -460,15 +516,18 @@ function InventarioOptimoPage() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
           <strong>Resultados{resultados ? ` (${resultados.length.toLocaleString('es-MX')}${!fechaVer ? ', últimas 500' : ''})` : ''}</strong>
-          {fechasDisponibles.length > 1 && (
-            <label style={{ fontSize: 12.5 }}>
-              Filtrar por fecha: {' '}
-              <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
-                <option value="">Todas (últimas 500)</option>
-                {fechasDisponibles.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </label>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {fechasDisponibles.length > 1 && (
+              <label style={{ fontSize: 12.5 }}>
+                Filtrar por fecha: {' '}
+                <select value={fechaVer} onChange={e => handleVerFecha(e.target.value)}>
+                  <option value="">Todas (últimas 500)</option>
+                  {fechasDisponibles.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </label>
+            )}
+            <BotonExportarCsv nombreArchivo={`inventario-optimo${fechaVer ? '-' + fechaVer : ''}`} columnas={cols} filas={resultados} />
+          </div>
         </div>
         {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Cálculo Inventario Óptimo primero.</p> : (
           <div className="table-wrap">
