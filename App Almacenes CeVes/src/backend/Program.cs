@@ -49,22 +49,8 @@ void EnsureSchema()
             ContainerCode TEXT, ShelfLife TEXT, DaysLife TEXT, Brand TEXT, RoundingFactor TEXT,
             CategoryItem TEXT, BedsPerContainer TEXT, RoundingCap TEXT
         );
-        CREATE TABLE IF NOT EXISTS RtmProductos (
-            ProductId TEXT, ProductCode TEXT, ProductGlobalCode TEXT, ProductFullDesc TEXT, ProductShortDesc TEXT,
-            CompanyCode TEXT, CompanyName TEXT, BrandCode TEXT, BrandName TEXT, CategoryCode TEXT, CategoryName TEXT,
-            SegmentCode TEXT, SegmentName TEXT, LineCode TEXT, LineName TEXT, BaseUom TEXT, PrimarySalesUom TEXT,
-            Weight TEXT, Pack1Size TEXT, Pack2Size TEXT, PiecePrice TEXT, ProductBarCode TEXT, Sequence TEXT,
-            IsSalable TEXT, IsReturnable TEXT, TrayCode TEXT, ClaveProd TEXT, ClaveUnidad TEXT, ShelfLife TEXT,
-            ReturnRate TEXT, BasePriceSalesCenter TEXT, UnitMeasure TEXT, Mrp TEXT, Instance TEXT, Active TEXT
-        );
         CREATE TABLE IF NOT EXISTS CalendarioBimbo (
             Fecha TEXT PRIMARY KEY, Semana TEXT, Anio TEXT, Dia TEXT
-        );
-        CREATE TABLE IF NOT EXISTS CatCevesOracle (
-            CeveCPT TEXT, Bd TEXT, Ceve TEXT, Region TEXT, Piloto TEXT, Organizacion TEXT
-        );
-        CREATE TABLE IF NOT EXISTS CatOracleDestFacility (
-            HW TEXT, Sigla TEXT, Planta TEXT, Nombre TEXT, Sigla2 TEXT
         );
         CREATE TABLE IF NOT EXISTS CatPlantasCedis (
             Planta TEXT, Codigo TEXT, WH TEXT, CustomerName TEXT
@@ -465,30 +451,9 @@ ResultadoCarga CargarProductosHub() => CargarCatalogoGenerico("Productos HubPedi
     ("RoundingCap","RoundingCap"),
 });
 
-ResultadoCarga CargarRtmProductos() => CargarCatalogoGenerico("Productos RTM", "RtmProductos", "Catalogos/ProductosHubPedidos/RTM", new (string, string)[] {
-    ("Product_Id","ProductId"), ("Product_code","ProductCode"), ("Product_Global_Code","ProductGlobalCode"),
-    ("Product_Full_Desc","ProductFullDesc"), ("Product_Short_Desc","ProductShortDesc"), ("Company_Code","CompanyCode"),
-    ("Company_Name","CompanyName"), ("Brand_Code","BrandCode"), ("Brand_Name","BrandName"), ("Category_Code","CategoryCode"),
-    ("Category_Name","CategoryName"), ("Segment_Code","SegmentCode"), ("Segment_Name","SegmentName"), ("Line_Code","LineCode"),
-    ("Line_Name","LineName"), ("Base_Uom","BaseUom"), ("PrimarySalesUOM","PrimarySalesUom"), ("Weight","Weight"),
-    ("Pack1_Size","Pack1Size"), ("Pack2_Size","Pack2Size"), ("Piece_Price","PiecePrice"), ("Product_BarCode","ProductBarCode"),
-    ("Sequence","Sequence"), ("IsSalable","IsSalable"), ("IsReturnable","IsReturnable"), ("Tray_Code","TrayCode"),
-    ("Clave_Prod","ClaveProd"), ("Clave_Unidad","ClaveUnidad"), ("Shelf_Life","ShelfLife"), ("Return_Rate","ReturnRate"),
-    ("Base_Price_Sales_Center","BasePriceSalesCenter"), ("Unit_Measure","UnitMeasure"), ("MRP","Mrp"),
-    ("Instance","Instance"), ("Active","Active"),
-});
-
 ResultadoCarga CargarCalendario() => CargarCatalogoGenerico("Calendario", "CalendarioBimbo", "Catalogos/Calendario", new (string, string)[] {
     ("Fecha","Fecha"), ("Semana","Semana"), ("Año","Anio"), ("Día","Dia"),
 }, transformar: (sql, raw) => sql == "Fecha" ? FechaDmyAIso(raw) : raw);
-
-ResultadoCarga CargarCatCevesOracle() => CargarCatalogoGenerico("Catálogo CeVes Oracle", "CatCevesOracle", "Catalogos/CatalogosOracle/CeVes", new (string, string)[] {
-    ("Ceve CPT","CeveCPT"), ("Bd","Bd"), ("Ceve","Ceve"), ("Región","Region"), ("Piloto","Piloto"), ("Organización","Organizacion"),
-});
-
-ResultadoCarga CargarCatOracleFacilities() => CargarCatalogoGenerico("Catálogo Destination Facility Oracle", "CatOracleDestFacility", "Catalogos/CatalogosOracle/Facilities", new (string, string)[] {
-    ("HW","HW"), ("SIGLA","Sigla"), ("Planta","Planta"), ("Nombre","Nombre"), ("SIGLA (col E)","Sigla2"),
-});
 
 ResultadoCarga CargarPlantasCedis() => CargarCatalogoGenerico("Plantas / Cedis", "CatPlantasCedis", "Catalogos/Plantas", new (string, string)[] {
     ("Planta","Planta"), ("CODIGO","Codigo"), ("WH","WH"), ("CUSTOMER_NAME","CustomerName"),
@@ -818,8 +783,7 @@ ResultadoCarga CargarInventarioResumen() => CargarTransaccionalPorFecha("Inventa
 });
 
 List<ResultadoCarga> RecargarTodo() => new() {
-    CargarCeves(), CargarProductosHub(), CargarRtmProductos(), CargarCalendario(),
-    CargarCatCevesOracle(), CargarCatOracleFacilities(), CargarPlantasCedis(),
+    CargarCeves(), CargarProductosHub(), CargarCalendario(), CargarPlantasCedis(),
     CargarPedidoCevePlanta(), CargarPedidoOracle(), CargarExistenciaCeveManual(),
     CargarPedidoVsCargoReal(), CargarParticipacionTipoMovimiento(),
     CargarCatCadenaSupministro(), CargarRemisiones(),
@@ -2157,10 +2121,7 @@ List<Dictionary<string, object?>> LeerTabla(string tabla, string orderBy)
 }
 
 app.MapGet("/api/catalogos/productos-hub", () => Results.Ok(LeerTabla("ProductosHub", "ItemCode")));
-app.MapGet("/api/catalogos/rtm", () => Results.Ok(LeerTabla("RtmProductos", "ProductCode")));
 app.MapGet("/api/catalogos/calendario", () => Results.Ok(LeerTabla("CalendarioBimbo", "Fecha")));
-app.MapGet("/api/catalogos/oracle-ceves", () => Results.Ok(LeerTabla("CatCevesOracle", "CeveCPT")));
-app.MapGet("/api/catalogos/oracle-facilities", () => Results.Ok(LeerTabla("CatOracleDestFacility", "HW")));
 app.MapGet("/api/catalogos/plantas", () => Results.Ok(LeerTabla("CatPlantasCedis", "Planta")));
 
 app.MapGet("/api/cargas/pedido-ceve-planta", () => Results.Ok(LeerTabla("PedidosCevePlanta", "FechaVenta DESC")));

@@ -29,10 +29,7 @@ const CATALOGOS = [
   // ── Catálogos ──
   { key: 'ceves', label: 'CeVes', fuente: 'CEVEs', carpeta: 'Catalogos/CEVEs', section: 'Catálogos' },
   { key: 'productos-hub', label: 'Productos HubPedidos', fuente: 'Productos HubPedidos', carpeta: 'Catalogos/ProductosHubPedidos', section: 'Catálogos' },
-  { key: 'rtm', label: 'Productos RTM', fuente: 'Productos RTM', carpeta: 'Catalogos/ProductosHubPedidos/RTM', section: 'Catálogos' },
   { key: 'calendario', label: 'Calendario', fuente: 'Calendario', carpeta: 'Catalogos/Calendario', section: 'Catálogos' },
-  { key: 'oracle-ceves', label: 'Catálogo CeVes Oracle', fuente: 'Catálogo CeVes Oracle', carpeta: 'Catalogos/CatalogosOracle/CeVes', section: 'Catálogos' },
-  { key: 'oracle-facilities', label: 'Catálogo Facilities Oracle', fuente: 'Catálogo Destination Facility Oracle', carpeta: 'Catalogos/CatalogosOracle/Facilities', section: 'Catálogos' },
   { key: 'plantas', label: 'Plantas / Cedis', fuente: 'Plantas / Cedis', carpeta: 'Catalogos/Plantas', section: 'Catálogos' },
   { key: 'cadena-suministro', label: 'Catálogo Cadena Suministro', fuente: 'Catálogo Cadena Suministro', carpeta: 'Catalogos/CadenaSuministro', section: 'Catálogos' },
   { key: 'remisiones', label: 'Remisiones (Fill Rate)', fuente: 'Remisiones (Fill Rate)', carpeta: 'Procesos/FillRate/Remisiones', section: 'Catálogos' },
@@ -104,10 +101,7 @@ function CevesTable() {
 
 const API_PATHS = {
   'productos-hub': '/api/catalogos/productos-hub',
-  rtm: '/api/catalogos/rtm',
   calendario: '/api/catalogos/calendario',
-  'oracle-ceves': '/api/catalogos/oracle-ceves',
-  'oracle-facilities': '/api/catalogos/oracle-facilities',
   plantas: '/api/catalogos/plantas',
   'pedido-ceve-planta': '/api/cargas/pedido-ceve-planta',
   'pedido-oracle': '/api/cargas/pedido-oracle',
