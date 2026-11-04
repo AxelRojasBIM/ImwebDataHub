@@ -862,6 +862,36 @@ static string NormalizarCodigo(string? s)
 
 static decimal? ParseDecN(string? s) => string.IsNullOrWhiteSpace(s) ? null : (decimal.TryParse(s.Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null);
 
+// Lectura segura de columnas numéricas de SQLite: una columna declarada REAL
+// igual puede traer texto vacío adentro (SQLite es de tipado flexible — un
+// CSV con ese campo en blanco se guarda tal cual si nada lo convierte al
+// cargar). Convert.ToDecimal("") revienta con FormatException; estas
+// variantes nunca truenan, caen a 0/null como si fuera NULL de verdad.
+static decimal ConvDec(object v) => v switch
+{
+    DBNull => 0m,
+    string s => decimal.TryParse(s.Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0m,
+    _ => Convert.ToDecimal(v),
+};
+static decimal? ConvDecN(object v) => v switch
+{
+    DBNull => null,
+    string s => decimal.TryParse(s.Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : (decimal?)null,
+    _ => Convert.ToDecimal(v),
+};
+static int ConvInt(object v) => v switch
+{
+    DBNull => 0,
+    string s => int.TryParse(s.Trim(), out var n) ? n : 0,
+    _ => Convert.ToInt32(v),
+};
+static int? ConvIntN(object v) => v switch
+{
+    DBNull => null,
+    string s => int.TryParse(s.Trim(), out var n) ? n : (int?)null,
+    _ => Convert.ToInt32(v),
+};
+
 object EjecutarFillRate(string fechaInicio, string fechaFin)
 {
     var fi = NormalizarFechaIso(fechaInicio); if (fi.Length == 0) fi = fechaInicio.Trim();
@@ -880,7 +910,7 @@ object EjecutarFillRate(string fechaInicio, string fechaFin)
         {
             var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
-            var cant = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+            var cant = ConvDec(dr.GetValue(2));
             var fecha = dr.IsDBNull(3) ? "" : dr.GetString(3);
             if (ceve.Length == 0 || fecha.Length == 0) continue;
             var key = (ceve, item, fecha);
@@ -901,7 +931,7 @@ object EjecutarFillRate(string fechaInicio, string fechaFin)
             var item = NormalizarCodigo(dr.IsDBNull(2) ? "" : dr.GetString(2));
             var fechaVenta = dr.IsDBNull(3) ? "" : dr.GetString(3);
             var fechaCierre = dr.IsDBNull(4) ? "" : dr.GetString(4);
-            var cant = dr.IsDBNull(5) ? 0m : Convert.ToDecimal(dr.GetValue(5));
+            var cant = ConvDec(dr.GetValue(5));
             if (ceve.Length == 0) continue;
 
             if (fechaVenta.Length > 0 && string.CompareOrdinal(fechaVenta, fi) >= 0 && string.CompareOrdinal(fechaVenta, ff) <= 0)
@@ -1135,7 +1165,7 @@ object EjecutarExistenciaTeorica(string fechaSelStr, string baseExistencia)
         {
             var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
-            var cant = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+            var cant = ConvDec(dr.GetValue(2));
             var fecha = dr.IsDBNull(3) ? "" : dr.GetString(3);
             if (ceve.Length == 0 || fecha.Length == 0) continue;
 
@@ -1199,7 +1229,7 @@ object EjecutarExistenciaTeorica(string fechaSelStr, string baseExistencia)
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
             if (ceve.Length == 0 || dia.Length == 0) continue;
-            pvp[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4)));
+            pvp[(ceve, item, dia)] = (ConvDec(dr.GetValue(3)), ConvDec(dr.GetValue(4)));
         }
     }
 
@@ -1214,7 +1244,7 @@ object EjecutarExistenciaTeorica(string fechaSelStr, string baseExistencia)
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
             if (ceve.Length == 0 || dia.Length == 0) continue;
-            frec[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0 : Convert.ToInt32(dr.GetValue(3)), dr.IsDBNull(4) ? "" : dr.GetString(4));
+            frec[(ceve, item, dia)] = (ConvInt(dr.GetValue(3)), dr.IsDBNull(4) ? "" : dr.GetString(4));
         }
     }
 
@@ -1233,7 +1263,7 @@ object EjecutarExistenciaTeorica(string fechaSelStr, string baseExistencia)
             var ceve = NormalizarCodigo(guion > 0 ? ceveNombre[..guion] : ceveNombre);
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             if (ceve.Length == 0) continue;
-            existManualAuto[(ceve, item)] = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+            existManualAuto[(ceve, item)] = ConvDec(dr.GetValue(2));
         }
     }
 
@@ -1248,7 +1278,7 @@ object EjecutarExistenciaTeorica(string fechaSelStr, string baseExistencia)
             var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             if (ceve.Length == 0) continue;
-            existManualUsuario[(ceve, item)] = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+            existManualUsuario[(ceve, item)] = ConvDec(dr.GetValue(2));
         }
     }
 
@@ -1425,9 +1455,9 @@ object EjecutarPostMortem(string fechaVentaStr)
             var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
             if (ceve.Length == 0) continue;
             fr[(ceve, item, fecha)] = (
-                dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4)),
-                dr.IsDBNull(5) ? 0m : Convert.ToDecimal(dr.GetValue(5)), dr.IsDBNull(6) ? 0m : Convert.ToDecimal(dr.GetValue(6)),
-                dr.IsDBNull(7) ? 0m : Convert.ToDecimal(dr.GetValue(7)));
+                ConvDec(dr.GetValue(3)), ConvDec(dr.GetValue(4)),
+                ConvDec(dr.GetValue(5)), ConvDec(dr.GetValue(6)),
+                ConvDec(dr.GetValue(7)));
         }
     }
 
@@ -1442,8 +1472,8 @@ object EjecutarPostMortem(string fechaVentaStr)
             var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
             var itemRaw = (dr.IsDBNull(1) ? "" : dr.GetString(1)).Trim();
             var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
-            var cargo = dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3));
-            var pedido = dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4));
+            var cargo = ConvDec(dr.GetValue(3));
+            var pedido = ConvDec(dr.GetValue(4));
             if (ceve.Length == 0 || itemRaw.Length == 0) continue;
             bool esEspejo = itemRaw.StartsWith("99");
             var itemOriginal = NormalizarCodigo(esEspejo ? itemRaw[2..] : itemRaw);
@@ -1469,23 +1499,23 @@ object EjecutarPostMortem(string fechaVentaStr)
     {
         var ceve = NormalizarCodigo(t["Cod_ceve"]?.ToString() ?? "");
         var item = NormalizarCodigo(t["Item"]?.ToString() ?? "");
-        decimal? trayCap = t["TrayCapacity"] is null ? null : Convert.ToDecimal(t["TrayCapacity"]);
-        decimal existManualEnv = t["Existencia_manual_env"] is null ? 0 : Convert.ToDecimal(t["Existencia_manual_env"]);
+        decimal? trayCap = t["TrayCapacity"] is null ? null : ConvDecN(t["TrayCapacity"]!);
+        decimal existManualEnv = t["Existencia_manual_env"] is null ? 0 : ConvDec(t["Existencia_manual_env"]!);
 
         var row = new Dictionary<string, object?> {
             ["Cod_ceve"] = ceve, ["Nombre_Indicadores_Almacenes_CeVe"] = t["Nombre_Indicadores_Almacenes_CeVe"],
             ["Region"] = t["Region"], ["Organizacion"] = t["Organizacion"], ["Item"] = item, ["ShortName"] = t["ShortName"],
             ["Fecha_Venta"] = t["Fecha_Venta"], ["Fecha_Proceso"] = t["Fecha_Proceso"], ["Dia_Semana"] = t["Dia_Semana"],
-            ["Existencia_manual_env"] = existManualEnv, ["Inventario_Optimo"] = t["Inventario_Optimo"] is null ? 0 : Convert.ToDecimal(t["Inventario_Optimo"]),
+            ["Existencia_manual_env"] = existManualEnv, ["Inventario_Optimo"] = t["Inventario_Optimo"] is null ? 0 : ConvDec(t["Inventario_Optimo"]!),
         };
 
         decimal existenciaRealPrev = existManualEnv;
         for (int n = 1; n <= 6; n++)
         {
             var fechaTransito = t[$"Fecha_Transito{n}"] as string;
-            decimal pedidoFabrica = t[$"Pedido_Fabrica{n}"] is null ? 0 : Convert.ToDecimal(t[$"Pedido_Fabrica{n}"]);
-            decimal cargoProm = t[$"CargoPromedio_Transito{n}"] is null ? 0 : Convert.ToDecimal(t[$"CargoPromedio_Transito{n}"]);
-            decimal existenciaTeorica = t[$"Existencia_teorica_{n}"] is null ? 0 : Convert.ToDecimal(t[$"Existencia_teorica_{n}"]);
+            decimal pedidoFabrica = t[$"Pedido_Fabrica{n}"] is null ? 0 : ConvDec(t[$"Pedido_Fabrica{n}"]!);
+            decimal cargoProm = t[$"CargoPromedio_Transito{n}"] is null ? 0 : ConvDec(t[$"CargoPromedio_Transito{n}"]!);
+            decimal existenciaTeorica = t[$"Existencia_teorica_{n}"] is null ? 0 : ConvDec(t[$"Existencia_teorica_{n}"]!);
 
             decimal embarqueReal = 0, diferenciaEnv = 0, recorteEnv = 0, aumentoEnv = 0, embarqueSinAumentosEnv = 0;
             if (fechaTransito != null && fr.TryGetValue((ceve, item, fechaTransito), out var frRow))
@@ -1602,7 +1632,7 @@ object EjecutarCausasRecorte()
             """;
         cmd.Parameters.AddWithValue("$fi", fechaMin); cmd.Parameters.AddWithValue("$ff", fechaMax);
         using var dr = cmd.ExecuteReader();
-        decimal D(object v) => v is DBNull ? 0 : Convert.ToDecimal(v);
+        decimal D(object v) => ConvDec(v);
         while (dr.Read())
         {
             var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
@@ -1635,8 +1665,8 @@ object EjecutarCausasRecorte()
             var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
             if (ceve.Length == 0) continue;
             fr[(ceve, item, fecha)] = (
-                dr.IsDBNull(3) ? 0 : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0 : Convert.ToDecimal(dr.GetValue(4)),
-                dr.IsDBNull(5) ? 0 : Convert.ToDecimal(dr.GetValue(5)), dr.IsDBNull(6) ? "Planta" : dr.GetString(6));
+                ConvDec(dr.GetValue(3)), ConvDec(dr.GetValue(4)),
+                ConvDec(dr.GetValue(5)), dr.IsDBNull(6) ? "Planta" : dr.GetString(6));
         }
     }
 
@@ -1651,7 +1681,7 @@ object EjecutarCausasRecorte()
             var ceve = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             var fecha = dr.IsDBNull(2) ? "" : dr.GetString(2);
-            var cant = dr.IsDBNull(3) ? 0 : Convert.ToDecimal(dr.GetValue(3));
+            var cant = ConvDec(dr.GetValue(3));
             if (ceve.Length == 0 || fecha.Length == 0) continue;
             var key = (ceve, item);
             if (!pedidoFuturo.TryGetValue(key, out var list)) pedidoFuturo[key] = list = new();
@@ -1670,7 +1700,7 @@ object EjecutarCausasRecorte()
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
             if (ceve.Length == 0 || dia.Length == 0) continue;
-            pvp[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0 : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0 : Convert.ToDecimal(dr.GetValue(4)));
+            pvp[(ceve, item, dia)] = (ConvDec(dr.GetValue(3)), ConvDec(dr.GetValue(4)));
         }
     }
 
@@ -1688,7 +1718,7 @@ object EjecutarCausasRecorte()
             var ceve = NormalizarCodigo(ceveNombre[..guion]);
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             var fecha = dr.IsDBNull(3) ? "" : dr.GetString(3);
-            var cant = dr.IsDBNull(2) ? 0 : Convert.ToDecimal(dr.GetValue(2));
+            var cant = ConvDec(dr.GetValue(2));
             if (ceve.Length == 0) continue;
             var key = (ceve, item, fecha);
             inv[key] = inv.GetValueOrDefault(key) + cant;
@@ -1945,7 +1975,7 @@ object EjecutarInventarioOptimo()
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
             if (ceve.Length == 0 || dia.Length == 0) continue;
-            pvp[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3)), dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4)), dr.IsDBNull(5) ? 0m : Convert.ToDecimal(dr.GetValue(5)));
+            pvp[(ceve, item, dia)] = (ConvDec(dr.GetValue(3)), ConvDec(dr.GetValue(4)), ConvDec(dr.GetValue(5)));
         }
     }
 
@@ -1960,7 +1990,7 @@ object EjecutarInventarioOptimo()
             var item = NormalizarCodigo(dr.IsDBNull(1) ? "" : dr.GetString(1));
             var dia = (dr.IsDBNull(2) ? "" : dr.GetString(2)).Trim();
             if (ceve.Length == 0 || dia.Length == 0) continue;
-            frec[(ceve, item, dia)] = (dr.IsDBNull(3) ? 0 : Convert.ToInt32(dr.GetValue(3)), dr.IsDBNull(4) ? "" : dr.GetString(4));
+            frec[(ceve, item, dia)] = (ConvInt(dr.GetValue(3)), dr.IsDBNull(4) ? "" : dr.GetString(4));
         }
     }
 
@@ -2100,14 +2130,14 @@ List<CrReadRow> LeerCausasRecorteFiltrado(string? fechaInicio, string? fechaFin,
 
     var list = new List<CrReadRow>();
     using var dr = cmd.ExecuteReader();
-    decimal? DecN(int i) => dr.IsDBNull(i) ? null : Convert.ToDecimal(dr.GetValue(i));
+    decimal? DecN(int i) => dr.IsDBNull(i) ? null : ConvDecN(dr.GetValue(i));
     while (dr.Read())
         list.Add(new CrReadRow
         {
             CodigoCeve = dr.IsDBNull(0) ? "" : dr.GetString(0), Ceve = dr.IsDBNull(1) ? null : dr.GetString(1),
             Region = dr.IsDBNull(2) ? null : dr.GetString(2), Fecha = dr.IsDBNull(3) ? "" : dr.GetString(3),
             NombreDia = dr.IsDBNull(4) ? null : dr.GetString(4), Item = dr.IsDBNull(5) ? "" : dr.GetString(5),
-            Descripcion = dr.IsDBNull(6) ? null : dr.GetString(6), Cupo = dr.IsDBNull(7) ? null : Convert.ToInt32(dr.GetValue(7)),
+            Descripcion = dr.IsDBNull(6) ? null : dr.GetString(6), Cupo = ConvIntN(dr.GetValue(7)),
             Precio = DecN(8), Categoria = dr.IsDBNull(9) ? null : dr.GetString(9), Marca = dr.IsDBNull(10) ? null : dr.GetString(10),
             Canal = dr.IsDBNull(11) ? null : dr.GetString(11), RecortePzs = DecN(12) ?? 0, RecorteUsd = DecN(13) ?? 0,
             CausaPrincipal = dr.IsDBNull(14) ? null : dr.GetString(14), CausaSecundaria = dr.IsDBNull(15) ? null : dr.GetString(15),
@@ -2248,7 +2278,7 @@ app.MapGet("/api/seguimiento-servicios/resumen", (string? fecha) =>
             var cod = NormalizarCodigo(dr.IsDBNull(0) ? "" : dr.GetString(0));
             if (cod.Length == 0) continue;
             var sistema = dr.IsDBNull(1) ? "" : dr.GetString(1);
-            var filas = dr.IsDBNull(2) ? 0m : Convert.ToDecimal(dr.GetValue(2));
+            var filas = ConvDec(dr.GetValue(2));
             filasPorCeve[cod] = filasPorCeve.GetValueOrDefault(cod) + filas;
             if (sistema == "IVY") rtmFilasPorCeve[cod] = rtmFilasPorCeve.GetValueOrDefault(cod) + filas;
             else if (sistema == "IV") ivFilasPorCeve[cod] = ivFilasPorCeve.GetValueOrDefault(cod) + filas;
