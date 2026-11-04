@@ -27,12 +27,29 @@ function exportarCsv(nombreArchivo, columnas, filas) {
   a.click()
   URL.revokeObjectURL(url)
 }
+// Pintar una tabla HTML de varios miles de filas de golpe congela la
+// pestaña un buen rato (sin forma de mostrar un indicador de carga
+// mientras tanto, porque el navegador no puede repintar a medio
+// render síncrono) — se muestra como máximo esta cantidad en pantalla;
+// "Exportar CSV" sigue usando el arreglo completo en memoria, no esta
+// vista recortada.
+const MAX_FILAS_TABLA = 500
+
+function NotaTablaRecortada({ total }) {
+  if (total <= MAX_FILAS_TABLA) return null
+  return (
+    <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>
+      Mostrando {MAX_FILAS_TABLA.toLocaleString('es-MX')} de {total.toLocaleString('es-MX')} filas en pantalla
+      (pintar todas de golpe congela el navegador) — usa "Exportar CSV" para el total completo.
+    </p>
+  )
+}
+
 function BotonExportarCsv({ nombreArchivo, columnas, filas }) {
   if (!filas || filas.length === 0) return null
   return (
-    <button onClick={() => exportarCsv(nombreArchivo, columnas, filas)}
-      style={{ background: '#fff', color: '#16a34a', border: '1px solid #16a34a' }}>
-      Exportar CSV
+    <button className="btn-outline-green" onClick={() => exportarCsv(nombreArchivo, columnas, filas)}>
+      Exportar CSV ({filas.length.toLocaleString('es-MX')})
     </button>
   )
 }
@@ -94,11 +111,12 @@ function GenericTable({ apiPath }) {
           </span>
         </div>
       </div>
+      <NotaTablaRecortada total={rows.length} />
       <div className="table-wrap">
         <table>
           <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
           <tbody>
-            {rows.map((r, i) => (
+            {rows.slice(0, MAX_FILAS_TABLA).map((r, i) => (
               <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
             ))}
           </tbody>
@@ -226,16 +244,19 @@ function FillRatePage() {
           <BotonExportarCsv nombreArchivo="fill-rate" columnas={cols} filas={resultados} />
         </div>
         {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Fill Rate para un rango de fechas.</p> : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
-              <tbody>
-                {resultados.map((r, i) => (
-                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <NotaTablaRecortada total={resultados.length} />
+            <div className="table-wrap">
+              <table>
+                <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+                <tbody>
+                  {resultados.slice(0, MAX_FILAS_TABLA).map((r, i) => (
+                    <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </>
@@ -330,16 +351,19 @@ function ExistenciaTeoricaPage() {
           </div>
         </div>
         {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Existencia Teórica para una fecha.</p> : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
-              <tbody>
-                {resultados.map((r, i) => (
-                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <NotaTablaRecortada total={resultados.length} />
+            <div className="table-wrap">
+              <table>
+                <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+                <tbody>
+                  {resultados.slice(0, MAX_FILAS_TABLA).map((r, i) => (
+                    <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </>
@@ -426,16 +450,19 @@ function PostMortemPage() {
           </div>
         </div>
         {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Post-Mortem para una fecha.</p> : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
-              <tbody>
-                {resultados.map((r, i) => (
-                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <NotaTablaRecortada total={resultados.length} />
+            <div className="table-wrap">
+              <table>
+                <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+                <tbody>
+                  {resultados.slice(0, MAX_FILAS_TABLA).map((r, i) => (
+                    <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </>
@@ -530,16 +557,19 @@ function InventarioOptimoPage() {
           </div>
         </div>
         {resultados === null ? <p>Cargando…</p> : resultados.length === 0 ? <p>Sin resultados — ejecuta Cálculo Inventario Óptimo primero.</p> : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
-              <tbody>
-                {resultados.map((r, i) => (
-                  <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <NotaTablaRecortada total={resultados.length} />
+            <div className="table-wrap">
+              <table>
+                <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+                <tbody>
+                  {resultados.slice(0, MAX_FILAS_TABLA).map((r, i) => (
+                    <tr key={i}>{cols.map(c => <td key={c}>{r[c] ?? ''}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </>
@@ -1168,7 +1198,7 @@ export default function App() {
               <strong>{activo?.proceso ? 'Datos de entrada' : `Estado de carga — ${activo?.label}`}</strong>
               <div style={{ display: 'flex', gap: 8 }}>
                 {carpetaEsRuta && (
-                  <button onClick={handleAbrirCarpeta} style={{ background: '#fff', color: '#2563eb', border: '1px solid #2563eb' }}>
+                  <button className="btn-outline-blue" onClick={handleAbrirCarpeta}>
                     Abrir carpeta
                   </button>
                 )}

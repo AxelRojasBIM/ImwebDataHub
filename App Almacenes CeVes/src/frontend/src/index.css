@@ -32,6 +32,10 @@ button {
 }
 button:hover { background: #1d4ed8; }
 button:disabled { background: #9ca3af; cursor: default; }
+.btn-outline-blue { background: #fff; color: #2563eb; border: 1px solid #2563eb; }
+.btn-outline-blue:hover { background: #eff6ff; }
+.btn-outline-green { background: #fff; color: #16a34a; border: 1px solid #16a34a; }
+.btn-outline-green:hover { background: #f0fdf4; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #eef0f2; white-space: nowrap; }
 th { color: #6b7280; font-weight: 600; background: #f9fafb; position: sticky; top: 0; }
