@@ -502,7 +502,8 @@ static object? ParseTxt(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Tri
 // se leen por posición fija de columna.
 ResultadoCarga CargarTransaccionalPorFecha(
     string fuente, string tabla, string carpetaRel, int colFechaIdx,
-    (string sql, Func<string, object?> parse)[] columnas)
+    (string sql, Func<string, object?> parse)[] columnas,
+    string[]? headerEsperado = null)
 {
     var carpeta = Path.Combine(datosDir, carpetaRel);
     if (!Directory.Exists(carpeta)) return new ResultadoCarga(true, $"Sin carpeta Datos/{carpetaRel} — se deja '{fuente}' como está.", 0);
@@ -517,9 +518,36 @@ ResultadoCarga CargarTransaccionalPorFecha(
 
     int totalFilas = 0;
     var archivosOk = new List<string>();
+    var archivosConError = new List<string>();
     foreach (var archivo in archivos)
     {
         var lines = File.ReadAllLines(archivo).Where(l => !string.IsNullOrWhiteSpace(l)).ToArray();
+        if (lines.Length == 0) continue;
+
+        // Validación de encabezado: el parseo de abajo es puramente posicional
+        // (columna 0, 1, 2…), así que un archivo con otra cantidad de columnas
+        // (p.ej. soltar por error el extracto de Inventario Óptimo, de 10
+        // columnas, en una carpeta que espera 4) se leería "bien" pero con
+        // valores corridos/sin sentido, sin ningún aviso. Se rechaza en vez de
+        // adivinar.
+        var headerCsv = SplitCsvLine(lines[0]).Select(h => h.Trim()).ToArray();
+        if (headerCsv.Length != columnas.Length)
+        {
+            archivosConError.Add(
+                $"'{Path.GetFileName(archivo)}' tiene {headerCsv.Length} columna(s) y '{fuente}' espera {columnas.Length}" +
+                (headerEsperado != null ? $" ({string.Join(",", headerEsperado)})" : "") +
+                " — no se procesó, revisa que sea el archivo correcto.");
+            continue;
+        }
+        if (headerEsperado != null &&
+            !headerEsperado.Where((h, i) => !string.Equals(headerCsv[i], h, StringComparison.OrdinalIgnoreCase)).Any() == false)
+        {
+            archivosConError.Add(
+                $"'{Path.GetFileName(archivo)}' no trae las columnas esperadas para '{fuente}' " +
+                $"({string.Join(",", headerEsperado)}) — no se procesó, revisa que sea el archivo correcto.");
+            continue;
+        }
+
         var filasParseadas = new List<object?[]>();
         string? fechaMin = null, fechaMax = null;
         for (int i = 1; i < lines.Length; i++)
@@ -569,17 +597,23 @@ ResultadoCarga CargarTransaccionalPorFecha(
         File.Move(archivo, destino);
     }
 
-    using (var log = conn.CreateCommand())
-    {
-        log.CommandText = "INSERT OR REPLACE INTO CargasLog (Fuente, Archivo, Filas, CargadoEn) VALUES ($f,$a,$n,$c)";
-        log.Parameters.AddWithValue("$f", fuente);
-        log.Parameters.AddWithValue("$a", string.Join(", ", archivosOk));
-        log.Parameters.AddWithValue("$n", totalFilas);
-        log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
-        log.ExecuteNonQuery();
-    }
+    if (archivosOk.Count > 0)
+        using (var log = conn.CreateCommand())
+        {
+            log.CommandText = "INSERT OR REPLACE INTO CargasLog (Fuente, Archivo, Filas, CargadoEn) VALUES ($f,$a,$n,$c)";
+            log.Parameters.AddWithValue("$f", fuente);
+            log.Parameters.AddWithValue("$a", string.Join(", ", archivosOk));
+            log.Parameters.AddWithValue("$n", totalFilas);
+            log.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+            log.ExecuteNonQuery();
+        }
 
-    return new ResultadoCarga(true, $"{archivosOk.Count} archivo(s) procesados, {totalFilas:N0} filas en {fuente}.", totalFilas);
+    var partes = new List<string>();
+    if (archivosOk.Count > 0) partes.Add($"{archivosOk.Count} archivo(s) procesados, {totalFilas:N0} filas en {fuente}.");
+    partes.AddRange(archivosConError);
+    if (partes.Count == 0) partes.Add($"Sin archivos nuevos para '{fuente}'.");
+
+    return new ResultadoCarga(archivosConError.Count == 0, string.Join(" ", partes), totalFilas);
 }
 
 ResultadoCarga CargarPedidoCevePlanta() => CargarTransaccionalPorFecha("Pedido CeVe a Planta/Cedis", "PedidosCevePlanta", "Cargas/PedidoCevePlanta", 4, new (string, Func<string, object?>)[] {
@@ -601,12 +635,12 @@ ResultadoCarga CargarPedidoOracle() => CargarTransaccionalPorFecha("Pedido Oracl
 ResultadoCarga CargarExistenciaCeveManual() => CargarTransaccionalPorFecha("Existencia CeVe Manual", "ExistenciaCeveManual", "Cargas/ExistenciaCeveManual", 0, new (string, Func<string, object?>)[] {
     ("FechaVenta", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
     ("CodCeve", ParseTxt), ("Item", ParseTxt), ("Cantidad", ParseNum),
-});
+}, headerEsperado: new[] { "fecha_venta", "cod_ceve", "item", "cantidad" });
 
 ResultadoCarga CargarPedidoVsCargoReal() => CargarTransaccionalPorFecha("PedidoVSCargo Real", "PedidoVsCargoReal", "Cargas/PedidoVsCargoReal", 0, new (string, Func<string, object?>)[] {
     ("FechaVenta", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
     ("CodCeve", ParseTxt), ("Item", ParseTxt), ("CargoPzs", ParseNum), ("PedidoPzs", ParseNum),
-});
+}, headerEsperado: new[] { "fecha_venta", "cod_ceve", "item", "cargo_pzs", "pedido_pzs" });
 
 // Seguimiento Servicios: reporte ya sumarizado de CargoRutas, una fila por
 // SCCode+DispatchDate+Sistema (System='IVY' es RTM, 'IV' es Integral Vending).
@@ -614,7 +648,7 @@ ResultadoCarga CargarSeguimientoServicios() => CargarTransaccionalPorFecha("Segu
     ("SCCode", ParseTxt), ("DispatchDate", s => { var v = NormalizarFechaIso(s); return v.Length > 0 ? (object)v : ""; }),
     ("Sistema", ParseTxt), ("PedidoVendedorPzs", ParseNum), ("CargoPzs", ParseNum),
     ("RutasUnicas", ParseNum), ("ProductosUnicos", ParseNum), ("Filas", ParseNum), ("HoraEjecucionCdmx", ParseTxt),
-});
+}, headerEsperado: new[] { "SCCode", "DispatchDate", "System", "Pedido_Vendedor_pzs", "Cargo_pzs", "Rutas_Unicas", "Productos_Unicos", "Filas", "Hora_Ejecucion_CDMX" });
 
 // Participación - Tipo Movimiento no trae fecha (es una clasificación ABC/XYZ
 // vigente, no una serie histórica): se trata como catálogo, el CSV más

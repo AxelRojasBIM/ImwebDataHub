@@ -1038,12 +1038,13 @@ export default function App() {
     try {
       const r = await fetch('/api/datos/recargar', { method: 'POST' })
       const resultados = await r.json()
-      // Oculta el ruido de "sin archivos nuevos para X" — solo interesa lo
-      // que sí cambió (o falló).
-      const relevantes = resultados.filter(x => !x.ok || x.filas > 0)
-      setMensaje(relevantes.length > 0
-        ? relevantes.map(x => x.mensaje).join(' · ')
-        : 'Todo al día — sin archivos nuevos.')
+      // "Recargar datos" relee las ~17 fuentes de golpe, pero cada pantalla
+      // ya muestra su propio "último cargado" abajo (la línea "Archivo
+      // esperado en..."), así que un resumen de éxito aquí es ruido que no
+      // tiene nada que ver con lo que estás viendo. Solo interrumpe cuando
+      // algo realmente falló (p.ej. un archivo con el formato equivocado).
+      const errores = resultados.filter(x => !x.ok)
+      setMensaje(errores.length > 0 ? errores.map(x => x.mensaje).join(' · ') : null)
       await cargarEstado()
       setRefreshKey(k => k + 1)
     } catch (e) {
@@ -1123,7 +1124,11 @@ export default function App() {
                 {estadoFuente && <> — último cargado: {estadoFuente.archivo} ({estadoFuente.filas.toLocaleString('es-MX')} filas, {estadoFuente.cargadoEn?.slice(0, 16).replace('T', ' ')})</>}
               </div>
             )}
-            {mensaje && <p>{mensaje}</p>}
+            {mensaje && (
+              <p style={{ color: '#991b1b', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', fontSize: 13 }}>
+                {mensaje}
+              </p>
+            )}
           </div>
 
           {activo?.proceso ? (
