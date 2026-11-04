@@ -35,22 +35,23 @@ rm -rf "$PUBLISH/osx-arm64"
 chmod +x "$PUBLISH/osx-arm64/AppAlmacenesCeVes"
 
 echo "── Carpeta Datos/ con catálogos reales ───────────────────"
-# Se reconstruye desde cero cada vez (nada de arrastrar restos de
-# corridas anteriores). Misma estructura que Datos/ en desarrollo, con
-# los extractos de producción ya descargados. Los que
-# CargarTransaccionalPorFecha ya movió a _Procesados/ (Remisiones,
-# Inventario Resumen) se copian desde ahí hacia su carpeta original,
-# para que el build publicado los cargue solo al arrancar por primera
-# vez (RecargarTodo corre al inicio).
-rm -rf "$PUBLISH/Datos"
-find Datos -type d ! -path "*/_Procesados*" | while read -r d; do
-  mkdir -p "$PUBLISH/${d}"
-done
-
+# IMPORTANTE: nunca se borra "$PUBLISH/Datos" completa — ahí puede haber
+# archivos que el usuario ya depositó a mano en el build publicado
+# (cargas del día a día, procesos) entre una publicación y otra, y
+# borrar todo se los destruiría. Solo se limpia, carpeta por carpeta,
+# cada una de las que este script sí gestiona (los catálogos ya
+# descargados de producción) justo antes de reponer su archivo — así
+# tampoco se arrastran restos de corridas viejas (ver historial de este
+# script). Los que CargarTransaccionalPorFecha ya movió a _Procesados/
+# (Remisiones, Inventario Resumen) se copian desde ahí hacia su carpeta
+# original, para que el build publicado los cargue solo al arrancar por
+# primera vez (RecargarTodo corre al inicio).
+mkdir -p "$PUBLISH/Datos"
 find Datos -name "*.csv" | while read -r f; do
   rel="${f#Datos/}"
   rel="${rel#_Procesados/}"
   destino="$PUBLISH/Datos/$rel"
+  rm -rf "$(dirname "$destino")"
   mkdir -p "$(dirname "$destino")"
   cp "$f" "$destino"
   echo "  $rel"
