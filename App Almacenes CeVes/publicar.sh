@@ -29,12 +29,23 @@ rm -rf "$PUBLISH/osx-arm64"
   -o "$PUBLISH/osx-arm64"
 chmod +x "$PUBLISH/osx-arm64/AppAlmacenesCeVes"
 
-echo "── Carpeta Datos/ vacía ──────────────────────────────────"
-# Misma estructura que Datos/ en desarrollo, sin CSVs ni datos.db — solo
-# las carpetas, para que el usuario sepa exactamente dónde depositar cada
-# archivo desde el primer arranque.
-find Datos -type d | while read -r d; do
+echo "── Carpeta Datos/ con catálogos reales ───────────────────"
+# Misma estructura que Datos/ en desarrollo, con los extractos de
+# producción ya descargados. Los que CargarTransaccionalPorFecha ya
+# movió a _Procesados/ (Remisiones, Inventario Resumen) se copian desde
+# ahí hacia su carpeta original, para que el build publicado los cargue
+# solo al arrancar por primera vez (RecargarTodo corre al inicio).
+find Datos -type d ! -path "*/_Procesados*" | while read -r d; do
   mkdir -p "$PUBLISH/${d}"
+done
+
+find Datos -name "*.csv" | while read -r f; do
+  rel="${f#Datos/}"
+  rel="${rel#_Procesados/}"
+  destino="$PUBLISH/Datos/$rel"
+  mkdir -p "$(dirname "$destino")"
+  cp "$f" "$destino"
+  echo "  $rel"
 done
 
 echo "── Lanzadores de un clic ─────────────────────────────────"
