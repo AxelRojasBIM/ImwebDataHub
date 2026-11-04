@@ -13,6 +13,11 @@ command -v dotnet >/dev/null 2>&1 || DOTNET="$HOME/.dotnet/dotnet"
 RAIZ="$(pwd)"
 PUBLISH="$RAIZ/publish"
 
+# Por si quedó un datos.db de una corrida de prueba anterior (p.ej.
+# probando el lanzador a mano) — nunca debe ir dentro del paquete que se
+# entrega, porque ya no sería un primer arranque limpio.
+rm -f "$PUBLISH/datos.db"
+
 echo "── Frontend ──────────────────────────────────────────────"
 (cd src/frontend && npm install --no-fund --no-audit && npm run build)
 
@@ -30,11 +35,14 @@ rm -rf "$PUBLISH/osx-arm64"
 chmod +x "$PUBLISH/osx-arm64/AppAlmacenesCeVes"
 
 echo "── Carpeta Datos/ con catálogos reales ───────────────────"
-# Misma estructura que Datos/ en desarrollo, con los extractos de
-# producción ya descargados. Los que CargarTransaccionalPorFecha ya
-# movió a _Procesados/ (Remisiones, Inventario Resumen) se copian desde
-# ahí hacia su carpeta original, para que el build publicado los cargue
-# solo al arrancar por primera vez (RecargarTodo corre al inicio).
+# Se reconstruye desde cero cada vez (nada de arrastrar restos de
+# corridas anteriores). Misma estructura que Datos/ en desarrollo, con
+# los extractos de producción ya descargados. Los que
+# CargarTransaccionalPorFecha ya movió a _Procesados/ (Remisiones,
+# Inventario Resumen) se copian desde ahí hacia su carpeta original,
+# para que el build publicado los cargue solo al arrancar por primera
+# vez (RecargarTodo corre al inicio).
+rm -rf "$PUBLISH/Datos"
 find Datos -type d ! -path "*/_Procesados*" | while read -r d; do
   mkdir -p "$PUBLISH/${d}"
 done
@@ -71,9 +79,15 @@ Mac:     doble clic en "Iniciar en Mac.command"
 Se abre sola una ventana del navegador en http://localhost:5255 — no hace
 falta tener nada más instalado.
 
-Para cargar datos: deposita los CSV en la carpeta que te pida cada
-pantalla dentro de Datos/, y da clic en "Recargar datos" (arriba a la
-derecha). La primera vez Datos/ está vacía a propósito.
+Los catálogos (CeVes, Productos, Calendario, etc.) ya vienen cargados.
+Lo que falta son las cargas del día a día (Pedido CeVe a Planta/Cedis,
+PedidoVSCargo Real, etc.): deposita el CSV en la carpeta que te pida
+cada pantalla dentro de Datos/, y da clic en "Recargar datos" (arriba a
+la derecha).
+
+Esta carpeta es autosuficiente: cópiala completa a donde quieras (otra
+PC, USB, etc.) y sigue funcionando igual. No hace falta nada de fuera
+de ella.
 
 No borres ni muevas las carpetas "win-x64" / "osx-arm64" ni el archivo
 "datos.db" que aparece después del primer arranque — ahí vive toda la
@@ -81,6 +95,6 @@ información cargada.
 EOF
 
 echo
-echo "Listo. Carpeta para entregar: $PUBLISH"
-echo "  Windows -> doble clic en 'Iniciar en Windows.bat'"
-echo "  Mac     -> doble clic en 'Iniciar en Mac.command'"
+echo "Listo. Para entregar: copia o comprime la carpeta completa"
+echo "  $PUBLISH"
+echo "No hay nada más que compartir — es autosuficiente."
