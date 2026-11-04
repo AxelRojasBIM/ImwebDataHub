@@ -1089,7 +1089,7 @@ export default function App() {
                   {sec}
                 </div>
                 {items.map(c => (
-                  <div key={c.key} onClick={() => setTab(c.key)} style={{
+                  <div key={c.key} onClick={() => { setTab(c.key); setMensaje(null) }} style={{
                     padding: '10px 18px', cursor: 'pointer', fontSize: 13, fontWeight: tab === c.key ? 700 : 500,
                     background: tab === c.key ? '#eff6ff' : 'transparent', color: tab === c.key ? '#2563eb' : '#374151',
                     borderLeft: tab === c.key ? '3px solid #2563eb' : '3px solid transparent',
