@@ -881,7 +881,8 @@ function SeguimientoServiciosPage() {
     const r = await fetch('/api/seguimiento-servicios/fechas')
     const d = await r.json()
     setFechas(d)
-    setFecha(prev => (prev && d.includes(prev)) ? prev : (d[0] ?? ''))
+    if (d.length === 0) { setLoading(false); return }
+    setFecha(prev => (prev && d.includes(prev)) ? prev : d[0])
   }
   async function cargarResumen(f) {
     setLoading(true)
