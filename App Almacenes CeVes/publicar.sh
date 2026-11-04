@@ -65,7 +65,14 @@ EOF
 cat > "$PUBLISH/Iniciar en Mac.command" <<'EOF'
 #!/usr/bin/env bash
 cd "$(dirname "$0")/osx-arm64"
-./AppAlmacenesCeVes
+# nohup + disown: la app queda corriendo aunque cierres esta ventana de
+# Terminal. Sin esto, cerrar la ventana mata el servidor (y el navegador
+# se queda con una pestaña abierta que ya no puede hablar con nada).
+nohup ./AppAlmacenesCeVes > /tmp/app-almacenes-ceves.log 2>&1 &
+disown
+echo "App Almacenes CeVes se está iniciando — se abre sola en tu navegador en unos segundos."
+echo "Ya puedes cerrar esta ventana; la app sigue corriendo."
+sleep 3
 EOF
 chmod +x "$PUBLISH/Iniciar en Mac.command"
 

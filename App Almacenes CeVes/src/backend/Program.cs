@@ -22,6 +22,20 @@ var datosDir = Path.Combine(appRoot, "Datos");
 var dbPath = Path.Combine(appRoot, "datos.db");
 Directory.CreateDirectory(datosDir);
 
+// Red de seguridad: si algo tumba el proceso entero (no una excepción
+// normal de un endpoint, que ya cae en su propio try/catch, sino algo
+// a nivel de runtime), queda constancia en un archivo junto al .exe en
+// vez de perderse en cuanto se cierra la terminal/consola.
+AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+{
+    try
+    {
+        var msg = $"{DateTime.Now:o} — excepción no manejada (terminating={e.IsTerminating}):\n{e.ExceptionObject}\n\n";
+        File.AppendAllText(Path.Combine(appRoot, "crash.log"), msg);
+    }
+    catch { /* si ni esto se puede escribir, no hay nada más que hacer */ }
+};
+
 var connStr = $"Data Source={dbPath}";
 
 // ── Esquema SQLite ───────────────────────────────────────────────────────────
