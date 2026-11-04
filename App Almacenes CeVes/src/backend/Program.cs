@@ -2091,7 +2091,18 @@ builder.WebHost.UseUrls("http://127.0.0.1:5255");
 var app = builder.Build();
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// index.html nunca se cachea (siempre pide la versión actual al
+// servidor) — los archivos dentro de assets/ sí tienen nombre único
+// por build (hash en el nombre), así que esos sí pueden cachearse
+// fuerte sin riesgo de quedar viendo una versión vieja del frontend.
+app.UseStaticFiles(new Microsoft.AspNetCore.Builder.StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        if (ctx.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase))
+            ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+    },
+});
 
 app.MapGet("/api/ceves/actuales", () =>
 {
@@ -2588,12 +2599,15 @@ app.MapPost("/api/datos/abrir-carpeta", (string carpeta) =>
     Directory.CreateDirectory(destino);
     try
     {
+        // Rutas completas en vez de depender de PATH — un proceso lanzado
+        // con nohup/disown (como el lanzador de Mac) no siempre hereda el
+        // mismo PATH que una sesión interactiva normal.
         if (OperatingSystem.IsWindows())
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{destino}\"") { UseShellExecute = true });
         else if (OperatingSystem.IsMacOS())
-            Process.Start(new ProcessStartInfo("open", new[] { destino }) { UseShellExecute = false });
+            Process.Start(new ProcessStartInfo("/usr/bin/open", new[] { destino }) { UseShellExecute = false });
         else
-            Process.Start(new ProcessStartInfo("xdg-open", new[] { destino }) { UseShellExecute = false });
+            Process.Start(new ProcessStartInfo("/usr/bin/xdg-open", new[] { destino }) { UseShellExecute = false });
         return Results.Ok(new { ok = true, carpeta = destino });
     }
     catch (Exception ex) { return Results.Problem(ex.Message); }

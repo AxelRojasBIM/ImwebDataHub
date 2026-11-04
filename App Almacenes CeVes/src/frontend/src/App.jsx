@@ -1032,9 +1032,13 @@ export default function App() {
   async function handleAbrirCarpeta() {
     if (!carpetaEsRuta) return
     try {
-      await fetch(`/api/datos/abrir-carpeta?carpeta=${encodeURIComponent(activo.carpeta)}`, { method: 'POST' })
+      const r = await fetch(`/api/datos/abrir-carpeta?carpeta=${encodeURIComponent(activo.carpeta)}`, { method: 'POST' })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        setMensaje('No se pudo abrir la carpeta: ' + (d.error || d.detail || `HTTP ${r.status}`))
+      }
     } catch (e) {
-      setMensaje('No se pudo abrir la carpeta: ' + e.message)
+      setMensaje('No se pudo abrir la carpeta (sin conexión con el servidor): ' + e.message)
     }
   }
 
