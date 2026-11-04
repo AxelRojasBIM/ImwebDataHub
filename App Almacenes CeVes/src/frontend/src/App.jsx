@@ -874,8 +874,12 @@ function SeguimientoServiciosPage() {
   const [resumen, setResumen] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [organizacion, setOrganizacion] = useState('')
+  const [organizacion, setOrganizacion] = useState('Bimbo')
   const [region, setRegion] = useState('')
+  const [estadosFiltro, setEstadosFiltro] = useState([]) // subset de ['completo','incompleto','falta','na'] -- vacío = todos
+  function toggleEstado(key) {
+    setEstadosFiltro(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
 
   async function cargarFechas() {
     const r = await fetch('/api/seguimiento-servicios/fechas')
@@ -901,7 +905,8 @@ function SeguimientoServiciosPage() {
   const filtrados = ceves.filter(c =>
     (!q || (c.codCeve || '').toLowerCase().includes(q) || (c.nombre || '').toLowerCase().includes(q)) &&
     (!organizacion || c.organizacion === organizacion) &&
-    (!region || c.region === region)
+    (!region || c.region === region) &&
+    (estadosFiltro.length === 0 || estadosFiltro.includes(estadoCeve(c)))
   )
   const totalF = filtrados.length
   const enviadosF = filtrados.filter(c => c.enviado).length
@@ -941,6 +946,25 @@ function SeguimientoServiciosPage() {
               {regiones.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
+          <div>
+            <div style={{ fontSize: 12.5, marginBottom: 6 }}>Estado</div>
+            <div style={{ display: 'flex', gap: 5 }}>
+              {Object.entries(ESTADO_STYLES).map(([key, s]) => {
+                const active = estadosFiltro.includes(key)
+                return (
+                  <span key={key} onClick={() => toggleEstado(key)} title={s.label}
+                    style={{
+                      cursor: 'pointer', padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                      background: active ? s.bg : '#f9fafb',
+                      border: `1px solid ${active ? s.color : '#e5e7eb'}`,
+                      color: active ? s.color : '#9ca3af',
+                    }}>
+                    {s.label}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
         {resumen && totalF > 0 && (
@@ -1014,7 +1038,12 @@ export default function App() {
     try {
       const r = await fetch('/api/datos/recargar', { method: 'POST' })
       const resultados = await r.json()
-      setMensaje(resultados.map(x => x.mensaje).join(' · '))
+      // Oculta el ruido de "sin archivos nuevos para X" — solo interesa lo
+      // que sí cambió (o falló).
+      const relevantes = resultados.filter(x => !x.ok || x.filas > 0)
+      setMensaje(relevantes.length > 0
+        ? relevantes.map(x => x.mensaje).join(' · ')
+        : 'Todo al día — sin archivos nuevos.')
       await cargarEstado()
       setRefreshKey(k => k + 1)
     } catch (e) {
