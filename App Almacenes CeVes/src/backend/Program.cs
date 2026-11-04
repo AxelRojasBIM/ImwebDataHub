@@ -2560,6 +2560,31 @@ app.MapGet("/api/datos/estado", () =>
     return Results.Ok(new { datosDir, dbPath, fuentes = rows });
 });
 
+// Abre, en el explorador de archivos del sistema, la carpeta de Datos/
+// donde va cada CSV — para que el usuario no tenga que ir navegando a
+// mano. Solo abre carpetas dentro de Datos/ (nunca fuera), y las crea
+// si todavía no existen (p.ej. la primera vez que se visita esa pantalla).
+app.MapPost("/api/datos/abrir-carpeta", (string carpeta) =>
+{
+    var destino = Path.GetFullPath(Path.Combine(datosDir, carpeta ?? ""));
+    var raizNormalizada = Path.GetFullPath(datosDir) + Path.DirectorySeparatorChar;
+    if (!destino.StartsWith(raizNormalizada, StringComparison.Ordinal) && destino != Path.GetFullPath(datosDir))
+        return Results.BadRequest(new { error = "Ruta inválida." });
+
+    Directory.CreateDirectory(destino);
+    try
+    {
+        if (OperatingSystem.IsWindows())
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{destino}\"") { UseShellExecute = true });
+        else if (OperatingSystem.IsMacOS())
+            Process.Start(new ProcessStartInfo("open", new[] { destino }) { UseShellExecute = false });
+        else
+            Process.Start(new ProcessStartInfo("xdg-open", new[] { destino }) { UseShellExecute = false });
+        return Results.Ok(new { ok = true, carpeta = destino });
+    }
+    catch (Exception ex) { return Results.Problem(ex.Message); }
+});
+
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 
 var url = "http://127.0.0.1:5255";

@@ -1026,6 +1026,17 @@ export default function App() {
 
   const activo = CATALOGOS.find(c => c.key === tab)
   const estadoFuente = estado?.fuentes?.find(f => f.fuente === activo?.fuente)
+  // Algunas carpetas son solo texto descriptivo ("(usa Existencia Teórica...)",
+  // listas con comas) y no una ruta real — el botón solo aparece cuando sí lo es.
+  const carpetaEsRuta = !!activo?.carpeta && /^[\w./-]+$/.test(activo.carpeta)
+  async function handleAbrirCarpeta() {
+    if (!carpetaEsRuta) return
+    try {
+      await fetch(`/api/datos/abrir-carpeta?carpeta=${encodeURIComponent(activo.carpeta)}`, { method: 'POST' })
+    } catch (e) {
+      setMensaje('No se pudo abrir la carpeta: ' + e.message)
+    }
+  }
 
   return (
     <>
@@ -1062,9 +1073,16 @@ export default function App() {
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: activo?.proceso ? 0 : 10 }}>
               <strong>{activo?.proceso ? 'Datos de entrada' : `Estado de carga — ${activo?.label}`}</strong>
-              <button onClick={handleRecargar} disabled={recargando}>
-                {recargando ? 'Recargando…' : 'Recargar datos'}
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {carpetaEsRuta && (
+                  <button onClick={handleAbrirCarpeta} style={{ background: '#fff', color: '#2563eb', border: '1px solid #2563eb' }}>
+                    Abrir carpeta
+                  </button>
+                )}
+                <button onClick={handleRecargar} disabled={recargando}>
+                  {recargando ? 'Recargando…' : 'Recargar datos'}
+                </button>
+              </div>
             </div>
             {!activo?.proceso && (
               <div className="mono">
