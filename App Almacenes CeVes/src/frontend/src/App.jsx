@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import html2canvas from 'html2canvas'
 
 const CEVES_COLS = [
   ['codCeve', 'Cod. CeVe'], ['nombre', 'Nombre'], ['region', 'Región'], ['organizacion', 'Organización'],
@@ -969,6 +970,34 @@ function SeguimientoServiciosPage() {
   function toggleEstado(key) {
     setEstadosFiltro(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   }
+  const capturaRef = useRef(null)
+  const [copiando, setCopiando] = useState(false)
+  const [mensajeImg, setMensajeImg] = useState(null)
+
+  async function handleCopiarImagen() {
+    const el = capturaRef.current
+    if (!el) return
+    setCopiando(true); setMensajeImg(null)
+    // El table-wrap recorta con scroll (max-height: 60vh) para que la pantalla
+    // no se alargue de más — para la foto se quiere la tabla completa, así que
+    // se le quita el límite solo mientras se captura y se restaura después.
+    const wrap = el.querySelector('.table-wrap')
+    const prevMaxHeight = wrap?.style.maxHeight
+    const prevOverflow = wrap?.style.overflow
+    if (wrap) { wrap.style.maxHeight = 'none'; wrap.style.overflow = 'visible' }
+    try {
+      const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 })
+      const blob = await new Promise((resolve, reject) =>
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('No se pudo generar la imagen.')), 'image/png'))
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      setMensajeImg('✓ Imagen copiada al portapapeles — pégala con Ctrl/Cmd+V donde la necesites.')
+    } catch (e) {
+      setMensajeImg('No se pudo copiar la imagen: ' + e.message)
+    } finally {
+      if (wrap) { wrap.style.maxHeight = prevMaxHeight ?? ''; wrap.style.overflow = prevOverflow ?? '' }
+      setCopiando(false)
+    }
+  }
 
   async function cargarFechas() {
     const r = await fetch('/api/seguimiento-servicios/fechas')
@@ -1057,43 +1086,65 @@ function SeguimientoServiciosPage() {
         </div>
 
         {resumen && totalF > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12.5, marginBottom: 4 }}>{enviadosF} de {totalF} CeVes enviaron ({pct}%)</div>
-            <div style={{ height: 8, borderRadius: 99, background: '#f3f4f6', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#16a34a' : '#2563eb', borderRadius: 99 }} />
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+            <button className="btn-outline-blue" onClick={handleCopiarImagen} disabled={copiando}>
+              {copiando ? 'Generando imagen…' : '📷 Copiar imagen'}
+            </button>
           </div>
+        )}
+        {mensajeImg && (
+          <p style={{
+            fontSize: 12.5, margin: '0 0 10px', padding: '6px 10px', borderRadius: 6,
+            background: mensajeImg.startsWith('✓') ? '#f0fdf4' : '#fef2f2',
+            color: mensajeImg.startsWith('✓') ? '#166534' : '#991b1b',
+          }}>
+            {mensajeImg}
+          </p>
         )}
 
-        {loading ? <p>Cargando…</p> : !fecha ? <p>Sin cargas — deposita un CSV en Datos/Cargas/SeguimientoServicios y recarga datos.</p> : filtrados.length === 0 ? <p>Sin resultados para ese filtro.</p> : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>CeVe</th><th>Nombre</th><th>Región</th><th>Estado</th>
-                  <th>Filas cargadas</th><th>RTM</th><th>Integral Vending</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtrados.map(c => {
-                  const estado = estadoCeve(c)
-                  const rowBg = estado === 'falta' ? '#fef2f2' : estado === 'incompleto' ? '#fffbeb' : undefined
-                  return (
-                    <tr key={c.codCeve} style={{ background: rowBg }}>
-                      <td style={{ fontWeight: 600 }}>{c.codCeve}</td>
-                      <td>{c.nombre || '—'}</td>
-                      <td>{c.region || '—'}</td>
-                      <td><EstadoBadge estado={estado} /></td>
-                      <td>{c.enviado ? Number(c.filas).toLocaleString('es-MX') : '—'}</td>
-                      <td><SistemaBadge activo={c.rtmActivo} enviado={c.rtmEnviado} filas={c.rtmFilas} /></td>
-                      <td><SistemaBadge activo={c.ivActivo} enviado={c.ivEnviado} filas={c.ivFilas} /></td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <div ref={capturaRef} style={{ background: '#fff' }}>
+          {resumen && totalF > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12.5, marginBottom: 4 }}>
+                {fecha} — {enviadosF} de {totalF} CeVes enviaron ({pct}%)
+                {organizacion && ` · Organización: ${organizacion}`}{region && ` · Región: ${region}`}
+              </div>
+              <div style={{ height: 8, borderRadius: 99, background: '#f3f4f6', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#16a34a' : '#2563eb', borderRadius: 99 }} />
+              </div>
+            </div>
+          )}
+
+          {loading ? <p>Cargando…</p> : !fecha ? <p>Sin cargas — deposita un CSV en Datos/Cargas/SeguimientoServicios y recarga datos.</p> : filtrados.length === 0 ? <p>Sin resultados para ese filtro.</p> : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>CeVe</th><th>Nombre</th><th>Región</th><th>Estado</th>
+                    <th>Filas cargadas</th><th>RTM</th><th>Integral Vending</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtrados.map(c => {
+                    const estado = estadoCeve(c)
+                    const rowBg = estado === 'falta' ? '#fef2f2' : estado === 'incompleto' ? '#fffbeb' : undefined
+                    return (
+                      <tr key={c.codCeve} style={{ background: rowBg }}>
+                        <td style={{ fontWeight: 600 }}>{c.codCeve}</td>
+                        <td>{c.nombre || '—'}</td>
+                        <td>{c.region || '—'}</td>
+                        <td><EstadoBadge estado={estado} /></td>
+                        <td>{c.enviado ? Number(c.filas).toLocaleString('es-MX') : '—'}</td>
+                        <td><SistemaBadge activo={c.rtmActivo} enviado={c.rtmEnviado} filas={c.rtmFilas} /></td>
+                        <td><SistemaBadge activo={c.ivActivo} enviado={c.ivEnviado} filas={c.ivFilas} /></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </>
   )
