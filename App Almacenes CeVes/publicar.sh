@@ -13,10 +13,14 @@ command -v dotnet >/dev/null 2>&1 || DOTNET="$HOME/.dotnet/dotnet"
 RAIZ="$(pwd)"
 PUBLISH="$RAIZ/publish"
 
-# Por si quedó un datos.db de una corrida de prueba anterior (p.ej.
-# probando el lanzador a mano) — nunca debe ir dentro del paquete que se
-# entrega, porque ya no sería un primer arranque limpio.
-rm -f "$PUBLISH/datos.db"
+# IMPORTANTE: nunca se borra datos.db — ahí vive la información real que
+# ya hayas cargado en publish/ (catálogos recargados + lo que hayas
+# subido a mano en Cargas/Procesos). Borrarlo "por si acaso" fue un
+# error real que le costó al usuario sus datos de Seguimiento
+# Servicios la primera vez que se corrió este script después de que
+# empezó a usar publish/ como su copia de trabajo real, no solo de
+# prueba. Si alguna vez hace falta un datos.db limpio para probar
+# un primer arranque, bórralo a mano.
 
 echo "── Frontend ──────────────────────────────────────────────"
 (cd src/frontend && npm install --no-fund --no-audit && npm run build)
